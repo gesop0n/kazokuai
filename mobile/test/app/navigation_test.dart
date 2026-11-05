@@ -28,6 +28,17 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> tapAskField(WidgetTester tester) => tapText(tester, '伝えたいことを入力');
+
+// カードの一番下にあるので、スクロールしてから押す
+Future<void> tapCallLogButton(WidgetTester tester) async {
+  final button = find.text('通話記録を見る');
+  await tester.ensureVisible(button);
+  await tester.pumpAndSettle();
+  await tester.tap(button);
+  await tester.pumpAndSettle();
+}
+
 Future<void> tapBack(WidgetTester tester) async {
   await tester.tap(
     find.descendant(of: find.byType(AppNavBar), matching: find.byType(InkWell)),
@@ -77,7 +88,7 @@ void main() {
   testWidgets('01 を開くとタブバーが消え、戻るとタブバーが戻る', (tester) async {
     await pumpApp(tester);
 
-    await tapText(tester, 'AIに伝えてもらう');
+    await tapAskField(tester);
     expect(find.byType(AskScreen), findsOneWidget);
     expect(find.byType(AppTabBar), findsNothing);
 
@@ -139,7 +150,7 @@ void main() {
   testWidgets('全画面の戻るボタンは「もどる」と読み上げる', (tester) async {
     await pumpApp(tester);
 
-    await tapText(tester, 'AIに伝えてもらう');
+    await tapAskField(tester);
     expect(find.bySemanticsLabel('もどる'), findsOneWidget);
     await tapBack(tester);
 
@@ -155,7 +166,7 @@ void main() {
   testWidgets('「通話記録を見る」で通話記録タブに切り替わる', (tester) async {
     await pumpApp(tester);
 
-    await tapText(tester, '通話記録を見る');
+    await tapCallLogButton(tester);
 
     expect(find.byType(CallsScreen), findsOneWidget);
     expect(find.byType(AppTabBar), findsOneWidget);
@@ -165,7 +176,7 @@ void main() {
   testWidgets('通知のベルで「準備中です」と表示する', (tester) async {
     await pumpApp(tester);
 
-    await tester.tap(find.byTooltip('通知'));
+    await tester.tap(find.bySemanticsLabel('通知'));
     await tester.pumpAndSettle();
     expect(find.text('準備中です'), findsOneWidget);
 
@@ -196,7 +207,7 @@ void main() {
       final pixels = callsScrollPosition(tester).pixels;
 
       await tapTab(tester, 'ホーム');
-      await tapText(tester, '通話記録を見る');
+      await tapCallLogButton(tester);
 
       expect(callsScrollPosition(tester).pixels, pixels);
     });
