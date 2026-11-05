@@ -7,9 +7,12 @@ import 'package:kazokuai/design/widgets/app_field.dart';
 import 'package:kazokuai/features/home/home_card_heading.dart';
 
 class AskCard extends StatelessWidget {
-  const AskCard({super.key, required this.onOpenAsk});
+  const AskCard({super.key, required this.onOpenAsk, this.isCalling = false});
 
   final VoidCallback onOpenAsk;
+
+  // 通話中の見た目は次の PR で作る
+  final bool isCalling;
 
   @override
   Widget build(BuildContext context) {

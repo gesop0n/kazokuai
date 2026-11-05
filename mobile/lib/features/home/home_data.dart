@@ -77,16 +77,38 @@ class WeekCallRecords {
       days.fold(0, (total, day) => total + (day.talkedMinutes ?? 0));
 }
 
+class LastTalk {
+  const LastTalk({
+    required this.startedAt,
+    required this.duration,
+    required this.quote,
+  });
+
+  final DateTime startedAt;
+  final Duration duration;
+  final String quote;
+}
+
+class MissedCall {
+  const MissedCall({required this.attemptedAt, required this.lastTalk});
+
+  // 古い順
+  final List<DateTime> attemptedAt;
+  final LastTalk lastTalk;
+}
+
 class HomeData {
   const HomeData({
     required this.now,
     required this.person,
     required this.latestCall,
     required this.week,
+    required this.missedCall,
   });
 
   final DateTime now;
   final WatchedPerson person;
   final Call latestCall;
   final WeekCallRecords week;
+  final MissedCall missedCall;
 }
