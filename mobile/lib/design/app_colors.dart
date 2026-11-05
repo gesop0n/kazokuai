@@ -17,7 +17,9 @@ abstract final class AppColors {
   static const stateCareOn = Color(0xFF6F4700);
   static const stateOkSoft = Color(0xFFE2E8CF);
   static const stateOkOn = Color(0xFF34571D);
+  static const onStateOk = Color(0xFFFFFFFF);
   static const stateAlert = Color(0xFF8E2A12);
+  static const onStateAlert = Color(0xFFFFFFFF);
   static const stateAlertSoft = Color(0xFFF8E1D8);
   static const stateAlertOn = Color(0xFF96290F);
   static const stateAlertOnStrong = Color(0xFF7A230E);

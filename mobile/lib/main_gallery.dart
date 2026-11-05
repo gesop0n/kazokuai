@@ -9,10 +9,12 @@ import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_avatar.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
+import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_field.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_circle.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
+import 'package:kazokuai/design/widgets/app_text_field.dart';
 
 // flutter run -t lib/main_gallery.dart で開く部品一覧画面。main.dart からは読み込まない。
 void main() {
@@ -39,7 +41,7 @@ class GalleryApp extends StatelessWidget {
   }
 }
 
-// 部品がホームでどう並ぶかをモックと見比べられるように、文言と組み合わせをホームに揃える。
+// 部品がどう並ぶかをモックと見比べられるように、文言と組み合わせを使う画面に揃える。
 class GalleryScreen extends StatelessWidget {
   const GalleryScreen({super.key});
 
@@ -74,6 +76,119 @@ class GalleryScreen extends StatelessWidget {
               const _SectionLabel('入力欄の既定の高さ 56、AIのラベルの既定の色'),
               AppField(text: '話題を入力(例: 大相撲)', onTap: _noop),
               const AppAiTag(label: 'Geminiの言い方の案'),
+              const _SectionLabel('チップ 高さ 36(callChips)'),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final (index, label) in const [
+                    '全部',
+                    '体調',
+                    '話し相手',
+                    '操作案内',
+                    '不在',
+                  ].indexed)
+                    AppChip(label: label, selected: index == 0, onTap: _noop),
+                ],
+              ),
+              const _SectionLabel('チップ 高さ 36、アイコンあり(topic)'),
+              const Wrap(
+                spacing: 8,
+                children: [
+                  AppChip(
+                    label: 'お孫さん',
+                    selected: true,
+                    icon: AppIcons.check,
+                    onTap: _noop,
+                  ),
+                  AppChip(
+                    label: '大相撲',
+                    selected: false,
+                    icon: AppIcons.plus,
+                    onTap: _noop,
+                  ),
+                ],
+              ),
+              const _SectionLabel('チップ 高さ 32(voiceSetting)'),
+              const Wrap(
+                spacing: 6,
+                children: [
+                  AppChip(
+                    label: 'ふつう',
+                    selected: false,
+                    size: AppChipSize.s,
+                    onTap: _noop,
+                  ),
+                  AppChip(
+                    label: 'ゆっくり',
+                    selected: false,
+                    size: AppChipSize.s,
+                    onTap: _noop,
+                  ),
+                  AppChip(
+                    label: 'カスタマイズ',
+                    selected: true,
+                    size: AppChipSize.s,
+                    onTap: _noop,
+                  ),
+                ],
+              ),
+              const _SectionLabel('ボタン primary(07)'),
+              AppButton(
+                label: 'このルールで保存',
+                variant: AppButtonVariant.primary,
+                size: AppButtonSize.l,
+                onTap: _noop,
+              ),
+              const _SectionLabel('ボタン ghost(L4)'),
+              AppButton(
+                label: 'うまくいかないときの連絡先',
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.m,
+                onTap: _noop,
+              ),
+              const _SectionLabel('ボタン ghost、小さいもの(01、05)'),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AppButton(
+                  label: 'なおす',
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.s,
+                  leadingIcon: AppIcons.pencil,
+                  onTap: _noop,
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: AppButton(
+                  label: 'まとめの間違いを直す',
+                  variant: AppButtonVariant.ghost,
+                  size: AppButtonSize.sFlush,
+                  leadingIcon: AppIcons.pencil,
+                  onTap: _noop,
+                ),
+              ),
+              const _SectionLabel('押せないボタン(disabledBtn)'),
+              const AppButton(
+                label: '現在通話中です',
+                variant: AppButtonVariant.record,
+                size: AppButtonSize.l,
+                onTap: null,
+              ),
+              const _SectionLabel('濃い赤のカード、白いボタン(07b)'),
+              const _MissedCard(),
+              const _SectionLabel('テキスト入力 高さ 56(L7)'),
+              const AppTextField(hintText: '話題を入力(例: 大相撲)'),
+              const _SectionLabel('テキスト入力 複数行、高さ 60(01)'),
+              const _FilledTextField(
+                text: '金曜の通院、10時に迎えに行くと伝えて',
+                minHeight: 60,
+              ),
+              const _SectionLabel('テキスト入力 複数行、高さ 72、文字 labelM(06)'),
+              const _FilledTextField(
+                text: '今日は通院の日です。10時に迎えに行くと伝えて',
+                minHeight: 72,
+                textStyle: AppTextStyles.labelM,
+              ),
             ],
           ),
         ),
@@ -205,6 +320,89 @@ class _AskCard extends StatelessWidget {
         AppButton(
           label: '通話',
           variant: AppButtonVariant.record,
+          size: AppButtonSize.l,
+          leadingIcon: AppIcons.phone,
+          onTap: GalleryScreen._noop,
+        ),
+      ],
+    );
+  }
+}
+
+class _FilledTextField extends StatefulWidget {
+  const _FilledTextField({
+    required this.text,
+    required this.minHeight,
+    this.textStyle,
+  });
+
+  final String text;
+  final double minHeight;
+  final TextStyle? textStyle;
+
+  @override
+  State<_FilledTextField> createState() => _FilledTextFieldState();
+}
+
+class _FilledTextFieldState extends State<_FilledTextField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.text,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppTextField(
+      controller: _controller,
+      minHeight: widget.minHeight,
+      maxLines: null,
+      textStyle: widget.textStyle,
+    );
+  }
+}
+
+class _MissedCard extends StatelessWidget {
+  const _MissedCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      variant: AppCardVariant.alert,
+      children: [
+        Row(
+          spacing: 6,
+          children: [
+            const AppIcon(
+              AppIcons.phoneMissed,
+              size: 16,
+              color: AppColors.onStateAlert,
+            ),
+            Expanded(
+              child: Text(
+                '確認をお願いします',
+                style: AppTextStyles.labelM.copyWith(
+                  color: AppColors.onStateAlert,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
+        const SizedBox(height: 4),
+        const Text(
+          '9:00、9:15、9:30にかけましたが、応答がありません。外出中の可能性もあります。',
+          style: AppTextStyles.bodyM,
+        ),
+        const SizedBox(height: 16),
+        AppButton(
+          label: 'もう一度電話する',
+          variant: AppButtonVariant.white,
           size: AppButtonSize.l,
           leadingIcon: AppIcons.phone,
           onTap: GalleryScreen._noop,

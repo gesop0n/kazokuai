@@ -24,8 +24,8 @@ class TodayCard extends StatelessWidget {
           title: '今日の様子',
           label: '${formatTime(call.startedAt)}の会話より',
         ),
-        for (final (index, condition) in call.summary.conditions.indexed)
-          _ConditionRow(condition, hasLineAbove: index > 0),
+        for (final condition in call.summary.conditions)
+          _ConditionRow(condition),
         Text(
           'ご本人の話をAIがまとめたものです。医療上の判断ではありません。',
           style: AppTextStyles.bodyS.copyWith(color: AppColors.inkSecondary),
@@ -36,10 +36,9 @@ class TodayCard extends StatelessWidget {
 }
 
 class _ConditionRow extends StatelessWidget {
-  const _ConditionRow(this.condition, {required this.hasLineAbove});
+  const _ConditionRow(this.condition);
 
   final Condition condition;
-  final bool hasLineAbove;
 
   @override
   Widget build(BuildContext context) {
@@ -49,12 +48,10 @@ class _ConditionRow extends StatelessWidget {
       ConditionKind.health => (AppIcons.heart, '体調'),
     };
     return Container(
-      padding: EdgeInsets.only(top: hasLineAbove ? 12 : 0),
-      decoration: hasLineAbove
-          ? const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.line)),
-            )
-          : null,
+      padding: const EdgeInsets.only(top: 12),
+      decoration: const BoxDecoration(
+        border: Border(top: BorderSide(color: AppColors.line)),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: 12,
