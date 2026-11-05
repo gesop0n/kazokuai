@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
+import 'package:kazokuai/design/widgets/app_pressable.dart';
 
 class AppTabBar extends StatelessWidget {
   const AppTabBar({
@@ -73,24 +74,22 @@ class _TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? AppColors.inkPrimary : AppColors.inkSecondary;
 
-    return Semantics(
-      container: true,
-      button: true,
-      selected: selected,
-      // InkWell の色は親の Material に描かれるので、背景もここに持たせる
-      child: Material(
-        color: selected ? AppColors.paperSunken : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          highlightColor: const Color(0x142A2420),
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: 88,
-              maxWidth: 88,
-              minHeight: 56,
+    // AppPressable の読み上げは独立したノードなので、selected とまとめて 1 つにする
+    return MergeSemantics(
+      child: Semantics(
+        selected: selected,
+        child: SizedBox(
+          width: 88,
+          child: AppPressable(
+            onTap: onTap,
+            foregroundColor: color,
+            backgroundColor: selected
+                ? AppColors.paperSunken
+                : Colors.transparent,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
+            minHeight: 56,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
