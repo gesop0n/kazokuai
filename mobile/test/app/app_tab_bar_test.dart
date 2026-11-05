@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 
+import '../support/layout_matrix.dart';
+
 const _labels = ['ホーム', '通話記録', '予約電話'];
+
+Widget _screen({int currentIndex = 0, ValueChanged<int>? onSelected}) {
+  return Scaffold(
+    bottomNavigationBar: AppTabBar(
+      currentIndex: currentIndex,
+      onSelected: onSelected ?? (_) {},
+    ),
+  );
+}
 
 Widget _tabBar({int currentIndex = 0, ValueChanged<int>? onSelected}) {
   return MaterialApp(
-    home: Scaffold(
-      bottomNavigationBar: AppTabBar(
-        currentIndex: currentIndex,
-        onSelected: onSelected ?? (_) {},
-      ),
-    ),
+    home: _screen(currentIndex: currentIndex, onSelected: onSelected),
   );
 }
 
@@ -22,35 +27,15 @@ Finder _button(String label) =>
     find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first;
 
 void main() {
-  for (final width in [360.0, 393.0, 440.0]) {
-    for (final scale in [1.0, 1.3]) {
-      testWidgets('幅 $width、文字倍率 $scale でタブバーが overflow しない', (tester) async {
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = Size(width, 852);
-        addTearDown(tester.view.reset);
-        tester.platformDispatcher.textScaleFactorTestValue = scale;
-        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+  testEachLayout('タブバーが overflow しない', (tester, layout) async {
+    // 選択中の太字がいちばん広いので、すべてのタブを選んで確かめる
+    for (final (index, label) in _labels.indexed) {
+      await pumpScreenInLayout(tester, layout, _screen(currentIndex: index));
 
-        await tester.pumpWidget(const KazokuAiApp());
-        await tester.pumpAndSettle();
-
-        // 選択中の太字がいちばん広いので、すべてのタブを選んで確かめる
-        for (final label in _labels) {
-          await tester.tap(
-            find.descendant(
-              of: find.byType(AppTabBar),
-              matching: find.text(label),
-            ),
-          );
-          await tester.pumpAndSettle();
-
-          expect(tester.takeException(), isNull);
-          expect(tester.getSize(_button(label)), const Size(88, 56));
-          expect(tester.getSize(find.byType(AppTabBar)).width, width);
-        }
-      });
+      expect(tester.getSize(_button(label)), const Size(88, 56));
+      expect(tester.getSize(find.byType(AppTabBar)).width, layout.width);
     }
-  }
+  });
 
   testWidgets('文字が大きくなると、高さは 56 を超えて伸びる', (tester) async {
     await tester.pumpWidget(
@@ -65,8 +50,6 @@ void main() {
   });
 
   testWidgets('選択中のタブを Semantics に反映する', (tester) async {
-    final semantics = tester.ensureSemantics();
-
     await tester.pumpWidget(_tabBar(currentIndex: 1));
 
     expect(
@@ -76,6 +59,7 @@ void main() {
         isButton: true,
         hasSelectedState: true,
         isSelected: true,
+        hasTapAction: true,
       ),
     );
     expect(
@@ -85,10 +69,9 @@ void main() {
         isButton: true,
         hasSelectedState: true,
         isSelected: false,
+        hasTapAction: true,
       ),
     );
-
-    semantics.dispose();
   });
 
   testWidgets('選択中のタブは paperSunken の背景と太字になる', (tester) async {

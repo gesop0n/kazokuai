@@ -137,7 +137,6 @@ void main() {
   });
 
   testWidgets('全画面の戻るボタンは「もどる」と読み上げる', (tester) async {
-    final semantics = tester.ensureSemantics();
     await pumpApp(tester);
 
     await tapText(tester, 'AIに伝えてもらう');
@@ -151,8 +150,6 @@ void main() {
     await tapTab(tester, '予約電話');
     await tapText(tester, 'かけなおしのルール');
     expect(find.bySemanticsLabel('もどる'), findsOneWidget);
-
-    semantics.dispose();
   });
 
   testWidgets('「通話記録を見る」で通話記録タブに切り替わる', (tester) async {
