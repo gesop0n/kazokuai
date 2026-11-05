@@ -155,7 +155,7 @@ void main() {
       expect(find.text('気になる話'), findsNothing);
     });
 
-    testWidgets('2行目以降の上にだけ線を引く', (tester) async {
+    testWidgets('1行目も含めて、どの行の上にも線を引く', (tester) async {
       await pumpInLayout(
         tester,
         layoutCases.first,
@@ -172,15 +172,22 @@ void main() {
       });
       expect(
         lines,
-        findsNWidgets(sampleHomeData.latestCall.summary.conditions.length - 1),
+        findsNWidgets(sampleHomeData.latestCall.summary.conditions.length),
       );
 
       final firstLine = tester.getTopLeft(lines.first).dy;
       expect(
         firstLine,
+        greaterThan(tester.getBottomLeft(find.text('今日の様子')).dy),
+      );
+      expect(firstLine, lessThan(tester.getTopLeft(find.text('食事')).dy));
+
+      final secondLine = tester.getTopLeft(lines.at(1)).dy;
+      expect(
+        secondLine,
         greaterThan(tester.getBottomLeft(find.text('「朝ごはんも食べたしね」')).dy),
       );
-      expect(firstLine, lessThan(tester.getTopLeft(find.text('睡眠')).dy));
+      expect(secondLine, lessThan(tester.getTopLeft(find.text('睡眠')).dy));
     });
   });
 

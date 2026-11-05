@@ -14,17 +14,18 @@ class HomeCardHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
         Text(title, style: AppTextStyles.titleM),
-        // Wrap は baseline で揃えられないので、余白でモックの位置に近づける
-        Padding(
-          padding: const EdgeInsets.only(bottom: 2),
-          child: Text(
-            label,
-            style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
+        Text(
+          label,
+          // Wrap には baseline 揃えがないので、行の高さを見出しと同じにして揃える
+          strutStyle: StrutStyle.fromTextStyle(
+            AppTextStyles.titleM,
+            forceStrutHeight: true,
           ),
+          style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
         ),
       ],
     );
