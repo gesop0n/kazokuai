@@ -30,4 +30,6 @@ abstract final class AppColors {
 
   static const speakerAi = Color(0xFF2F5D8C);
   static const speakerParent = Color(0xFFA23B5C);
+
+  static const onAvatar = Color(0xFFFFFFFF);
 }
