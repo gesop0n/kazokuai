@@ -4,16 +4,28 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/features/home/home_screen.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('アプリが起動してロケールが ja になる', (tester) async {
     await tester.pumpWidget(const KazokuAiApp());
-    await tester.pump();
+    await tester.pumpAndSettle();
 
-    final context = tester.element(find.byType(Scaffold));
+    final context = tester.element(find.byType(HomeScreen));
     expect(Localizations.localeOf(context), const Locale('ja'));
+  });
+
+  testWidgets('文字倍率は 1.3 までしか追従しない', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(const KazokuAiApp());
+    await tester.pumpAndSettle();
+
+    final context = tester.element(find.byType(HomeScreen));
+    expect(MediaQuery.textScalerOf(context).scale(10), 13);
   });
 
   test('AppIcons は22個ある', () {
