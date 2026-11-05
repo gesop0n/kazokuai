@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1440">
+<title>かぞくAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@600&family=Shippori+Mincho:wght@500;600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+<style>
+:root{
+  --paper-base:#F6F0E4;--paper-raised:#FFFBF3;--paper-sunken:#EBE3D2;
+  --ink:#2A2420;--ink-2:#665A4D;--line:#DDD2BE;--line-strong:#8F806A;
+  --record:#C9401F;--on-record:#FFFFFF;--ok:#4B7A2C;--care:#9A6300;--care-soft:#F6E7C4;--alert-soft:#F8E1D8;
+  --night:#1A1613;--night-raised:#28221D;--night-line:#3D352D;--night-text:#F6F0E4;--night-text-2:#B8AC9A;
+  --zen:"Zen Maru Gothic",sans-serif;--min:"Shippori Mincho",serif;--mono:"DM Mono",monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#E4DCCB}
+body{width:1440px;font-family:var(--zen);color:var(--ink);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block;flex:none}
+
+.display{font:900 32px/42px var(--zen);letter-spacing:.02em}
+.title-l{font:700 24px/32px var(--zen);letter-spacing:.02em}
+.title-m{font:700 18px/26px var(--zen);letter-spacing:.02em}
+.label-l{font:700 16px/24px var(--zen);letter-spacing:.02em}
+.label-m{font:500 14px/20px var(--zen);letter-spacing:.02em}
+.label-s{font:500 12px/16px var(--zen);letter-spacing:.02em}
+.body-m{font:400 15px/24px var(--zen);letter-spacing:.02em}
+.body-s{font:400 13px/20px var(--zen);letter-spacing:.02em}
+.cap-l{font:600 26px/40px var(--min);letter-spacing:.04em}
+.cap-m{font:500 17px/28px var(--min);letter-spacing:.04em}
+.cap-s{font:500 14px/22px var(--min);letter-spacing:.03em}
+.mono-l{font:400 52px/56px var(--mono);letter-spacing:-.02em}
+.mono-m{font:500 14px/18px var(--mono)}
+.mono-s{font:400 12px/16px var(--mono)}
+.muted{color:var(--ink-2)}
+.nmuted{color:var(--night-text-2)}
+
+/* Board */
+.board{width:1440px;padding:72px 64px 96px;display:flex;flex-direction:column;gap:96px}
+.intro{display:flex;justify-content:space-between;gap:64px;align-items:flex-start}
+.intro-main{width:560px;display:flex;flex-direction:column;gap:12px}
+.principles{display:flex;gap:32px;flex:1}
+.principle{flex:1;display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--ink);padding-top:12px}
+.flow{display:flex;flex-direction:column;gap:32px}
+.flow-head{display:flex;align-items:baseline;gap:16px}
+.row{display:flex;gap:64px;align-items:flex-start}
+.cell{width:393px;display:flex;flex-direction:column;gap:16px}
+.cell-title{display:flex;gap:10px;align-items:baseline}
+.note{color:var(--ink-2)}
+.why{display:flex;flex-direction:column;gap:10px}
+.why dl{display:grid;grid-template-columns:64px 1fr;gap:6px 8px;border-top:1px solid var(--line-strong);padding-top:10px}
+.why dt{font:700 12px/20px var(--zen);letter-spacing:.02em}
+.why dd{font:400 13px/20px var(--zen);letter-spacing:.02em;color:var(--ink-2)}
+
+/* Alignment with the contest */
+.brief{display:flex;flex-direction:column;gap:32px}
+.brief-grid{display:grid;grid-template-columns:393px 1fr;gap:64px;align-items:start}
+.brief-side{display:flex;flex-direction:column;gap:24px}
+.theme{padding:24px;border-radius:24px;background:var(--night);color:var(--night-text);display:flex;flex-direction:column;gap:12px}
+.fact{display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--ink);padding-top:12px}
+.crit{width:100%;border-collapse:collapse}
+.crit th{font:700 12px/16px var(--zen);letter-spacing:.02em;text-align:left;color:var(--ink-2);padding:0 16px 8px 0;border-bottom:2px solid var(--ink)}
+.crit td{padding:10px 16px 10px 0;border-bottom:1px solid var(--line-strong);vertical-align:top;font:400 13px/20px var(--zen);letter-spacing:.02em}
+.crit td:first-child{width:262px;color:var(--ink-2)}
+.crit td:last-child{width:108px;padding-right:0;font:400 12px/20px var(--mono)}
+.crit .group td{padding-top:20px;font:700 14px/20px var(--zen);color:var(--ink);border-bottom:0;padding-bottom:0}
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+.tri ul{list-style:none;display:flex;flex-direction:column;gap:4px}
+.tri li{font:400 13px/20px var(--zen);letter-spacing:.02em;color:var(--ink-2);padding-left:1em;text-indent:-1em}
+.tri li::before{content:"・"}
+
+/* Screen */
+.screen{width:393px;height:852px;position:relative;overflow:hidden;background:var(--paper-base);flex:none}
+.screen.night{background:var(--night);color:var(--night-text)}
+.status{position:absolute;left:0;top:0;width:393px;height:54px;padding:20px 24px 8px 32px;display:flex;justify-content:space-between;align-items:center;font:600 16px/20px Inter,sans-serif;z-index:5}
+.homebar{height:34px;display:flex;justify-content:center;align-items:flex-end;padding-bottom:8px;flex:none}
+.homebar i{display:block;width:134px;height:5px;border-radius:3px;background:currentColor}
+.content{position:absolute;left:0;top:54px;width:393px;display:flex;flex-direction:column}
+.foot{position:absolute;left:0;bottom:0;width:393px;padding:0 16px;display:flex;flex-direction:column;gap:4px}
+
+/* Atoms */
+.avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:#fff;flex:none}
+.avatar.S{width:24px;height:24px;font:500 12px/16px var(--zen)}
+.avatar.M{width:36px;height:36px;font:700 16px/24px var(--zen)}
+.iconbtn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;flex:none}
+.iconbtn.tinted{background:var(--paper-sunken)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;flex:none}
+.btn.L{height:56px;padding:0 24px;font:700 16px/24px var(--zen);letter-spacing:.02em}
+.btn.M{height:44px;padding:0 16px;font:500 14px/20px var(--zen);letter-spacing:.02em}
+.btn.primary{background:var(--ink);color:var(--paper-raised)}
+.btn.secondary{background:var(--paper-raised);color:var(--ink);border:1.5px solid var(--line-strong)}
+.btn.record{background:var(--record);color:var(--on-record)}
+.btn.ghost{color:var(--ink-2)}
+.btn.ghost-night{color:var(--night-text)}
+.btn.light{background:var(--night-text);color:var(--night)}
+.fillw{width:100%}
+.field{min-height:56px;padding:0 16px;display:flex;align-items:center;border-radius:16px;background:var(--paper-raised);border:1.5px solid var(--line-strong)}
+.field.focus{border:2px solid var(--ink)}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip-hit{padding:4px 0;flex:none}
+.chip{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;border-radius:999px;background:var(--paper-raised);border:1px solid var(--line);font:500 14px/20px var(--zen);letter-spacing:.02em;white-space:nowrap}
+.chip.sel{background:var(--ink);color:var(--paper-raised);border-color:var(--ink)}
+.dockact{width:88px;height:56px;border-radius:16px;display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;font:500 12px/16px var(--zen);letter-spacing:.02em;flex:none;color:var(--ink-2)}
+.dockact.on{background:var(--paper-sunken);color:var(--ink);font-weight:700}
+.dock{display:flex;justify-content:space-between;align-items:center;padding:8px 24px 0}
+.sheet{position:absolute;left:0;bottom:0;width:393px;background:var(--paper-raised);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(58,42,25,.18);display:flex;flex-direction:column;z-index:4}
+.card{padding:16px;border-radius:20px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
+.nightcard{padding:20px;border-radius:24px;background:var(--night);color:var(--night-text);display:flex;flex-direction:column}
+.ai-tag{display:flex;gap:6px;align-items:center}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.step b{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper-raised);display:flex;align-items:center;justify-content:center;font:700 14px/20px var(--zen);flex:none}
+.illus{border-radius:24px;background:var(--paper-sunken);display:flex;justify-content:center;align-items:center;padding:16px}
+.prog{display:flex;gap:6px}
+.prog i{display:block;height:4px;flex:1;border-radius:2px;background:var(--line)}
+.prog i.on{background:var(--ink)}
+
+/* Home */
+.hhead{position:absolute;left:0;top:54px;width:393px;height:60px;padding:0 16px;display:flex;align-items:center;gap:12px;background:var(--paper-base);z-index:3}
+.hview{position:absolute;left:0;top:114px;width:393px;height:738px;overflow:hidden}
+.hcol{position:absolute;left:16px;width:361px;display:flex;flex-direction:column;gap:12px;padding-bottom:12px}
+.state{display:flex;gap:12px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--line)}
+.state:first-of-type{border-top:0;padding-top:0}
+.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font:700 12px/16px var(--zen);letter-spacing:.02em;flex:none}
+.pill.care{background:var(--care-soft);color:#6F4700}
+.pill.ok{background:#E2E8CF;color:#34571D}
+.pill.alert{background:var(--alert-soft);color:#96290F}
+
+/* Timeline */
+.tl-day{display:flex;justify-content:space-between;align-items:baseline;padding:8px 16px}
+.tl-row{display:flex;gap:8px;padding:0 16px}
+.tl-time{width:40px;flex:none;padding-top:14px;color:var(--ink-2)}
+.tl-rail{width:24px;flex:none;display:flex;flex-direction:column;align-items:center;padding-top:10px}
+.tl-rail i{display:block;width:2px;flex:1;background:var(--line-strong);margin-top:4px;opacity:.5}
+.tl-card{flex:1;min-width:0;margin-bottom:10px;padding:12px;border-radius:16px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.tl-card.miss{background:var(--alert-soft);border-color:#E9C3B4}
+
+/* Calendar */
+.mini{margin:0 16px 4px;width:361px;padding:8px;border-radius:16px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px;text-align:left}
+.mini-head{display:flex;justify-content:space-between;align-items:center;padding:0 8px;height:24px}
+.mini-days{display:grid;grid-template-columns:repeat(7,1fr)}
+.mini-day{height:60px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.mini-day.sel{background:var(--ink);color:var(--paper-raised)}
+.mark{height:12px;display:flex;align-items:center;justify-content:center}
+.mark i{display:block;width:6px;height:6px;border-radius:50%;background:var(--line-strong)}
+.mini-day.sel .mark i{background:var(--paper-raised)}
+.scrim{position:absolute;left:0;top:0;width:393px;height:852px;background:rgba(26,22,19,.48);z-index:3}
+.grip{height:20px;padding-top:8px;display:flex;justify-content:center;flex:none}
+.grip i{display:block;width:40px;height:4px;border-radius:2px;background:var(--line-strong)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px}
+.cal-w{height:24px;display:flex;align-items:center;justify-content:center;color:var(--ink-2)}
+.cal-d{height:50px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.cal-d b{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:500 14px/18px var(--mono)}
+.cal-d.sel b{background:var(--ink);color:var(--paper-raised)}
+.cal-d.today b{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.cal-d.future b{color:var(--line-strong);font-weight:400}
+
+/* Log */
+.log{display:flex;flex-direction:column;gap:12px}
+.say{display:grid;grid-template-columns:40px 1fr;gap:8px}
+.say .t{padding-top:2px;color:var(--ink-2)}
+.say .who{font:700 12px/16px var(--zen);letter-spacing:.02em}
+.say.flag .txt{background:var(--care-soft);border-radius:8px;padding:4px 8px;margin:2px 0 0 -8px}
+
+/* Foundations */
+.found{display:flex;flex-direction:column;gap:32px}
+.found-grid{display:flex;gap:64px;align-items:flex-start}
+.swatches{display:flex;flex-wrap:wrap;gap:12px;width:760px}
+.swatch{width:112px;display:flex;flex-direction:column;gap:6px}
+.swatch i{display:block;height:64px;border-radius:12px;border:1px solid rgba(42,36,32,.12)}
+.spec{flex:1;display:flex;flex-direction:column;gap:20px}
+.spec>div{display:flex;flex-direction:column;gap:4px}
+</style>
+</head>
+<body>
+<main class="board" id="board"></main>
+<script>
+const INK='#2A2420',INK2='#665A4D',RAISED='#FFFBF3',SUNKEN='#EBE3D2',REC='#C9401F',OK='#4B7A2C',CARE='#9A6300',NIGHT='#1A1613',NLINE='#3D352D',NTEXT='#F6F0E4',NTEXT2='#B8AC9A',NRAISED='#28221D',AI_C='#2F5D8C',HANA='#A23B5C';
+const PHONE='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>';
+const IC={
+ phone:PHONE,
+ 'phone-missed':PHONE+'<line x1="22" x2="16" y1="2" y2="8"/><line x1="16" x2="22" y1="2" y2="8"/>',
+ home:'<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+ list:'<path d="M3 12h.01"/><path d="M3 18h.01"/><path d="M3 6h.01"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M8 6h13"/>',
+ 'calendar-clock':'<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>',
+ utensils:'<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+ moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+ heart:'<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27"/>',
+ alert:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+ rotate:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+ bell:'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+ lock:'<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+ square:'<rect width="18" height="18" x="3" y="3" rx="2"/>',
+ play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+ plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+ x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+ 'chevron-left':'<path d="m15 18-6-6 6-6"/>',
+ 'chevron-right':'<path d="m9 18 6-6-6-6"/>',
+ 'chevron-down':'<path d="m6 9 6 6 6-6"/>',
+ sparkles:'<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
+ check:'<path d="M20 6 9 17l-5-5"/>',
+ pencil:'<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+ eye:'<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
+ mail:'<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
+};
+const FILLED=new Set(['square','play']);
+const icon=(k,s=24,c=INK)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${FILLED.has(k)?c:'none'}" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>`;
+
+const rng=seed=>{let s=seed%2147483647;if(s<=0)s+=2147483646;return()=>{s=s*16807%2147483647;return(s-1)/2147483646}};
+const bars=(seed,n,H,min=3)=>{const r=rng(seed*7919+13);let v=.5;const out=[];for(let i=0;i<n;i++){v=v*.5+r()*.5;const env=.5+.5*Math.abs(Math.sin(i/n*Math.PI*(1+seed%3)+seed));out.push(Math.max(min,Math.min(H,Math.pow(v*env*1.5,1.1)*H)))}return out};
+const wavePath=(hs,x0,H,w,g)=>hs.map((h,i)=>{const x=x0+i*(w+g),y=(H-h)/2,r=w/2;return`M${x.toFixed(2)} ${(y+r).toFixed(2)}a${r} ${r} 0 0 1 ${w} 0v${(h-w).toFixed(2)}a${r} ${r} 0 0 1 ${-w} 0z`}).join('');
+const wave=(seed,W,H,c)=>{const w=3,g=2,n=Math.floor((W+g)/(w+g));return`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true"><path fill="${c}" d="${wavePath(bars(seed,n,H),0,H,w,g)}"/></svg>`};
+
+const status=(t,night)=>`<div class="status" style="color:${night?NTEXT:INK}"><span>${t}</span><svg width="68" height="13" viewBox="0 0 68 13" fill="${night?NTEXT:INK}" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y=".5" width="3" height="11.5" rx="1"/><path d="M31 12l-2.4-3a3.6 3.6 0 0 1 4.8 0L31 12zM25.8 5.6l1.6 1.9a5.6 5.6 0 0 1 7.2 0l1.6-1.9a8.2 8.2 0 0 0-10.4 0zM23 2.4l1.7 1.9a10 10 0 0 1 12.6 0L39 2.4a12.6 12.6 0 0 0-16 0z"/><rect x="44" y="1" width="21" height="11" rx="3" fill="none" stroke="${night?NTEXT:INK}" stroke-opacity=".4"/><rect x="46" y="3" width="17" height="7" rx="1.5"/></svg></div>`;
+const homebar=()=>`<div class="homebar"><i></i></div>`;
+const navBar=(ic,label,title='')=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 16px"><button class="iconbtn" aria-label="${label}">${icon(ic)}</button><span class="title-m">${title}</span><span style="width:44px"></span></div>`;
+const aiTag=(t='Geminiのまとめ',c=INK2,cls='muted')=>`<div class="ai-tag">${icon('sparkles',16,c)}<span class="label-s ${cls}">${t}</span></div>`;
+const tabs=on=>`<div class="sheet"><div class="dock">${[['home','ホーム','home'],['calls','通話記録','list'],['book','予約電話','calendar-clock']].map(([k,l,ic])=>`<button class="dockact ${on===k?'on':''}"${on===k?' aria-current="page"':''}>${icon(ic,24,on===k?INK:INK2)}<span>${l}</span></button>`).join('')}</div>${homebar()}</div>`;
+const prog=(n,all)=>`<div class="prog" aria-label="${all}段階のうち${n}段階目">${Array.from({length:all},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join('')}</div>`;
+
+// 固定電話のイラスト。lamp: off / on / ok / fail
+const device=(lamp='off',w=280,ring=true)=>{
+ const L={off:['#CBBFA8',0],on:['#E5B04E',1],ok:['#4B7A2C',1],fail:['#CBBFA8',0]}[lamp];
+ let keys='';for(let r=0;r<4;r++)for(let c=0;c<3;c++)keys+=`<rect x="${84+c*30}" y="${100+r*20}" width="22" height="13" rx="4" fill="#FFFBF3" stroke="#8F806A"/>`;
+ return`<svg width="${w}" height="${Math.round(w*208/320)}" viewBox="0 0 320 208" fill="none" aria-hidden="true">
+ <path d="M58 88C60 74 72 68 86 68H234C248 68 260 74 262 88L276 182C278 194 270 200 258 200H62C50 200 42 194 44 182Z" fill="#E8DCC4" stroke="#2A2420" stroke-width="2.5"/>
+ <path d="M36 46C36 22 66 12 160 12S284 22 284 46V56C284 66 276 70 264 70H238C228 70 222 64 222 56V48C222 42 200 38 160 38S98 42 98 48V56C98 64 92 70 82 70H56C44 70 36 66 36 56Z" fill="#2A2420"/>
+ ${keys}
+ ${L[1]?`<circle cx="228" cy="104" r="17" fill="${L[0]}" fill-opacity=".28"/>`:''}
+ <circle cx="228" cy="104" r="8" fill="${L[0]}" stroke="#2A2420" stroke-width="2"/>
+ ${ring?`<circle cx="228" cy="154" r="24" stroke="#C9401F" stroke-width="2.5" stroke-dasharray="5 5"/>`:''}
+ <circle cx="228" cy="154" r="15" fill="#FFFBF3" stroke="#2A2420" stroke-width="2.5"/>
+ <circle cx="228" cy="154" r="7" fill="#2A2420"/>
+ </svg>`};
+const illus=(lamp,mark,ring)=>`<div class="illus" style="position:relative">${device(lamp,280,ring)}${mark||''}</div>`;
+
+// ---------- 1. Before login ----------
+const S={};
+const LOGO_GOOGLE=`<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`;
+const welcomeLine=(ic,t)=>`<div style="display:flex;gap:12px;align-items:center"><span class="iconbtn" style="width:36px;height:36px;background:var(--care-soft)">${icon(ic,18,'#6F4700')}</span><span class="label-m">${t}</span></div>`;
+const bubble=(t,pos,tail)=>`<div class="cap-s" style="position:absolute;${pos};padding:8px 14px;border-radius:18px;border-${tail}-radius:6px;background:${RAISED};border:1px solid var(--line);box-shadow:0 3px 10px rgba(58,42,25,.08);white-space:nowrap">${t}</div>`;
+const ARCH='M0 82A82 82 0 0 1 164 82V166a24 24 0 0 1-24 24H24a24 24 0 0 1-24-24Z';
+const SKIN='#F2C9A5',SKIN2='#E9B58E',BLUSH='#EE9F86';
+const smile=(cx,cy,w=24)=>`<path d="M${cx-w/2} ${cy}Q${cx} ${cy+w*.7} ${cx+w/2} ${cy}Z" fill="#8E2A12" stroke="#8E2A12" stroke-width="2" stroke-linejoin="round"/><path d="M${cx-w/2+4} ${cy+1.5}H${cx+w/2-4}" stroke="#FFFBF3" stroke-width="3" stroke-linecap="round"/>`;
+const happyEye=(cx,cy)=>`<path d="M${cx-7} ${cy+2}Q${cx} ${cy-7} ${cx+7} ${cy+2}" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`;
+const grandpa=()=>`<svg width="164" height="190" viewBox="0 0 164 190" role="img" aria-label="固定電話で話しながら笑っているおじいちゃん"><defs><clipPath id="arch-g"><path d="${ARCH}"/></clipPath></defs><g clip-path="url(#arch-g)">
+ <rect width="164" height="190" fill="#F6E7C4"/>
+ <path d="M18 190C18 152 48 136 82 136S146 152 146 190Z" fill="#7E9B5C"/>
+ <path d="M66 137 82 160 98 137Z" fill="#FFFBF3"/><path d="M82 160V190" stroke="#5F7B43" stroke-width="2.5"/>
+ <rect x="70" y="112" width="24" height="30" rx="10" fill="${SKIN2}"/>
+ <circle cx="44" cy="88" r="8" fill="${SKIN}"/><circle cx="120" cy="88" r="8" fill="${SKIN}"/>
+ <ellipse cx="82" cy="84" rx="38" ry="42" fill="${SKIN}"/>
+ <path d="M44 84C38 66 46 56 56 54C52 64 50 74 50 86Z" fill="#F3EFE6"/><path d="M120 84C126 66 118 56 108 54C112 64 114 74 114 86Z" fill="#F3EFE6"/>
+ <path d="M58 70q9-6 18-1M88 69q9-5 18 1" fill="none" stroke="#E5DFD2" stroke-width="5" stroke-linecap="round"/>
+ ${happyEye(67,84)}${happyEye(97,84)}
+ <circle cx="67" cy="83" r="13" fill="none" stroke="${INK2}" stroke-width="2.5"/><circle cx="97" cy="83" r="13" fill="none" stroke="${INK2}" stroke-width="2.5"/><path d="M80 82h4" stroke="${INK2}" stroke-width="2.5"/>
+ <circle cx="55" cy="101" r="7" fill="${BLUSH}" opacity=".55"/><circle cx="109" cy="101" r="7" fill="${BLUSH}" opacity=".55"/>
+ ${smile(82,106,26)}
+ <path d="M64 104Q74 96 82 102Q90 96 100 104Q90 108 82 105Q74 108 64 104Z" fill="#F3EFE6" stroke="#E5DFD2"/>
+ <path d="M134 158Q146 134 133 118" fill="none" stroke="#7E9B5C" stroke-width="20" stroke-linecap="round"/>
+ <path d="M125 62Q141 88 127 114" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/>
+ <rect x="117" y="54" width="15" height="20" rx="6" fill="${INK}" transform="rotate(-24 124 64)"/><rect x="119" y="104" width="15" height="20" rx="6" fill="${INK}" transform="rotate(20 126 114)"/>
+ <circle cx="132" cy="108" r="10" fill="${SKIN}"/></g></svg>`;
+const daughter=()=>`<svg width="164" height="190" viewBox="0 0 164 190" role="img" aria-label="スマートフォンを見ながら笑っている娘"><defs><clipPath id="arch-d"><path d="${ARCH}"/></clipPath></defs><g clip-path="url(#arch-d)">
+ <rect width="164" height="190" fill="#F8E1D8"/>
+ <path d="M42 86C40 26 124 26 122 86L128 124Q130 136 116 136H48Q34 136 36 124Z" fill="#4A3428"/>
+ <path d="M18 190C18 152 48 138 82 138S146 152 146 190Z" fill="#C9754F"/>
+ <rect x="71" y="110" width="22" height="34" rx="10" fill="${SKIN2}"/>
+ <ellipse cx="82" cy="84" rx="33" ry="37" fill="${SKIN}"/>
+ <path d="M47 86C43 50 62 40 84 40C106 40 121 54 117 86C110 72 98 64 84 62C76 72 60 78 47 86Z" fill="#4A3428"/>
+ ${happyEye(69,88)}${happyEye(95,88)}
+ <circle cx="60" cy="100" r="7" fill="${BLUSH}" opacity=".55"/><circle cx="104" cy="100" r="7" fill="${BLUSH}" opacity=".55"/>
+ ${smile(82,102,22)}
+ <path d="M30 190Q24 166 44 154" fill="none" stroke="#C9754F" stroke-width="20" stroke-linecap="round"/>
+ <g transform="rotate(-10 44 136)"><rect x="30" y="112" width="30" height="50" rx="6" fill="${INK}"/><rect x="33" y="117" width="24" height="38" rx="2" fill="#FFFBF3"/><path d="M37 124h16M37 131h16M37 138h10" stroke="#8F806A" stroke-width="2.5" stroke-linecap="round"/></g>
+ <circle cx="44" cy="156" r="10" fill="${SKIN}"/></g></svg>`;
+S.L1=()=>`<div class="screen">${status('20:13')}
+ <div class="content" style="padding:8px 24px 0">
+  <span class="title-m">かぞくAI</span>
+  <div style="position:relative;width:345px;height:232px;margin-top:8px">
+   <div style="position:absolute;left:0;top:42px">${grandpa()}</div>
+   <div style="position:absolute;right:0;top:42px">${daughter()}</div>
+   <span style="position:absolute;left:154px;top:122px;width:37px;height:37px;border-radius:50%;background:${RAISED};box-shadow:0 2px 8px rgba(58,42,25,.18);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="${REC}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span>
+   ${bubble('よく眠れたよ。','left:0;top:0','bottom-left')}
+   ${bubble('元気そうでよかった。','right:0;top:0','bottom-right')}
+  </div>
+  <h3 class="display" style="margin-top:16px;font-size:26px;line-height:36px">離れていても、<br>いつもの電話で見守れる</h3>
+  <p class="body-m muted" style="margin-top:8px">ご実家の専用の固定電話に、AIがお電話します。<br>話した様子を、このアプリにお届けします。</p>
+  <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+   ${welcomeLine('phone','親御さんは、電話に出るだけで大丈夫')}
+   ${welcomeLine('sparkles','話した様子を、短くまとめてお届け')}
+   ${welcomeLine('pencil','伝えたいことや電話の時間は、ご家族で')}
+  </div>
+ </div>
+ <div class="foot" style="padding:0 24px"><button class="btn L primary fillw">はじめる</button><button class="btn M ghost fillw">アカウントをお持ちの方はログイン</button>${homebar()}</div>
+</div>`;
+const orLine=()=>`<div style="display:flex;align-items:center;gap:12px"><i style="display:block;flex:1;height:1px;background:var(--line-strong)"></i><span class="label-m muted">または</span><i style="display:block;flex:1;height:1px;background:var(--line-strong)"></i></div>`;
+const mailField=(focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">メールアドレス</label><div class="field ${focus?'focus':''}"><span class="label-l" style="font-weight:500">misaki@example.com</span></div></div>`;
+const passField=(hint,focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">パスワード</label><div class="field ${focus?'focus':''}" style="justify-content:space-between;padding-right:6px"><span class="label-l" style="letter-spacing:.14em">••••••••</span><button class="iconbtn" aria-label="パスワードを表示">${icon('eye',22,INK2)}</button></div>${hint||''}</div>`;
+const disabledBtn=t=>`<button class="btn L fillw" disabled aria-disabled="true" style="background:#DDD2BE;color:${INK2};cursor:not-allowed">${t}</button>`;
+const agreeRow=(t,read)=>`<button class="card" style="flex-direction:row;align-items:center;gap:10px;padding:0 8px 0 12px;min-height:52px;border-radius:14px;text-align:left;width:100%">${read?`<span class="pill ok">${icon('check',14,'#34571D')}読みました</span>`:`<span class="pill care">未読</span>`}<span class="label-m" style="flex:1">${t}</span>${icon('chevron-right',20,INK2)}</button>`;
+const signup=read=>`<div class="screen">${status('20:14')}
+ <div class="content">
+  ${navBar('chevron-left','もどる')}
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+   <h3 class="display" style="font-size:28px;line-height:38px">新規登録</h3>
+   <div style="display:flex;flex-direction:column;gap:6px">
+    <span class="label-m">先に、次の2つをお読みください</span>
+    ${agreeRow('利用規約',read)}${agreeRow('プライバシーポリシー',read)}
+   </div>
+   <button class="btn L secondary fillw" ${read?'':'disabled aria-disabled="true"'} style="${read?'':'opacity:.5;cursor:not-allowed'}">${LOGO_GOOGLE}Googleで登録</button>
+   ${orLine()}
+   ${mailField()}
+   ${passField('<span class="body-s muted">8文字以上で入力してください</span>')}
+  </div>
+ </div>
+ <div class="foot">${read?`<span class="body-s muted" style="text-align:center">登録すると、2つの内容に同意したことになります</span><button class="btn L primary fillw">同意して登録する</button>`:`<span class="body-s muted" style="text-align:center">2つとも読むと登録できます</span>${disabledBtn('同意して登録する')}`}${homebar()}</div>
+</div>`;
+S.L2=()=>`<div class="screen">${status('20:14')}
+ <div class="content">
+  ${navBar('chevron-left','もどる')}
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:16px">
+   <h3 class="display" style="font-size:28px;line-height:38px">ログイン</h3>
+   <button class="btn L secondary fillw">${LOGO_GOOGLE}Googleでログイン</button>
+   ${orLine()}
+   ${mailField()}
+   ${passField('',1)}
+   <button class="btn L primary fillw">ログイン</button>
+   <button class="btn M ghost-ink" style="align-self:center;text-decoration:underline;text-underline-offset:3px">パスワードを忘れた場合</button>
+  </div>
+ </div>
+ <div class="foot" style="align-items:center"><span class="label-m muted">はじめての方は</span><button class="btn M secondary fillw">新規登録へ</button>${homebar()}</div>
+</div>`;
+S['L2+']=()=>signup(false);
+const clause=(h,t)=>`<div style="display:flex;flex-direction:column;gap:4px"><h4 class="label-l">${h}</h4><p class="body-m muted">${t}</p></div>`;
+S.L2c=()=>`<div class="screen">${status('20:15')}
+ <div class="content">
+  ${navBar('x','閉じる','利用規約')}
+  <div style="height:4px;background:var(--line)" role="progressbar" aria-label="読んだ割合" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"><i style="display:block;width:60%;height:4px;background:${INK}"></i></div>
+  <div style="padding:16px;display:flex;flex-direction:column;gap:16px">
+   <p class="label-s" style="padding:6px 10px;border-radius:8px;background:${SUNKEN}">モック用の見本です。実際の規約ではありません。</p>
+   ${clause('第1条 サービスの内容','AIが見守る方の固定電話に電話をかけ、話した内容をまとめて、ご家族のアプリに届けます。')}
+   ${clause('第2条 見守る方の同意','最初の電話で、AIであることと、会話を文字にしてご家族に共有することを説明します。同意がない場合は共有しません。')}
+   ${clause('第3条 医療上の判断','まとめはご本人の話をAIが整理したものです。診断や受診の判断には使えません。')}
+   ${clause('第4条 緊急のとき','電話に出ないときの通知は、安否を保証するものではありません。緊急のときは、ご家族から直接連絡してください。')}
+   ${clause('第5条 アカウントの管理','メールアドレスとパスワードは、ご自身で管理してください。第三者に知られた場合は、すぐに変更してください。')}
+   ${clause('第6条 サービスの変更','サービスの内容は、事前にお知らせしたうえで変更または停止することがあります。')}
+  </div>
+ </div>
+ <div class="foot" style="padding-top:40px;background:linear-gradient(180deg,rgba(246,240,228,0) 0,#F6F0E4 36px)"><span class="body-s muted" style="text-align:center">最後まで読むと押せるようになります</span>${disabledBtn('読みました')}${homebar()}</div>
+</div>`;
+S.L2d=()=>signup(true);
+
+// ---------- 2. Sync ----------
+const stepRow=(n,t,d)=>`<div class="step"><b>${n}</b><div style="display:flex;flex-direction:column"><span class="label-l">${t}</span><span class="body-s muted">${d}</span></div></div>`;
+S.L3=()=>`<div class="screen">${status('20:16')}
+ <div class="content">
+  ${navBar('chevron-left','もどる','電話機とつなぐ')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
+   ${illus('on','<span class="label-s" style="position:absolute;right:20px;top:66px;width:44px;text-align:center">ランプ</span><span class="label-s" style="position:absolute;right:16px;top:150px;width:48px;text-align:center;color:#96290F">押す</span>')}
+   <div class="steps">
+    ${stepRow(1,'電話機のボタンを押す','絵の赤い点線のところにある、丸いボタンです')}
+    ${stepRow(2,'ランプが光るのを確かめる','黄色く光れば、つなぐ準備ができています')}
+    ${stepRow(3,'下の「同期開始」を押す','ランプが光っている間に押してください')}
+   </div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">同期開始</button><button class="btn M ghost fillw">ランプが光らないとき</button>${homebar()}</div>
+</div>`;
+const checkRow=t=>`<div style="display:flex;gap:10px;align-items:center;min-height:44px;border-top:1px solid var(--line)"><i style="display:block;width:22px;height:22px;border-radius:6px;border:1.5px solid var(--line-strong);flex:none"></i><span class="label-m">${t}</span></div>`;
+S.L4=()=>`<div class="screen">${status('20:17')}
+ <div class="content">
+  ${navBar('x','閉じる','電話機とつなぐ')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
+   ${illus('fail',`<span class="pill alert" style="position:absolute;left:16px;top:16px">${icon('alert',14,'#96290F')}つながっていません</span>`,false)}
+   <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期できませんでした</h3><span class="body-m muted">電話機が見つかりませんでした。次の3つを確かめて、もう一度ためしてください。</span></div>
+   <div style="display:flex;flex-direction:column">
+    ${checkRow('電話機の電源が入っている')}${checkRow('電話線がつながっている')}${checkRow('ボタンを押して、ランプが光っている')}
+   </div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">${icon('rotate',20,RAISED)}もう一度ためす</button><button class="btn M ghost fillw">うまくいかないときの連絡先</button>${homebar()}</div>
+</div>`;
+S.L5=()=>`<div class="screen">${status('20:18')}
+ <div class="content">
+  ${navBar('x','閉じる','電話機とつなぐ')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
+   ${illus('ok',`<span class="pill ok" style="position:absolute;left:16px;top:16px">${icon('check',14,'#34571D')}つながりました</span>`,false)}
+   <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期が完了しました</h3><span class="body-m muted">ランプは緑色に変わります。この電話機に、AIから電話できるようになりました。</span></div>
+   <div class="card" style="flex-direction:row;align-items:center"><span class="iconbtn tinted">${icon('phone',20)}</span><div style="display:flex;flex-direction:column"><span class="label-s muted">つながった電話機</span><span class="mono-m">03-0000-0000</span></div></div>
+   <div style="display:flex;flex-direction:column;gap:4px"><span class="label-l">次は、見守る方のことを教えてください</span><span class="body-s muted">お名前と好きな話題の2つだけです。1分ほどで終わります。</span></div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">セットアップへ進む</button>${homebar()}</div>
+</div>`;
+
+// ---------- 3. Setup ----------
+const preview=(label,text)=>`<div style="padding:16px;border-radius:20px;background:var(--night);color:var(--night-text);display:flex;gap:12px;align-items:center"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span class="label-s nmuted">${label}</span><span class="cap-m">${text}</span></div><button class="iconbtn" style="width:52px;height:52px;background:${NTEXT}" aria-label="${label}を再生">${icon('play',22,NIGHT)}</button></div><span class="body-s muted" style="margin-top:-8px">再生ボタンを押すと、AIの声で聞けます</span>`;
+S.L6=()=>`<div class="screen">${status('20:18')}
+ <div class="content">
+  ${navBar('chevron-left','もどる','セットアップ')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:24px">
+   ${prog(1,2)}
+   <h3 class="title-l">見守る方のお名前を<br>教えてください</h3>
+   <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">お名前</label><div class="field focus"><span class="label-l">田中 ハナ</span></div></div>
+   <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">電話での呼び方</label><div class="field"><span class="label-l">ハナさん</span></div><span class="body-s muted">ふだんの呼び方でかまいません。あとから変えられます。</span></div>
+   ${preview('AIの呼びかけ','「おはようございます、<br>ハナさん。昨夜は<br>よく眠れましたか。」')}
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">次へ</button>${homebar()}</div>
+</div>`;
+const topic=(t,sel)=>`<div class="chip ${sel?'sel':''}">${sel?icon('check',16,RAISED):icon('plus',16,INK)}${t}</div>`;
+S.L7=()=>`<div class="screen">${status('20:19')}
+ <div class="content">
+  ${navBar('chevron-left','もどる','セットアップ')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:16px">
+   ${prog(2,2)}
+   <h3 class="title-l">ハナさんが好きな話題を<br>教えてください</h3>
+   <div class="field"><span class="label-l muted">話題を入力(例: 大相撲)</span></div>
+   <div class="chips">${topic('お孫さん',1)}${topic('庭の菊',1)}${topic('煮物',1)}${topic('大相撲')}${topic('昔の旅行')}${topic('テレビ番組')}</div>
+   ${preview('AIの話しかけ','「お庭の菊は、<br>もう咲きましたか。」')}
+   <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:16px;background:${SUNKEN}">${icon('lock',20)}<span class="body-s">はじめての電話で、AIであることと、会話を文字にして家族に共有することをハナさんに説明します。同意がなければ共有しません。</span></div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">はじめる</button>${homebar()}</div>
+</div>`;
+
+// ---------- 4. Home ----------
+const hhead=(t='11月5日(木) 10:24 時点')=>`<div class="hhead"><span class="avatar M" style="background:${HANA}">ハ</span><div style="display:flex;flex-direction:column;flex:1"><span class="label-l">田中ハナさん</span><span class="label-s muted">${t}</span></div><button class="iconbtn" aria-label="通知">${icon('bell')}</button></div>`;
+const recentCard=()=>`<section class="nightcard" data-part="recent">
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="label-m">直近の電話</span><span class="mono-s nmuted">今日 9:02 ・ 6分</span></div>
+  <div style="margin-top:12px">${aiTag('Geminiのまとめ',NTEXT2,'nmuted')}</div>
+  <p class="title-m" style="margin-top:4px">朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。</p>
+  <div style="margin-top:12px;padding-left:12px;border-left:2px solid ${NLINE};display:flex;flex-direction:column;gap:2px"><span class="cap-s">「昨日の夕方から膝が痛くてね。<br>階段がつらいの。」</span><span class="label-s nmuted">ハナさんの言葉 ・ 9:03</span></div>
+  <button class="btn M light fillw" style="margin-top:16px">会話を見る${icon('chevron-right',18,NIGHT)}</button>
+ </section>`;
+const askCard=calling=>`<section class="card" data-part="ask">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">AIに伝えてもらう</h3><span class="label-s muted">予約もできます</span></div>
+  <div class="field" style="min-height:48px"><span class="label-m muted">伝えたいことを入力</span></div>
+  ${calling?disabledBtn('現在通話中です'):`<button class="btn L record fillw">${icon('phone',20,'#FFFFFF')}通話</button>`}
+ </section>`;
+const stateRow=(ic,l,v,q,flag)=>`<div class="state"><span class="iconbtn tinted" style="width:36px;height:36px">${icon(ic,18)}</span><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="label-s muted">${l}</span>${flag?`<span class="pill care">${icon('alert',14,'#6F4700')}気になる話</span>`:''}</div><span class="label-l">${v}</span><span class="cap-s muted">${q}</span></div></div>`;
+const todayCard=()=>`<section class="card" data-part="today">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">今日の様子</h3><span class="label-s muted">9:02の会話より</span></div>
+  ${stateRow('utensils','食事','朝ごはんを食べた','「朝ごはんも食べたしね」')}
+  ${stateRow('moon','睡眠','よく眠れた','「よく眠れたよ」')}
+  ${stateRow('heart','体調','膝が痛い。階段がつらい','「昨日の夕方から膝が痛くてね」',1)}
+  <p class="body-s muted">ご本人の話をAIがまとめたものです。医療上の判断ではありません。</p>
+ </section>`;
+const WEEK=[['30','金',14],['31','土',22],['1','日',31],['2','月',null],['3','火',18],['4','水',12],['5','木',6]];
+const weekChart=()=>{const W=329,H=112,col=W/7,bw=16,max=31;let o='';WEEK.forEach(([d,w,m],i)=>{const cx=col*i+col/2,today=i===6;
+ if(m===null){o+=`<g><title>11月${d}日: 電話に出なかった</title><g transform="translate(${cx-9} ${H-20})" fill="none" stroke="${REC}" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 16 16"/><path d="M16 2 2 16"/></g><text x="${cx}" y="${H-28}" text-anchor="middle" font-size="12" font-weight="700" font-family="Zen Maru Gothic" fill="#96290F">不在</text></g>`}
+ else{const h=Math.max(6,m/max*(H-20)),y=H-h;o+=`<g><title>${i<2?'10':'11'}月${d}日: ${m}分話した</title><path d="M${cx-bw/2} ${H}V${y+4}a4 4 0 0 1 4-4h${bw-8}a4 4 0 0 1 4 4V${H}Z" fill="${today?INK:'#8F806A'}"/><text x="${cx}" y="${y-5}" text-anchor="middle" font-size="12" font-family="DM Mono" fill="${INK}">${m}</text></g>`}
+ o+=`<text x="${cx}" y="${H+18}" text-anchor="middle" font-size="12" font-family="DM Mono" font-weight="${today?500:400}" fill="${today?INK:INK2}">${d}</text><text x="${cx}" y="${H+34}" text-anchor="middle" font-size="12" font-family="Zen Maru Gothic" font-weight="${today?700:400}" fill="${today?INK:INK2}">${w}</text>`});
+ return`<svg width="${W}" height="${H+38}" viewBox="0 0 ${W} ${H+38}" role="img" aria-label="この7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分"><line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="${'#8F806A'}"/>${o}</svg>`};
+const weekCard=()=>`<section class="card" data-part="week">
+  <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">この7日間の電話</h3><span class="label-s muted">棒の数字は話した分数</span></div>
+  <div style="display:flex;gap:24px"><div style="display:flex;flex-direction:column"><span class="label-s muted">電話に出た日</span><span class="label-l"><span class="mono-m" style="font-size:24px;line-height:32px">6</span> / 7日</span></div><div style="display:flex;flex-direction:column"><span class="label-s muted">話した時間</span><span class="label-l"><span class="mono-m" style="font-size:24px;line-height:32px">103</span> 分</span></div></div>
+  ${weekChart()}
+  <button class="btn M secondary fillw">通話記録を見る${icon('chevron-right',18)}</button>
+ </section>`;
+const home=(mode='top')=>`<div class="screen">${status('10:24')}${hhead()}
+ <div class="hview"><div class="hcol" data-scroll="${mode}" style="top:0">${recentCard()}${askCard()}${todayCard()}${weekCard()}</div></div>${tabs('home')}</div>`;
+S['00']=()=>home('top');
+S['02']=()=>home('today');
+S['03']=()=>home('bottom');
+
+// ---------- AIに伝えてもらう ----------
+const voiceSetting=(label,a,b,min,max,pct)=>`<div style="display:flex;flex-direction:column;gap:2px">
+ <div style="display:flex;align-items:center;gap:8px"><span class="label-s" style="width:64px;flex:none;white-space:nowrap">${label}</span><div class="chips" style="flex-wrap:nowrap;gap:6px">${[a,b].map(t=>`<div class="chip" style="height:32px;padding:0 12px">${t}</div>`).join('')}<div class="chip sel" style="height:32px;padding:0 12px">カスタマイズ</div></div></div>
+ <div style="display:flex;align-items:center;gap:8px;height:28px;padding-left:72px" role="slider" aria-label="${label}" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span class="label-s muted" style="flex:none">${min}</span><span style="position:relative;display:block;flex:1;height:4px;border-radius:2px;background:var(--line-strong)"><i style="position:absolute;left:0;top:0;display:block;width:${pct}%;height:4px;border-radius:2px;background:${INK}"></i><i style="position:absolute;left:${pct}%;top:-8px;margin-left:-10px;display:block;width:20px;height:20px;border-radius:50%;background:${RAISED};border:2px solid ${INK}"></i></span><span class="label-s muted" style="flex:none">${max}</span></div>
+</div>`;
+S['01']=()=>`<div class="screen">${status('10:26')}
+ <div class="content">
+  ${navBar('chevron-left','もどる','AIに伝えてもらう')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:16px">
+   <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">伝えたいこと</label><div class="field focus" style="padding:12px 16px;align-items:flex-start;min-height:60px"><span class="label-l" style="font-weight:500">金曜の通院、10時に迎えに行くと伝えて<i style="display:inline-block;width:2px;height:18px;background:${INK};vertical-align:-3px;margin-left:2px"></i></span></div></div>
+   <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">${aiTag('Geminiの言い方の案')}<button class="btn M ghost" style="padding:0 8px;height:32px">${icon('pencil',16,INK2)}なおす</button></div>
+    <p class="cap-m">「ハナさん、美咲さんからご伝言です。<br>金曜の通院は、朝10時に<br>お迎えに来るそうです。」</p>
+    <span class="body-s muted">電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。</span>
+   </div>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">話し方</span>
+    ${voiceSetting('はやさ','ふつう','ゆっくり','おそい','はやい',35)}
+    ${voiceSetting('ボリューム','ふつう','おおきい','小さい','大きい',70)}
+   </div>
+  </div>
+ </div>
+ <div class="foot" style="gap:8px"><span class="body-s muted" style="text-align:center">押すと、すぐにハナさんの固定電話にかけます</span><button class="btn L record fillw">${icon('phone',20,'#FFFFFF')}通話</button><button class="btn M secondary fillw">日時を決めて予約する</button>${homebar()}</div>
+</div>`;
+
+S['01+']=()=>`<div class="screen">${status('10:27',true)}
+ <div role="status" style="position:absolute;left:0;top:0;width:393px;height:94px;padding-bottom:10px;background:#34571D;color:#fff;display:flex;align-items:flex-end;justify-content:center;gap:8px;z-index:4">${icon('phone',18,'#FFFFFF')}<span class="label-l">通話中</span></div>
+ ${hhead('11月5日(木) 10:27 時点').replace('class="hhead"','class="hhead" style="top:94px"')}
+ <div class="hview" style="top:154px;height:698px"><div class="hcol" style="top:0">${recentCard()}${askCard(true)}${todayCard()}${weekCard()}</div></div>${tabs('home')}</div>`;
+
+// ---------- 5. Calls ----------
+const tag=t=>`<span class="label-s muted">${t}</span>`;
+const callRow=(time,dur,one,tags)=>`<div class="tl-row"><span class="mono-s tl-time">${time}</span><div class="tl-rail"><span class="avatar S" style="background:${INK}">${icon('phone',12,'#FFFFFF')}</span><i></i></div><div class="tl-card"><div class="cap-s" style="font-size:15px">${one}</div><div style="display:flex;justify-content:space-between;align-items:center">${tag(tags)}<span class="mono-s muted">${dur}</span></div></div></div>`;
+const missRow=(time,one)=>`<div class="tl-row"><span class="mono-s tl-time">${time}</span><div class="tl-rail"><span class="avatar S" style="background:${REC}">${icon('phone-missed',12,'#FFFFFF')}</span><i></i></div><div class="tl-card miss"><span class="label-m" style="color:#96290F">${one}</span></div></div>`;
+const dayH=(d,n)=>`<div class="tl-day"><span class="label-l">${d}</span><span class="label-s muted">${n}</span></div>`;
+const dayMark=k=>`<span class="mark">${k==='call'?'<i></i>':k==='miss'?`<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${REC}" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8"/><path d="M10 2 2 10"/></svg>`:''}</span>`;
+const MINI=[['30','金','call'],['31','土','call'],['1','日','call'],['2','月','miss'],['3','火','call'],['4','水','call'],['5','木','call']];
+const miniCal=(sel=6)=>`<button class="mini" aria-label="カレンダーを開いて日付を選ぶ"><span class="mini-head"><span class="label-m">2026年11月</span>${icon('chevron-down',20,INK2)}</span><span class="mini-days">${MINI.map(([d,w,k],i)=>`<span class="mini-day ${i===sel?'sel':''}"><span class="label-s">${w}</span><span class="mono-m">${d}</span>${dayMark(k)}</span>`).join('')}</span></button>`;
+const calSheet=()=>{const KIND={1:'call',2:'miss',3:'call',4:'call',5:'call'};let days='';for(let d=1;d<=30;d++)days+=`<div class="cal-d ${d===3?'sel':''} ${d===5?'today':''} ${d>5?'future':''}"><b>${d}</b>${dayMark(KIND[d])}</div>`;
+ return`<div class="scrim"></div><div class="sheet"><div class="grip"><i></i></div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+   <div style="display:flex;justify-content:space-between;align-items:center"><button class="iconbtn" aria-label="前の月">${icon('chevron-left',22)}</button><span class="title-m">2026年11月</span><button class="iconbtn" aria-label="次の月">${icon('chevron-right',22)}</button></div>
+   <div class="cal">${['日','月','火','水','木','金','土'].map(w=>`<div class="cal-w label-s">${w}</div>`).join('')}${days}</div>
+   <div style="display:flex;justify-content:center;gap:20px"><span class="label-s muted" style="display:flex;align-items:center;gap:6px">${dayMark('call')}電話に出た</span><span class="label-s muted" style="display:flex;align-items:center;gap:6px">${dayMark('miss')}不在</span></div>
+   <button class="btn L primary fillw" style="margin-top:4px">11月3日の記録を見る</button>
+  </div>${homebar()}</div>`};
+const callChips=()=>`<div class="chips" style="padding:4px 16px 8px;flex-wrap:nowrap;overflow:hidden">${['全部','体調','話し相手','操作案内','不在'].map((t,i)=>`<div class="chip ${i?'':'sel'}">${t}</div>`).join('')}</div>`;
+const callList=()=>`${status('10:31')}
+ <div class="content" style="left:0">
+  <div style="padding:8px 16px 8px"><h3 class="title-l">通話記録</h3></div>
+  ${miniCal()}
+  ${callChips()}
+  ${dayH('今日 11月5日(木)','1回 ・ 6分')}
+  ${callRow('9:02','6分','朝食と薬は済み。膝を気にしている','体調')}
+  ${dayH('11月4日(水)','2回 ・ 12分')}
+  ${callRow('19:00','3分','夕飯は大根の煮物。夜の薬も飲んだ','体調')}
+  ${callRow('12:00','9分','テレビの映し方を案内して解決','操作案内')}
+  ${dayH('11月3日(火)','1回 ・ 18分')}
+  ${callRow('9:00','18分','お孫さんの運動会の話がはずんだ','話し相手')}
+  ${dayH('11月2日(月)','不在')}
+  ${missRow('9:00','電話に出ませんでした(3回かけました)')}
+ </div>`;
+S['04']=()=>`<div class="screen">${callList()}${tabs('calls')}</div>`;
+S['04+']=()=>`<div class="screen">${callList()}${calSheet()}</div>`;
+S['04c']=()=>`<div class="screen">${status('10:31')}
+ <div style="position:absolute;left:0;top:54px;width:393px;height:166px;padding-top:8px;background:var(--paper-base);box-shadow:0 4px 10px rgba(58,42,25,.14);z-index:3">${miniCal(4)}${callChips()}</div>
+ <div style="position:absolute;left:0;top:220px;width:393px;height:632px;overflow:hidden">
+  <div style="position:absolute;left:0;top:-44px;width:393px;display:flex;flex-direction:column">
+   ${callRow('12:00','9分','テレビの映し方を案内して解決','操作案内')}
+   ${dayH('11月3日(火)','1回 ・ 18分')}
+   ${callRow('9:00','18分','お孫さんの運動会の話がはずんだ','話し相手')}
+   ${dayH('11月2日(月)','不在')}
+   ${missRow('9:00','電話に出ませんでした(3回かけました)')}
+   ${dayH('11月1日(日)','1回 ・ 31分')}
+   ${callRow('12:00','31分','お米が残り少ないと相談があった','話し相手')}
+   ${dayH('10月31日(土)','1回 ・ 22分')}
+   ${callRow('9:00','22分','庭の菊が咲き始めた話をした','話し相手')}
+  </div>
+ </div>${tabs('calls')}</div>`;
+const sumRow=(t,at)=>`<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding-top:8px;border-top:1px solid var(--line)"><span class="body-m">${t}</span><span class="mono-s" style="text-decoration:underline;text-underline-offset:3px;flex:none">${at}</span></div>`;
+const say=(t,who,txt,flag)=>`<div class="say ${flag?'flag':''}"><span class="mono-s t">${t}</span><div><div class="who" style="color:${who==='ai'?AI_C:HANA}">${who==='ai'?'AIヘルパー':'ハナさん'}</div><div class="cap-s txt">${txt}</div></div></div>`;
+S['05']=()=>`<div class="screen">${status('10:32')}
+ <div class="content">
+  ${navBar('chevron-left','通話記録にもどる','朝の電話')}
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+   <div class="card" style="gap:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center"><span class="label-m">詳細なまとめ</span><span class="mono-s muted">11/5 9:02 ・ 6分12秒</span></div>
+    ${aiTag('Geminiのまとめ。右の時刻で元の発言へ移動します')}
+    ${sumRow('朝ごはんを食べ、よく眠れたそうです','0:11')}
+    ${sumRow('昨日の夕方から膝が痛く、階段がつらいそうです','1:03')}
+    ${sumRow('朝の薬は飲んだと話しています','4:12')}
+    <button class="btn M ghost" style="height:32px;padding:0;align-self:flex-start">${icon('pencil',16,INK2)}まとめの間違いを直す</button>
+   </div>
+   <h3 class="title-m">会話の内容</h3>
+   <div class="log">
+    ${say('0:00','ai','おはようございます、ハナさん。昨夜はよく眠れましたか。')}
+    ${say('0:11','ha','よく眠れたよ。朝ごはんも食べたしね。')}
+    ${say('0:48','ai','それは何よりです。お体の具合はいかがですか。')}
+    ${say('1:03','ha','昨日の夕方から膝が痛くてね。階段がつらいの。',1)}
+    ${say('2:00','ai','それはおつらいですね。美咲さんにもお伝えしておきましょうか。')}
+    ${say('2:21','ha','そうね、お願いしようかな。')}
+   </div>
+  </div>
+ </div>
+ <div style="position:absolute;left:0;bottom:0;width:393px;padding-top:32px;background:linear-gradient(180deg,rgba(246,240,228,0) 0%,#F6F0E4 60%);display:flex;flex-direction:column;z-index:3">${homebar()}</div>
+</div>`;
+
+// ---------- 6. Booking ----------
+const bookedRow=(when,what,sub)=>`<div style="display:flex;gap:12px;align-items:center;padding-top:10px;border-top:1px solid var(--line)"><span class="mono-s" style="width:72px;flex:none">${when}</span><div style="display:flex;flex-direction:column;flex:1;min-width:0"><span class="label-m">${what}</span><span class="label-s muted">${sub}</span></div>${icon('chevron-right',18,INK2)}</div>`;
+const pick=(l,v)=>`<div style="display:flex;flex-direction:column;gap:8px;flex:1"><label class="label-m">${l}</label><div class="field" style="justify-content:space-between"><span class="mono-m">${v}</span></div></div>`;
+S['06']=()=>`<div class="screen">${status('10:35')}
+ <div class="content">
+  <div style="padding:8px 16px 8px"><h3 class="title-l">予約電話</h3></div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+   <section class="card">
+    <h3 class="title-m">新しい予約</h3>
+    <div style="display:flex;gap:8px">${pick('日付','11/6(金)')}${pick('時刻','08:30')}</div>
+    <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">伝える内容</label><div class="field" style="padding:12px 16px;align-items:flex-start;min-height:72px"><span class="label-m">今日は通院の日です。10時に迎えに行くと伝えて</span></div></div>
+    <button class="btn L primary fillw">${icon('calendar-clock',20,RAISED)}この内容で予約する</button>
+   </section>
+   <section class="card" style="gap:10px">
+    <h3 class="title-m">予約している電話</h3>
+    ${bookedRow('今日 12:00','昼の電話','話し相手 ・ 毎日')}
+    ${bookedRow('今日 19:00','夜の電話','薬と戸締まりの確認 ・ 毎日')}
+    ${bookedRow('11/7 10:00','週末に帰ると伝える','1回だけ')}
+   </section>
+   <button class="card" style="flex-direction:row;align-items:center;text-align:left"><span class="iconbtn tinted">${icon('rotate',20)}</span><div style="display:flex;flex-direction:column;flex:1"><span class="label-l">かけなおしのルール</span><span class="body-s muted">15分おきに3回かけて、家族に通知</span></div>${icon('chevron-right',20,INK2)}</button>
+  </div>
+ </div>${tabs('book')}</div>`;
+const flowDot=(t,l,last)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:68px"><span class="iconbtn" style="width:36px;height:36px;background:${last?REC:INK}">${icon(last?'bell':'phone',16,'#FFFFFF')}</span><span class="mono-s">${t}</span><span class="label-s muted" style="text-align:center">${l}</span></div>`;
+const flowLine=()=>`<i style="display:block;flex:1;height:2px;background:var(--line-strong);margin-top:17px"></i>`;
+S['07']=()=>`<div class="screen">${status('10:36')}
+ <div class="content">
+  ${navBar('chevron-left','もどる','かけなおしのルール')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
+   <h3 class="title-l">電話に出なかったら、<br>どうしますか</h3>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">かけなおす間隔</span><div class="chips">${['10分','15分','30分','1時間'].map((t,i)=>`<div class="chip ${i===1?'sel':''}">${t}</div>`).join('')}</div></div>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">かける回数(最初の1回をふくむ)</span><div class="chips">${['1回','2回','3回','5回'].map((t,i)=>`<div class="chip ${i===2?'sel':''}">${t}</div>`).join('')}</div></div>
+   <section class="card"><span class="label-m">朝9:00の電話に出ないときの流れ</span>
+    <div style="display:flex;align-items:flex-start">${flowDot('9:00','1回目')}${flowLine()}${flowDot('9:15','2回目')}${flowLine()}${flowDot('9:30','3回目')}${flowLine()}${flowDot('9:30','家族に通知',1)}</div>
+   </section>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">知らせる人</span>
+    <div class="card" style="gap:10px">
+     <div style="display:flex;align-items:center;justify-content:space-between"><span class="label-l">美咲(あなた)</span><span class="label-s muted">アプリに通知</span></div>
+     <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--line)"><span class="label-l">健太(弟)</span><span class="label-s muted">アプリに通知</span></div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw">このルールで保存</button>${homebar()}</div>
+</div>`;
+S['07+']=()=>`<div class="screen">${status('9:31')}${hhead('11月5日(木) 9:31 時点')}
+ <div class="hview"><div class="hcol" style="top:0">
+  <section class="nightcard" style="background:#8E2A12">
+   <div style="display:flex;gap:6px;align-items:center">${icon('phone-missed',16,'#FFFFFF')}<span class="label-m" style="color:#fff">確認をお願いします</span></div>
+   <h3 class="title-l" style="margin-top:8px;color:#fff">朝の電話に出ていません</h3>
+   <p class="body-m" style="margin-top:4px;color:#fff">9:00、9:15、9:30にかけましたが、応答がありません。外出中の可能性もあります。</p>
+   <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+    <button class="btn L fillw" style="background:#fff;color:#7A230E">${icon('phone',20,'#7A230E')}もう一度電話する</button>
+   </div>
+  </section>
+  <section class="card"><h3 class="title-m">今日の様子</h3><p class="body-m muted">今日はまだ話せていないので、様子は分かっていません。</p></section>
+  <section class="card" style="gap:8px"><h3 class="title-m">最後に話したとき</h3><span class="mono-s muted">昨日 19:00 ・ 3分</span><p class="cap-s">「さっき飲んだよ。膝が少し痛むけど、大丈夫。」</p></section>
+ </div></div>${tabs('home')}</div>`;
+
+// ---------- Board ----------
+const META={
+ L1:['ようこそ','説明は1枚にまとめ、固定電話で話すおじいちゃんと、スマホで様子を見る娘の笑顔を左右に並べて、使う場面を絵で伝えます。明るい色と話しかける言葉で、親のことで不安なときにも開きやすくします。'],
+ L2:['ログイン','L1の「アカウントをお持ちの方はログイン」から開きます。メールアドレスとパスワード、またはGoogleでログインします。パスワードを忘れた場合の入口も置きます。'],
+ 'L2+':['新規登録(未読のとき)','L1の「はじめる」から開きます。利用規約とプライバシーポリシーを読むまで、Googleでの登録も「同意して登録する」も押せません。'],
+ L2c:['利用規約を読む','上の線で読んだ割合を示します。最後まで読むと「読みました」が押せるようになり、L2bに戻ります。プライバシーポリシーも同じ画面構成です。'],
+ L2d:['新規登録(読んだあと)','2つとも「読みました」に変わると、Googleでの登録と「同意して登録する」が押せます。登録するとL3の電話機との同期に進みます。'],
+ L3:['電話機との同期','絵の中の場所と手順の番号を対応させ、電話機を見ながら進められるようにします。ボタンを押す、ランプが光る、同期開始を押す、の順番です。'],
+ L4:['同期失敗','失敗したことと、確かめる3点だけを伝えます。「もう一度ためす」でL3に戻ります。'],
+ L5:['同期完了','絵のランプを緑に変え、つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
+ L6:['見守る方の名前','呼び方を入れて再生ボタンを押すと、AIの第一声を声で確かめられます。入力は名前と呼び方だけです。'],
+ L7:['好きな話題','話し相手として会話を弾ませるための入力です。話しかけ方は再生ボタンで聞けます。AIであることの説明と、会話を家族に共有する同意も、ここで明示します。','候補の話題で話しかける','話題を選ぶ。共有は本人の同意が前提'],
+ '00':['ホーム(直近の電話)','開いて最初に、直近の会話のまとめを本人の言葉と一緒に見せます。AIの言葉だけで判断させないためです。下にスクロールすると02と03が続きます。','会話をまとめる','会話を読んで、次に何をするか決める'],
+ '01':['AIに伝えてもらう','入力すると、Geminiの言い方の案が出ます。話し方は「はやさ」と「ボリューム」を、ふつう、ゆっくり(おおきい)、カスタマイズから選びます。カスタマイズを選ぶとスライダーが出ます。家族が確かめて「通話」を押すまで、電話はかかりません。','言い方の案を出す。聞き返しに答える','内容を決める。案を直す。話し方を選ぶ。「通話」を押す'],
+ '01+':['通話中','「通話」を押すとホームに戻り、画面の上部に「通話中です」と出ます。通話中はほかの画面も見られますが、次の通話は頼めません。','親と電話で話す','終わったら通話記録を読む'],
+ '02':['今日の様子','食事、睡眠、体調の3つに絞ります。答えの下に本人の言葉を添え、気になる話は色だけでなく言葉でも示します。','会話から3項目を取り出す','受診や連絡が必要か判断する'],
+ '03':['電話に出たかどうかの記録','7日間で電話に出たかと話した分数を、1つのグラフで読めるようにします。出なかった日は棒を出さず、記号と「不在」で示します。'],
+ '04':['通話記録','上部のミニカレンダーで直近7日の様子が分かり、タップするとカレンダーが開きます。下には日付ごとに、内容を一言でまとめて並べます。出なかった電話も隠さず残します。','一言にまとめる','どの記録を読むか選ぶ'],
+ '04+':['カレンダーで日付を選ぶ','04のミニカレンダーをタップすると開きます。電話に出た日と不在の日を印で示し、日付を選ぶとその日の記録に移動します。今日より先の日付は選べません。'],
+ '04c':['スクロールしたとき','記録を下へスクロールしても、ミニカレンダーと条件の項目は上に残ります。「通話記録」の見出しだけが流れて、記録を読む範囲を広げます。カレンダーの選択は、いま見ている日付に合わせて動きます。'],
+ '05':['通話記録の詳細','上段に詳細なまとめ、下段に会話の内容を置きます。まとめの時刻から元の発言に移動でき、AIの要約をその場で確かめられます。アプリで見られるのは文字の記録だけで、録音は聴けません。','まとめて、根拠の発言を示す','まとめの間違いを直す'],
+ '06':['予約','日時と伝える内容を指定します。通院の朝など、ちょうどよい時間に伝えたいことがあるためです。かけなおしのルールもここから開きます。'],
+ '07':['かけなおしのルール','間隔と回数を選ぶと、実際の流れが時刻で見えます。「何時に通知が来るか」を保存する前に確かめられます。','決めない。ルールどおりに動く','間隔、回数、知らせる人を決める'],
+ '07+':['電話に出なかったとき','07のルールを超えると、ホームの最上部がこの表示に変わります。外出中の可能性も伝え、次の行動を3つ示します。','決めない。事実を知らせる','連絡するかどうか、誰にするかを決める'],
+};
+const cell=n=>{const m=META[n];const label=n.endsWith('+')?n.replace('+','b'):n;return`<div class="cell"><div class="cell-title"><span class="mono-m muted">${label}</span><span class="title-m">${m[0]}</span></div>${S[n]()}<div class="why"><p class="body-s note">${m[1]}</p>${m[2]?`<dl><dt>AI</dt><dd>${m[2]}</dd><dt>人</dt><dd>${m[3]}</dd></dl>`:''}</div></div>`};
+const flow=(head,sub,ns)=>`<section class="flow"><div class="flow-head"><h2 class="title-l">${head}</h2><span class="body-m muted">${sub}</span></div><div class="row">${ns.map(cell).join('')}</div></section>`;
+const swatch=(n,h)=>`<div class="swatch"><i style="background:${h}"></i><span class="label-s">${n}</span><span class="mono-s muted">${h}</span></div>`;
+const group=t=>`<tr class="group"><td colspan="3">${t}</td></tr>`;
+const crit=(a,b,c)=>`<tr><td>${a}</td><td>${b}</td><td>${c}</td></tr>`;
+document.getElementById('board').innerHTML=`
+<header class="intro">
+ <div class="intro-main"><h1 class="display">かぞくAI</h1><p class="body-m">管理者（離れて暮らす家族）が高齢者の様子を確認するためのアプリのUI案です。親の固定電話にAIが電話をかけ、その内容を家族に届けます。人物と会話はすべて架空の例です。</p></div>
+ <div class="principles">
+  <div class="principle"><span class="label-l">決めるのは家族</span><span class="body-s muted">AIが見守りのサポートをしますが、伝える内容、時間、連絡の判断は家族が行います。</span></div>
+  <div class="principle"><span class="label-l">主な機能</span><span class="body-s muted">コール、電話越しの会話、会話ログの保存の3種類です。簡単な操作を心がけています。</span></div>
+  <div class="principle"><span class="label-l">高齢者は電話に出るだけ</span><span class="body-s muted">高齢者は受話器から会話をするだけなので、細かい操作を覚える必要はありません。</span></div>
+ </div>
+</header>
+${flow('1. ログイン前','はじめて開いたとき',['L1','L2','L2+'])}
+${flow('1. ログイン前(続き)','規約を読むと登録できる',['L2c','L2d'])}
+${flow('2. 電話機とつなぐ','専用デバイス(固定電話)との同期',['L3','L4','L5'])}
+${flow('3. セットアップ','見守る方のことを登録する',['L6','L7'])}
+${flow('4. ホーム画面','様子を知って、伝える',['00','01','01+'])}
+${flow('4. ホーム画面(続き)','下にスクロールした状態',['02','03'])}
+${flow('5. 通話記録','日付で探して、一言で追う',['04','04+','04c'])}
+${flow('5. 通話記録(続き)','必要なら全文を読む',['05'])}
+${flow('6. 予約電話','決まった時間に電話する、出ないときに備える',['06','07','07+'])}
+<section class="found"><div class="flow-head"><h2 class="title-l">Foundations</h2><span class="body-m muted">色と文字</span></div>
+ <div class="found-grid">
+  <div class="swatches">
+   ${[['paper/base','#F6F0E4'],['paper/raised','#FFFBF3'],['paper/sunken','#EBE3D2'],['ink/primary','#2A2420'],['ink/secondary','#665A4D'],['accent/call','#C9401F'],['night/base','#1A1613'],['night/raised','#28221D'],['state/ok','#4B7A2C'],['state/care','#9A6300'],['state/care-soft','#F6E7C4'],['state/alert','#8E2A12'],['state/alert-soft','#F8E1D8'],['speaker/ai','#2F5D8C'],['speaker/parent','#A23B5C']].map(([n,h])=>swatch(n,h)).join('')}
+  </div>
+  <div class="spec">
+   <div><span class="mono-s muted">Zen Maru Gothic / 画面の文字</span><span class="title-l">親の様子を、ひと目で確かめる</span></div>
+   <div><span class="mono-s muted">Shippori Mincho / 会話の言葉</span><span class="cap-l">「よく眠れたよ。朝ごはんも食べたしね。」</span></div>
+   <div><span class="mono-s muted">DM Mono / 時刻と分数</span><span class="mono-m">9:02　6分12秒　03-0000-0000</span></div>
+  </div>
+ </div>
+</section>`;
+// ホームの02と03は、同じ画面をスクロールした状態として表示する
+const placeHome=()=>document.querySelectorAll('.hcol[data-scroll]').forEach(col=>{
+ const mode=col.dataset.scroll,view=col.parentElement,tabH=98;
+ if(mode==='today')col.style.top=`${8-col.querySelector('[data-part="today"]').offsetTop}px`;
+ if(mode==='bottom')col.style.top=`${view.clientHeight-tabH-col.offsetHeight}px`;
+});
+placeHome();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(placeHome);
+</script>
+</body>
+</html>
