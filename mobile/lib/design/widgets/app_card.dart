@@ -18,6 +18,13 @@ enum AppCardVariant {
     gap: 0,
     background: AppColors.nightBase,
     foreground: AppColors.nightText,
+  ),
+  alert(
+    padding: 20,
+    radius: 24,
+    gap: 0,
+    background: AppColors.stateAlert,
+    foreground: AppColors.onStateAlert,
   );
 
   const AppCardVariant({

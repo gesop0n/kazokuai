@@ -36,6 +36,83 @@ class _Pressable {
 
 final _pressables = [
   _Pressable(
+    name: 'ボタン L primary',
+    build: (onTap) => AppButton(
+      label: 'このルールで保存',
+      variant: AppButtonVariant.primary,
+      size: AppButtonSize.l,
+      onTap: onTap,
+    ),
+    semanticLabel: 'このルールで保存',
+    minHeight: 56,
+    surface: AppColors.inkPrimary,
+    foreground: AppColors.paperRaised,
+  ),
+  _Pressable(
+    name: 'ボタン M ghost',
+    build: (onTap) => AppButton(
+      label: 'うまくいかないときの連絡先',
+      variant: AppButtonVariant.ghost,
+      size: AppButtonSize.m,
+      onTap: onTap,
+    ),
+    semanticLabel: 'うまくいかないときの連絡先',
+    minHeight: 44,
+    surface: AppColors.paperBase,
+    foreground: AppColors.inkSecondary,
+    isTransparent: true,
+  ),
+  _Pressable(
+    name: 'ボタン S ghost',
+    build: (onTap) => Align(
+      alignment: Alignment.centerLeft,
+      child: AppButton(
+        label: 'なおす',
+        variant: AppButtonVariant.ghost,
+        size: AppButtonSize.s,
+        leadingIcon: AppIcons.pencil,
+        onTap: onTap,
+      ),
+    ),
+    semanticLabel: 'なおす',
+    minHeight: 44,
+    surface: AppColors.paperRaised,
+    foreground: AppColors.inkSecondary,
+    isTransparent: true,
+  ),
+  _Pressable(
+    name: 'ボタン S ghost(左右の余白なし)',
+    build: (onTap) => Align(
+      alignment: Alignment.centerLeft,
+      child: AppButton(
+        label: 'まとめの間違いを直す',
+        variant: AppButtonVariant.ghost,
+        size: AppButtonSize.sFlush,
+        leadingIcon: AppIcons.pencil,
+        onTap: onTap,
+      ),
+    ),
+    semanticLabel: 'まとめの間違いを直す',
+    minHeight: 44,
+    surface: AppColors.paperRaised,
+    foreground: AppColors.inkSecondary,
+    isTransparent: true,
+  ),
+  _Pressable(
+    name: 'ボタン L white',
+    build: (onTap) => AppButton(
+      label: 'もう一度電話する',
+      variant: AppButtonVariant.white,
+      size: AppButtonSize.l,
+      leadingIcon: AppIcons.phone,
+      onTap: onTap,
+    ),
+    semanticLabel: 'もう一度電話する',
+    minHeight: 56,
+    surface: AppColors.onStateAlert,
+    foreground: AppColors.stateAlertOnStrong,
+  ),
+  _Pressable(
     name: 'ボタン L record',
     build: (onTap) => AppButton(
       label: '通話',
@@ -269,6 +346,142 @@ void main() {
 
     expect(tester.getSize(find.byType(AppIconButton)), const Size.square(44));
     expect(find.bySemanticsLabel('通知'), findsOneWidget);
+  });
+
+  group('onTap が null のボタン', () {
+    for (final variant in AppButtonVariant.values) {
+      testEachLayout('${variant.name} は押せず、読み上げも押せない状態になる', (
+        tester,
+        layout,
+      ) async {
+        await pumpInLayout(
+          tester,
+          layout,
+          AppButton(
+            label: '現在通話中です',
+            variant: variant,
+            size: AppButtonSize.l,
+            onTap: null,
+          ),
+        );
+
+        final inkWell = find.byType(InkWell);
+        expect(tester.getSize(inkWell).height, greaterThanOrEqualTo(56));
+        expect(tester.widget<InkWell>(inkWell).onTap, isNull);
+        expect(
+          tester.getSemantics(inkWell),
+          isSemantics(
+            label: '現在通話中です',
+            isButton: true,
+            hasEnabledState: true,
+            isEnabled: false,
+            hasTapAction: false,
+          ),
+        );
+      });
+
+      testWidgets('${variant.name} はモックの disabledBtn の見た目になる', (tester) async {
+        await pumpInLayout(
+          tester,
+          layoutCases.first,
+          AppButton(
+            label: '現在通話中です',
+            variant: variant,
+            size: AppButtonSize.l,
+            leadingIcon: AppIcons.phone,
+            onTap: null,
+          ),
+        );
+
+        final material = tester.widget<Material>(
+          find
+              .ancestor(
+                of: find.byType(InkWell),
+                matching: find.byType(Material),
+              )
+              .first,
+        );
+        expect(material.color, AppColors.line);
+        expect(material.shape, const StadiumBorder());
+        expect(
+          tester.widget<Text>(find.text('現在通話中です')).style?.color,
+          AppColors.inkSecondary,
+        );
+        expect(
+          tester.widget<AppIcon>(find.byType(AppIcon)).color,
+          AppColors.inkSecondary,
+        );
+      });
+    }
+
+    testWidgets('押しても色を重ねない', (tester) async {
+      await pumpInLayout(
+        tester,
+        layoutCases.first,
+        const AppButton(
+          label: '現在通話中です',
+          variant: AppButtonVariant.record,
+          size: AppButtonSize.l,
+          onTap: null,
+        ),
+      );
+
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(InkWell)),
+      );
+      await tester.pump(kPressTimeout);
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final overlay = AppPressable.overlayOf(AppColors.inkSecondary);
+      final inkWell = tester.element(find.byType(InkWell));
+      expect(Material.of(inkWell), isNot(paints..rect(color: overlay)));
+
+      await gesture.up();
+    });
+
+    testWidgets('onTap を渡すと押せる見た目に戻る', (tester) async {
+      await pumpInLayout(
+        tester,
+        layoutCases.first,
+        AppButton(
+          label: '通話',
+          variant: AppButtonVariant.record,
+          size: AppButtonSize.l,
+          onTap: () {},
+        ),
+      );
+
+      expect(
+        tester.getSemantics(find.byType(InkWell)),
+        isSemantics(hasEnabledState: true, isEnabled: true),
+      );
+    });
+  });
+
+  testWidgets('sFlush は文字の左端が親の端に揃い、s は 8 の余白を取る', (tester) async {
+    for (final (size, inset) in [
+      (AppButtonSize.s, 8.0),
+      (AppButtonSize.sFlush, 0.0),
+    ]) {
+      await pumpInLayout(
+        tester,
+        layoutCases.first,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: AppButton(
+            label: 'なおす',
+            variant: AppButtonVariant.ghost,
+            size: size,
+            leadingIcon: AppIcons.pencil,
+            onTap: () {},
+          ),
+        ),
+      );
+
+      final button = tester.getTopLeft(find.byType(AppButton)).dx;
+      expect(tester.getTopLeft(find.byType(AppIcon)).dx - button, inset);
+      expect(tester.getSize(find.byType(AppIcon)).width, 16);
+    }
   });
 
   testWidgets('入力欄の既定の高さは 56 で、TextField を使わない', (tester) async {
