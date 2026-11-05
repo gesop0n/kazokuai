@@ -60,6 +60,7 @@ flutter:
 
   assets:
     - assets/icons/
+    - assets/licenses/
 
   fonts:
     - family: ZenMaruGothic
