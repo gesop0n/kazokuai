@@ -130,6 +130,45 @@ void main() {
       }
     });
 
+    // サンプルでは末尾の余白がタブバーより大きいので、行が多い日で確かめる
+    testWidgets('行が多くても、最後の行はタブバーに隠れない', (tester) async {
+      tester.view.padding = const FakeViewPadding(bottom: 98);
+      addTearDown(tester.view.resetPadding);
+      await pumpScreenInLayout(
+        tester,
+        _mockLayout,
+        Scaffold(
+          body: CallsScreen(
+            log: CallLog(
+              today: DateTime(2026, 11, 5),
+              days: [
+                CallLogDay(
+                  date: DateTime(2026, 11, 5),
+                  entries: [
+                    for (var hour = 23; hour >= 8; hour--)
+                      AnsweredCallEntry(
+                        startedAt: DateTime(2026, 11, 5, hour),
+                        text: '$hour時の電話',
+                        duration: const Duration(minutes: 3),
+                        topic: CallTopic.health,
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await scrollCallsTo(tester, callsPosition(tester).maxScrollExtent);
+
+      expect(
+        tester.getBottomLeft(find.text('8時の電話')).dy,
+        lessThanOrEqualTo(852 - 98),
+      );
+    });
+
     testWidgets('10月30日の行はない', (tester) async {
       await pumpCallsScreen(tester, _mockLayout);
 
