@@ -1,30 +1,29 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:mobile/main.dart';
+import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/design/app_icon.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('アプリが起動してロケールが ja になる', (tester) async {
+    await tester.pumpWidget(const KazokuAiApp());
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    final context = tester.element(find.byType(Scaffold));
+    expect(Localizations.localeOf(context), const Locale('ja'));
   });
+
+  test('AppIcons は22個ある', () {
+    expect(AppIcons.values, hasLength(22));
+  });
+
+  for (final icon in AppIcons.values) {
+    test('${icon.assetPath} を読める', () async {
+      final bytes = await SvgAssetLoader(icon.assetPath).loadBytes(null);
+      expect(bytes.lengthInBytes, greaterThan(0));
+    });
+  }
 }

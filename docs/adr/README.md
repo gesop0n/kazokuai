@@ -3,7 +3,7 @@
 ## ADR の内容
 
 ### ファイル名
-`YYYYMMMDD_<title>.md`
+`YYYYMMDD_<title>.md`
 
 ### Status
 この判断が今どの段階かを表す。
@@ -27,4 +27,5 @@
 
 | No. | タイトル | Status |
 | --- | --- | --- |
-| [00000000-template](00000000-template.md) | アーキテクチャ判断を記録する | Accepted |
+| [00000000_template](00000000_template.md) | アーキテクチャ判断を記録する | Accepted |
+| [20261105_mobile_development_policy](20261105_mobile_development_policy.md) | モバイルアプリの開発方針 | Accepted |
