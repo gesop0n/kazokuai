@@ -40,6 +40,15 @@ Future<void> tapCallLogButton(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// 予約電話の一番下にあるので、スクロールしてから押す
+Future<void> tapRetryRuleRow(WidgetTester tester) async {
+  final row = find.text('かけなおしのルール');
+  await tester.ensureVisible(row);
+  await tester.pumpAndSettle();
+  await tester.tap(row);
+  await tester.pumpAndSettle();
+}
+
 Future<void> tapBack(WidgetTester tester) async {
   await tester.tap(
     find.descendant(of: find.byType(AppNavBar), matching: find.byType(InkWell)),
@@ -102,7 +111,7 @@ void main() {
     await pumpApp(tester);
     await tapTab(tester, '予約電話');
 
-    await tapText(tester, 'かけなおしのルール');
+    await tapRetryRuleRow(tester);
     expect(find.byType(RetryRuleScreen), findsOneWidget);
     expect(find.byType(AppTabBar), findsNothing);
 
@@ -160,7 +169,7 @@ void main() {
     await tapBack(tester);
 
     await tapTab(tester, '予約電話');
-    await tapText(tester, 'かけなおしのルール');
+    await tapRetryRuleRow(tester);
     expect(find.bySemanticsLabel('もどる'), findsOneWidget);
   });
 
