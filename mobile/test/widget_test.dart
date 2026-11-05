@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,7 +11,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('アプリが起動してロケールが ja になる', (tester) async {
-    await tester.pumpWidget(const KazokuAiApp());
+    await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
     await tester.pumpAndSettle();
 
     final context = tester.element(find.byType(HomeScreen));
@@ -21,7 +22,7 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-    await tester.pumpWidget(const KazokuAiApp());
+    await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
     await tester.pumpAndSettle();
 
     final context = tester.element(find.byType(HomeScreen));

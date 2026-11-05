@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
@@ -12,7 +13,7 @@ import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 Future<void> pumpApp(WidgetTester tester) async {
-  await tester.pumpWidget(const KazokuAiApp());
+  await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
   await tester.pumpAndSettle();
 }
 

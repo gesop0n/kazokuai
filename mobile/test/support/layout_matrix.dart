@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_theme.dart';
@@ -61,8 +63,9 @@ Future<void> pumpInLayout(
 Future<void> pumpScreenInLayout(
   WidgetTester tester,
   LayoutCase layout,
-  Widget screen,
-) async {
+  Widget screen, {
+  List<Override> overrides = const [],
+}) async {
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = Size(layout.width, _screenHeight);
@@ -71,12 +74,15 @@ Future<void> pumpScreenInLayout(
   addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
   await tester.pumpWidget(
-    MaterialApp(
-      theme: appTheme,
-      locale: const Locale('ja'),
-      supportedLocales: const [Locale('ja')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      home: screen,
+    ProviderScope(
+      overrides: overrides,
+      child: MaterialApp(
+        theme: appTheme,
+        locale: const Locale('ja'),
+        supportedLocales: const [Locale('ja')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        home: screen,
+      ),
     ),
   );
 }
