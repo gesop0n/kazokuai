@@ -44,5 +44,5 @@ This repo's ADR format replaces the one in the `domain-modeling` skill. When to 
 - **Format**: `docs/adr/README.md` defines the file name (`YYYYMMDD_<title>.md`), the Status values, and the sections (Nygard: Status, Context, Decision, Consequences with Pros and Cons). Copy the shape of the latest ADR.
 - **Number**: the title is `# ADR <NNNN>: <title>`. Take the highest number in `docs/adr/` and add one.
 - **List**: add a row to the table in `docs/adr/README.md`.
-- **Language**: write the ADR in English first, translate it to Japanese with the `plamo-translate` MCP server, then polish the Japanese with the `yomiyasu` skill. Commit only the Japanese. If `plamo-translate` is unreachable, stop and tell the user; it runs on `localhost:30000` and the user starts it.
+- **Language**: write the ADR in English first, translate it with `mise run translate`, fix the mistranslations against the English, then polish the Japanese with the `yomiyasu` skill. Commit only the Japanese.
 - **Superseding part of an ADR**: leave the old ADR's Status as it is, and name the replaced decision in the new ADR's Context.

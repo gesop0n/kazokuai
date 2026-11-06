@@ -1,2 +1,5 @@
 # codegraph の索引。ワークツリーごとに codegraph init で作る
 .codegraph/
+
+# scripts/ のテストを動かすと Python が作る
+__pycache__/
