@@ -31,3 +31,4 @@
 | [20261105_mobile_development_policy](20261105_mobile_development_policy.md) | モバイルアプリの開発方針 | Accepted |
 | [20261106_mobile_demo_behavior](20261106_mobile_demo_behavior.md) | モバイルアプリのデモの動き | Accepted |
 | [20261106_device_backend_architecture](20261106_device_backend_architecture.md) | デバイスおよびバックエンドのアーキテクチャ | Accepted |
+| [20261107_development_process](20261107_development_process.md) | 開発プロセス | Accepted |
