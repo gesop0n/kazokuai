@@ -1,0 +1,5 @@
+# git gtr new で作ったワークツリーの中で動かすコマンド。
+# 初めて使う前と、ここを変えたあとに、人が git gtr trust で承認する。
+[hooks]
+	postCreate = mise trust
+	postCreate = codegraph init
