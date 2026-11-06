@@ -50,17 +50,20 @@ Future<void> tapBack(WidgetTester tester) async {
 int currentTab(WidgetTester tester) =>
     tester.widget<AppTabBar>(find.byType(AppTabBar)).currentIndex;
 
+// 条件のチップも横に動くので、一番外側の Scrollable を選ぶ
 ScrollPosition callsScrollPosition(WidgetTester tester) => tester
     .state<ScrollableState>(
-      find.descendant(
-        of: find.byType(CallsScreen),
-        matching: find.byType(Scrollable),
-      ),
+      find
+          .descendant(
+            of: find.byType(CallsScreen),
+            matching: find.byType(Scrollable),
+          )
+          .first,
     )
     .position;
 
 Future<void> scrollCalls(WidgetTester tester, double dy) async {
-  await tester.drag(find.byType(ListView), Offset(0, dy));
+  await tester.drag(find.byType(CustomScrollView), Offset(0, dy));
   await tester.pumpAndSettle();
 }
 
@@ -129,7 +132,7 @@ void main() {
     await pumpApp(tester);
     await tapTab(tester, '通話記録');
 
-    await tapText(tester, '記録 1');
+    await tapText(tester, '朝食と薬は済み。膝を気にしている');
     expect(find.byType(CallDetailScreen), findsOneWidget);
     expect(find.byType(AppTabBar), findsNothing);
 
@@ -219,8 +222,8 @@ void main() {
       await scrollCalls(tester, -300);
       final pixels = callsScrollPosition(tester).pixels;
 
-      await tester.tap(find.byType(ListTile).first);
-      await tester.pumpAndSettle();
+      await tapText(tester, 'お孫さんの運動会の話がはずんだ');
+      expect(find.byType(CallDetailScreen), findsOneWidget);
       await tapBack(tester);
 
       expect(callsScrollPosition(tester).pixels, pixels);
@@ -258,10 +261,8 @@ void main() {
 
       await scrollCalls(tester, -100000);
 
-      final last = find.text('記録 ${CallsScreen.recordCount}');
-      final lastTile = find.ancestor(of: last, matching: find.byType(ListTile));
       expect(
-        tester.getBottomLeft(lastTile).dy,
+        tester.getBottomLeft(find.text('庭の菊が咲き始めた話をした')).dy,
         lessThanOrEqualTo(tester.getTopLeft(find.byType(AppTabBar)).dy),
       );
     });
