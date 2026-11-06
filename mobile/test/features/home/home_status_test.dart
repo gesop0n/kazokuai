@@ -275,7 +275,7 @@ void main() {
     });
   });
 
-  group('不在の表示の仮の実装', () {
+  group('不在の表示', () {
     testWidgets('濃い赤のカードに白いボタンを置き、押すと onCallAgain を呼ぶ', (tester) async {
       var callCount = 0;
       await pumpInLayout(
@@ -289,7 +289,7 @@ void main() {
       );
 
       expect(
-        tester.widget<AppCard>(find.byType(AppCard)).variant,
+        tester.widget<AppCard>(find.byType(AppCard).first).variant,
         AppCardVariant.alert,
       );
       expect(

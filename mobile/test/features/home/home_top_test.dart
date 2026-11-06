@@ -46,7 +46,7 @@ Widget buildLongStampRecentCard() => buildRecentCard(
     duration: const Duration(minutes: 120),
     summary: sampleHomeData.latestCall.summary,
   ),
-  now: DateTime(2026, 12, 26),
+  now: DateTime(2026, 12, 27),
 );
 
 // ヘッダーは自分で左右の余白を持つので、pumpInLayout を使わず画面の幅で置く
@@ -170,7 +170,7 @@ void main() {
       await pumpInLayout(
         tester,
         standardLayout,
-        buildRecentCard(now: DateTime(2026, 11, 6, 8)),
+        buildRecentCard(now: DateTime(2026, 11, 7, 8)),
       );
 
       expect(find.text('11月5日 9:02 ・ 6分'), findsOneWidget);
@@ -387,10 +387,10 @@ void main() {
       expect(formatRelativeDay(startedAt, DateTime(2026, 11, 5)), '今日');
     });
 
-    test('日が変われば、24 時間以内でも月日で書く', () {
+    test('日が変われば、24 時間以内でも昨日と書く', () {
       expect(
         formatRelativeDay(DateTime(2026, 11, 4, 23, 59), DateTime(2026, 11, 5)),
-        '11月4日',
+        '昨日',
       );
     });
 
