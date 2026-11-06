@@ -12,10 +12,13 @@ A phone-style device at an elderly parent's home talks with them by voice throug
 
 ## Writing
 
-Write issues, specs, PR bodies, commit messages, and ADRs in Japanese.
+Issues, specs, PR bodies, commit messages, and ADRs are published in Japanese.
 
-- **PR bodies and specs**: polish the Japanese with the `yomiyasu` skill before you publish them.
+- **Specs, tickets, and PR bodies**: write them in English, translate with `mise run translate <en.md> <ja.md>`, then compare the Japanese with the English and fix every mistranslation. Polish specs and PR bodies with the `yomiyasu` skill; publish tickets without it.
+- **English original**: end every spec and ticket with the English original in `<details><summary>英語の原文</summary>`, a blank line, the English, a blank line, and `</details>`.
+- **Commit messages**: write them directly in Japanese.
 - **ADRs**: follow "Writing an ADR" in `docs/agents/domain.md`.
+- **plamo-translate unreachable**: stop and tell the person. They start the server on `localhost:30000`.
 
 ## Agent skills
 

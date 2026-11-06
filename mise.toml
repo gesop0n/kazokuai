@@ -3,7 +3,7 @@ flutter = { version = "3.47.9", checksum_expr = '"sha256:" + filter(fromJSON(bod
 
 [tasks.check]
 description = "PR を出す前に通すチェック。CI でも同じものを動かす"
-depends = ["check:mobile"]
+depends = ["check:mobile", "check:scripts"]
 
 [tasks."check:mobile"]
 description = "Flutter のアプリのフォーマット、静的解析、テスト"
@@ -13,3 +13,11 @@ run = [
   "flutter analyze",
   "flutter test",
 ]
+
+[tasks."check:scripts"]
+description = "scripts/ のテスト"
+run = "python3 -I -m unittest discover -s {{config_root}}/scripts -p '*_test.py'"
+
+[tasks.translate]
+description = "英語の Markdown を plamo-translate で日本語に訳す。例: mise run translate en.md ja.md"
+run = "python3 -I {{config_root}}/scripts/plamo_translate.py"

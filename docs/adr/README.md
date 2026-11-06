@@ -32,3 +32,4 @@
 | [20261106_mobile_demo_behavior](20261106_mobile_demo_behavior.md) | モバイルアプリのデモの動き | Accepted |
 | [20261106_device_backend_architecture](20261106_device_backend_architecture.md) | デバイスおよびバックエンドのアーキテクチャ | Accepted |
 | [20261107_development_process](20261107_development_process.md) | 開発プロセス | Accepted |
+| [20261107_issue_pr_writing](20261107_issue_pr_writing.md) | issue とプルリクエストの書き方 | Accepted |
