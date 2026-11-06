@@ -6,15 +6,16 @@
 <title>かぞくAI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@600&family=Shippori+Mincho:wght@500;600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
 <style>
 :root{
-  --paper-base:#F6F0E4;--paper-raised:#FFFBF3;--paper-sunken:#EBE3D2;
-  --ink:#2A2420;--ink-2:#665A4D;--line:#DDD2BE;--line-strong:#8F806A;
-  --record:#C9401F;--on-record:#FFFFFF;--ok:#4B7A2C;--care:#9A6300;--care-soft:#F6E7C4;--alert-soft:#F8E1D8;
-  --night:#1A1613;--night-raised:#28221D;--night-line:#3D352D;--night-text:#F6F0E4;--night-text-2:#B8AC9A;
-  --zen:"Zen Maru Gothic",sans-serif;--min:"Shippori Mincho",serif;--mono:"DM Mono",monospace;
+  /* 東京都カラーユニバーサルデザインガイドライン(推奨配色セット)を基準にした配色 */
+  --paper-base:#F1F1F1;--paper-raised:#FFFFFF;--paper-sunken:#E2E3E6;
+  --ink:#1A1A1A;--ink-2:#4D5359;--ink-3:#6E757C;--line:#C8C8CB;--line-strong:#7F878F;
+  --record:#0041FF;--on-record:#FFFFFF;--alert:#DC3800;--ok:#35A16B;--ok-soft:#D5F5E3;--care:#FF9900;--care-soft:#FFFF99;--alert-soft:#FFE3E3;
+  --night:#1F2328;--night-raised:#2D3238;--night-line:#7F878F;--night-text:#FFFFFF;--night-text-2:#D0D3D8;
+  --zen:"Zen Maru Gothic",sans-serif;--mono:"DM Mono",monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#E4DCCB}
@@ -30,9 +31,9 @@ svg{display:block;flex:none}
 .label-s{font:500 12px/16px var(--zen);letter-spacing:.02em}
 .body-m{font:400 15px/24px var(--zen);letter-spacing:.02em}
 .body-s{font:400 13px/20px var(--zen);letter-spacing:.02em}
-.cap-l{font:600 26px/40px var(--min);letter-spacing:.04em}
-.cap-m{font:500 17px/28px var(--min);letter-spacing:.04em}
-.cap-s{font:500 14px/22px var(--min);letter-spacing:.03em}
+.cap-l{font:700 26px/40px var(--zen);letter-spacing:.04em}
+.cap-m{font:500 17px/28px var(--zen);letter-spacing:.04em}
+.cap-s{font:500 14px/22px var(--zen);letter-spacing:.03em}
 .mono-l{font:400 52px/56px var(--mono);letter-spacing:-.02em}
 .mono-m{font:500 14px/18px var(--mono)}
 .mono-s{font:400 12px/16px var(--mono)}
@@ -102,12 +103,12 @@ svg{display:block;flex:none}
 .field.focus{border:2px solid var(--ink)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip-hit{padding:4px 0;flex:none}
-.chip{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;border-radius:999px;background:var(--paper-raised);border:1px solid var(--line);font:500 14px/20px var(--zen);letter-spacing:.02em;white-space:nowrap}
+.chip{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;border-radius:999px;background:var(--paper-raised);border:1px solid var(--line-strong);font:500 14px/20px var(--zen);letter-spacing:.02em;white-space:nowrap}
 .chip.sel{background:var(--ink);color:var(--paper-raised);border-color:var(--ink)}
 .dockact{width:88px;height:56px;border-radius:16px;display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;font:500 12px/16px var(--zen);letter-spacing:.02em;flex:none;color:var(--ink-2)}
 .dockact.on{background:var(--paper-sunken);color:var(--ink);font-weight:700}
 .dock{display:flex;justify-content:space-between;align-items:center;padding:8px 24px 0}
-.sheet{position:absolute;left:0;bottom:0;width:393px;background:var(--paper-raised);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(58,42,25,.18);display:flex;flex-direction:column;z-index:4}
+.sheet{position:absolute;left:0;bottom:0;width:393px;background:var(--paper-raised);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:4}
 .card{padding:16px;border-radius:20px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px}
 .nightcard{padding:20px;border-radius:24px;background:var(--night);color:var(--night-text);display:flex;flex-direction:column}
 .ai-tag{display:flex;gap:6px;align-items:center}
@@ -116,7 +117,7 @@ svg{display:block;flex:none}
 .step b{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper-raised);display:flex;align-items:center;justify-content:center;font:700 14px/20px var(--zen);flex:none}
 .illus{border-radius:24px;background:var(--paper-sunken);display:flex;justify-content:center;align-items:center;padding:16px}
 .prog{display:flex;gap:6px}
-.prog i{display:block;height:4px;flex:1;border-radius:2px;background:var(--line)}
+.prog i{display:block;height:4px;flex:1;border-radius:2px;background:var(--line-strong)}
 .prog i.on{background:var(--ink)}
 
 /* Home */
@@ -125,10 +126,10 @@ svg{display:block;flex:none}
 .hcol{position:absolute;left:16px;width:361px;display:flex;flex-direction:column;gap:12px;padding-bottom:12px}
 .state{display:flex;gap:12px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--line)}
 .state:first-of-type{border-top:0;padding-top:0}
-.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font:700 12px/16px var(--zen);letter-spacing:.02em;flex:none}
-.pill.care{background:var(--care-soft);color:#6F4700}
-.pill.ok{background:#E2E8CF;color:#34571D}
-.pill.alert{background:var(--alert-soft);color:#96290F}
+.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font:700 12px/16px var(--zen);letter-spacing:.02em;flex:none;color:var(--ink);border:1px solid var(--ink-2)}
+.pill.care{background:var(--care-soft)}
+.pill.ok{background:var(--ok-soft)}
+.pill.alert{background:var(--alert-soft)}
 
 /* Timeline */
 .tl-day{display:flex;justify-content:space-between;align-items:baseline;padding:8px 16px}
@@ -137,7 +138,7 @@ svg{display:block;flex:none}
 .tl-rail{width:24px;flex:none;display:flex;flex-direction:column;align-items:center;padding-top:10px}
 .tl-rail i{display:block;width:2px;flex:1;background:var(--line-strong);margin-top:4px;opacity:.5}
 .tl-card{flex:1;min-width:0;margin-bottom:10px;padding:12px;border-radius:16px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
-.tl-card.miss{background:var(--alert-soft);border-color:#E9C3B4}
+.tl-card.miss{background:var(--alert-soft);border:2px solid var(--alert)}
 
 /* Calendar */
 .mini{margin:0 16px 4px;width:361px;padding:8px;border-radius:16px;background:var(--paper-raised);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px;text-align:left}
@@ -148,7 +149,7 @@ svg{display:block;flex:none}
 .mark{height:12px;display:flex;align-items:center;justify-content:center}
 .mark i{display:block;width:6px;height:6px;border-radius:50%;background:var(--line-strong)}
 .mini-day.sel .mark i{background:var(--paper-raised)}
-.scrim{position:absolute;left:0;top:0;width:393px;height:852px;background:rgba(26,22,19,.48);z-index:3}
+.scrim{position:absolute;left:0;top:0;width:393px;height:852px;background:rgba(0,0,0,.5);z-index:3}
 .grip{height:20px;padding-top:8px;display:flex;justify-content:center;flex:none}
 .grip i{display:block;width:40px;height:4px;border-radius:2px;background:var(--line-strong)}
 .cal{display:grid;grid-template-columns:repeat(7,1fr);row-gap:2px}
@@ -157,21 +158,22 @@ svg{display:block;flex:none}
 .cal-d b{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:500 14px/18px var(--mono)}
 .cal-d.sel b{background:var(--ink);color:var(--paper-raised)}
 .cal-d.today b{box-shadow:inset 0 0 0 1.5px var(--ink)}
-.cal-d.future b{color:var(--line-strong);font-weight:400}
+.cal-d.future b{color:var(--ink-3);font-weight:400}
 
 /* Log */
 .log{display:flex;flex-direction:column;gap:12px}
 .say{display:grid;grid-template-columns:40px 1fr;gap:8px}
 .say .t{padding-top:2px;color:var(--ink-2)}
 .say .who{font:700 12px/16px var(--zen);letter-spacing:.02em}
-.say.flag .txt{background:var(--care-soft);border-radius:8px;padding:4px 8px;margin:2px 0 0 -8px}
+.say.flag .who{display:flex;align-items:center;gap:8px}
+.say.flag .txt{background:var(--care-soft);border:1px solid var(--ink-2);border-radius:8px;padding:4px 8px;margin:2px 0 0 -8px}
 
 /* Foundations */
 .found{display:flex;flex-direction:column;gap:32px}
 .found-grid{display:flex;gap:64px;align-items:flex-start}
 .swatches{display:flex;flex-wrap:wrap;gap:12px;width:760px}
 .swatch{width:112px;display:flex;flex-direction:column;gap:6px}
-.swatch i{display:block;height:64px;border-radius:12px;border:1px solid rgba(42,36,32,.12)}
+.swatch i{display:block;height:64px;border-radius:12px;border:1px solid rgba(0,0,0,.25)}
 .spec{flex:1;display:flex;flex-direction:column;gap:20px}
 .spec>div{display:flex;flex-direction:column;gap:4px}
 </style>
@@ -179,7 +181,7 @@ svg{display:block;flex:none}
 <body>
 <main class="board" id="board"></main>
 <script>
-const INK='#2A2420',INK2='#665A4D',RAISED='#FFFBF3',SUNKEN='#EBE3D2',REC='#C9401F',OK='#4B7A2C',CARE='#9A6300',NIGHT='#1A1613',NLINE='#3D352D',NTEXT='#F6F0E4',NTEXT2='#B8AC9A',NRAISED='#28221D',AI_C='#2F5D8C',HANA='#A23B5C';
+const INK='#1A1A1A',INK2='#4D5359',RAISED='#FFFFFF',SUNKEN='#E2E3E6',ALERT='#DC3800',OK='#35A16B',CARE='#FF9900',NIGHT='#1F2328',NLINE='#7F878F',NTEXT='#FFFFFF',NTEXT2='#D0D3D8',NRAISED='#2D3238',AI_C='#0041FF',HANA='#663300',GREY='#7F878F';
 const PHONE='<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>';
 const IC={
  phone:PHONE,
@@ -224,67 +226,71 @@ const prog=(n,all)=>`<div class="prog" aria-label="${all}段階のうち${n}段�
 
 // 固定電話のイラスト。lamp: off / on / ok / fail
 const device=(lamp='off',w=280,ring=true)=>{
- const L={off:['#CBBFA8',0],on:['#E5B04E',1],ok:['#4B7A2C',1],fail:['#CBBFA8',0]}[lamp];
- let keys='';for(let r=0;r<4;r++)for(let c=0;c<3;c++)keys+=`<rect x="${84+c*30}" y="${100+r*20}" width="22" height="13" rx="4" fill="#FFFBF3" stroke="#8F806A"/>`;
+ const L={off:[GREY,0],on:['#FAF500',1],ok:[OK,1],fail:[GREY,0]}[lamp];
+ let keys='';for(let r=0;r<4;r++)for(let c=0;c<3;c++)keys+=`<rect x="${84+c*30}" y="${100+r*20}" width="22" height="13" rx="4" fill="#FFFFFF" stroke="${GREY}"/>`;
  return`<svg width="${w}" height="${Math.round(w*208/320)}" viewBox="0 0 320 208" fill="none" aria-hidden="true">
- <path d="M58 88C60 74 72 68 86 68H234C248 68 260 74 262 88L276 182C278 194 270 200 258 200H62C50 200 42 194 44 182Z" fill="#E8DCC4" stroke="#2A2420" stroke-width="2.5"/>
- <path d="M36 46C36 22 66 12 160 12S284 22 284 46V56C284 66 276 70 264 70H238C228 70 222 64 222 56V48C222 42 200 38 160 38S98 42 98 48V56C98 64 92 70 82 70H56C44 70 36 66 36 56Z" fill="#2A2420"/>
+ <path d="M58 88C60 74 72 68 86 68H234C248 68 260 74 262 88L276 182C278 194 270 200 258 200H62C50 200 42 194 44 182Z" fill="#C8C8CB" stroke="${INK}" stroke-width="2.5"/>
+ <path d="M36 46C36 22 66 12 160 12S284 22 284 46V56C284 66 276 70 264 70H238C228 70 222 64 222 56V48C222 42 200 38 160 38S98 42 98 48V56C98 64 92 70 82 70H56C44 70 36 66 36 56Z" fill="${INK}"/>
  ${keys}
- ${L[1]?`<circle cx="228" cy="104" r="17" fill="${L[0]}" fill-opacity=".28"/>`:''}
- <circle cx="228" cy="104" r="8" fill="${L[0]}" stroke="#2A2420" stroke-width="2"/>
- ${ring?`<circle cx="228" cy="154" r="24" stroke="#C9401F" stroke-width="2.5" stroke-dasharray="5 5"/>`:''}
- <circle cx="228" cy="154" r="15" fill="#FFFBF3" stroke="#2A2420" stroke-width="2.5"/>
- <circle cx="228" cy="154" r="7" fill="#2A2420"/>
+ ${L[1]?`<circle cx="228" cy="104" r="17" fill="${L[0]}" fill-opacity=".55"/>`:''}
+ <circle cx="228" cy="104" r="8" fill="${L[0]}" stroke="${INK}" stroke-width="2"/>
+ ${ring?`<circle cx="228" cy="154" r="24" stroke="${ALERT}" stroke-width="2.5" stroke-dasharray="5 5"/>`:''}
+ <circle cx="228" cy="154" r="15" fill="#FFFFFF" stroke="${INK}" stroke-width="2.5"/>
+ <circle cx="228" cy="154" r="7" fill="${INK}"/>
  </svg>`};
 const illus=(lamp,mark,ring)=>`<div class="illus" style="position:relative">${device(lamp,280,ring)}${mark||''}</div>`;
 
 // ---------- 1. Before login ----------
 const S={};
 const LOGO_GOOGLE=`<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>`;
-const welcomeLine=(ic,t)=>`<div style="display:flex;gap:12px;align-items:center"><span class="iconbtn" style="width:36px;height:36px;background:var(--care-soft)">${icon(ic,18,'#6F4700')}</span><span class="label-m">${t}</span></div>`;
-const bubble=(t,pos,tail)=>`<div class="cap-s" style="position:absolute;${pos};padding:8px 14px;border-radius:18px;border-${tail}-radius:6px;background:${RAISED};border:1px solid var(--line);box-shadow:0 3px 10px rgba(58,42,25,.08);white-space:nowrap">${t}</div>`;
+const welcomeLine=(ic,t)=>`<div style="display:flex;gap:12px;align-items:center"><span class="iconbtn" style="width:36px;height:36px;background:#B4EBFA">${icon(ic,18,INK)}</span><span class="label-m">${t}</span></div>`;
+const bubble=(t,pos,tail)=>`<div class="cap-s" style="position:absolute;${pos};padding:8px 14px;border-radius:18px;border-${tail}-radius:6px;background:${RAISED};border:1px solid var(--line);box-shadow:0 3px 10px rgba(0,0,0,.08);white-space:nowrap">${t}</div>`;
 const ARCH='M0 82A82 82 0 0 1 164 82V166a24 24 0 0 1-24 24H24a24 24 0 0 1-24-24Z';
-const SKIN='#F2C9A5',SKIN2='#E9B58E',BLUSH='#EE9F86';
-const smile=(cx,cy,w=24)=>`<path d="M${cx-w/2} ${cy}Q${cx} ${cy+w*.7} ${cx+w/2} ${cy}Z" fill="#8E2A12" stroke="#8E2A12" stroke-width="2" stroke-linejoin="round"/><path d="M${cx-w/2+4} ${cy+1.5}H${cx+w/2-4}" stroke="#FFFBF3" stroke-width="3" stroke-linecap="round"/>`;
-const happyEye=(cx,cy)=>`<path d="M${cx-7} ${cy+2}Q${cx} ${cy-7} ${cx+7} ${cy+2}" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`;
+const SKIN='#F2C9A5',SKIN2='#E8B58F',SKIN_D='#FAE0CC',SKIN_D2='#F3D5BC',WHITE_HAIR='#F2EEE6';
+// イラスト.png の線画をなぞったベクター。内部座標は元画像の座標系のまま、外側のgで枠に合わせて縮小する。
 const grandpa=()=>`<svg width="164" height="190" viewBox="0 0 164 190" role="img" aria-label="固定電話で話しながら笑っているおじいちゃん"><defs><clipPath id="arch-g"><path d="${ARCH}"/></clipPath></defs><g clip-path="url(#arch-g)">
- <rect width="164" height="190" fill="#F6E7C4"/>
- <path d="M18 190C18 152 48 136 82 136S146 152 146 190Z" fill="#7E9B5C"/>
- <path d="M66 137 82 160 98 137Z" fill="#FFFBF3"/><path d="M82 160V190" stroke="#5F7B43" stroke-width="2.5"/>
- <rect x="70" y="112" width="24" height="30" rx="10" fill="${SKIN2}"/>
- <circle cx="44" cy="88" r="8" fill="${SKIN}"/><circle cx="120" cy="88" r="8" fill="${SKIN}"/>
- <ellipse cx="82" cy="84" rx="38" ry="42" fill="${SKIN}"/>
- <path d="M44 84C38 66 46 56 56 54C52 64 50 74 50 86Z" fill="#F3EFE6"/><path d="M120 84C126 66 118 56 108 54C112 64 114 74 114 86Z" fill="#F3EFE6"/>
- <path d="M58 70q9-6 18-1M88 69q9-5 18 1" fill="none" stroke="#E5DFD2" stroke-width="5" stroke-linecap="round"/>
- ${happyEye(67,84)}${happyEye(97,84)}
- <circle cx="67" cy="83" r="13" fill="none" stroke="${INK2}" stroke-width="2.5"/><circle cx="97" cy="83" r="13" fill="none" stroke="${INK2}" stroke-width="2.5"/><path d="M80 82h4" stroke="${INK2}" stroke-width="2.5"/>
- <circle cx="55" cy="101" r="7" fill="${BLUSH}" opacity=".55"/><circle cx="109" cy="101" r="7" fill="${BLUSH}" opacity=".55"/>
- ${smile(82,106,26)}
- <path d="M64 104Q74 96 82 102Q90 96 100 104Q90 108 82 105Q74 108 64 104Z" fill="#F3EFE6" stroke="#E5DFD2"/>
- <path d="M134 158Q146 134 133 118" fill="none" stroke="#7E9B5C" stroke-width="20" stroke-linecap="round"/>
- <path d="M125 62Q141 88 127 114" fill="none" stroke="${INK}" stroke-width="8" stroke-linecap="round"/>
- <rect x="117" y="54" width="15" height="20" rx="6" fill="${INK}" transform="rotate(-24 124 64)"/><rect x="119" y="104" width="15" height="20" rx="6" fill="${INK}" transform="rotate(20 126 114)"/>
- <circle cx="132" cy="108" r="10" fill="${SKIN}"/></g></svg>`;
+ <rect width="164" height="190" fill="#B4EBFA"/>
+ <g transform="translate(-2.8 -69.2) scale(.16)" stroke="${INK}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M352 1305C280 1335 220 1360 170 1380C130 1395 115 1415 108 1450C90 1530 72 1620 68 1760L60 1932H755L760 1620C800 1650 870 1665 925 1677C965 1675 1000 1620 1000 1530C1000 1440 960 1280 932 1130L825 1150C838 1250 845 1400 835 1430C800 1395 780 1375 740 1360C690 1340 640 1325 600 1305C560 1375 510 1475 480 1475C450 1475 400 1375 352 1305Z" fill="${OK}"/>
+  <path d="M480 1475V1932M222 1540C225 1700 215 1800 210 1932M757 1560C757 1600 760 1700 755 1932M835 1430C835 1460 832 1480 828 1505" fill="none"/>
+  <path d="M350 1305L385 1285C420 1330 450 1335 478 1335C510 1335 540 1325 570 1288L600 1305C560 1375 510 1475 480 1475C450 1475 400 1375 350 1305Z" fill="#FFFFFF"/>
+  <path d="M385 1210V1287C420 1330 450 1335 478 1335C510 1335 540 1325 570 1288V1210Z" fill="${SKIN2}"/>
+  <path d="M478 572C385 572 305 610 270 665L170 870C130 890 118 915 120 940C125 975 145 980 192 988C230 1070 265 1140 310 1170C370 1215 420 1224 478 1224C550 1224 610 1200 660 1150C710 1100 745 1050 775 980L790 860L690 670C650 610 570 572 478 572Z" fill="${SKIN}"/>
+  <path d="M270 665C225 690 195 700 180 740C160 780 165 830 175 880C180 905 195 912 225 910L230 820C240 760 250 700 270 665Z" fill="${WHITE_HAIR}"/>
+  <path d="M685 668C720 685 745 695 760 720C785 755 790 800 788 850L738 912C730 850 715 730 685 668Z" fill="${WHITE_HAIR}"/>
+  <path d="M418 637C470 622 490 625 547 644M436 683C480 672 500 675 534 688" fill="none"/>
+  <path d="M270 807C285 765 320 742 360 742C390 745 420 755 444 770L430 798C380 775 320 780 270 807Z" fill="${WHITE_HAIR}"/>
+  <path d="M507 772C530 760 560 745 585 742C620 750 655 775 678 805C630 775 570 775 525 797Z" fill="${WHITE_HAIR}"/>
+  <path d="M332 886Q355 872 380 885M568 883Q592 870 617 885" fill="none"/>
+  <path d="M155 878L277 882M455 884H498M682 885H750" fill="none" stroke-width="16"/>
+  <rect x="277" y="828" width="178" height="130" fill="none"/><rect x="498" y="828" width="184" height="127" fill="none"/>
+  <path d="M362 1012C335 1040 325 1055 305 1105M590 1013C620 1035 630 1065 640 1098" fill="none"/>
+  <path d="M365 1062C420 1070 530 1070 590 1062C530 1125 420 1120 365 1062Z" fill="${ALERT}"/>
+  <path d="M340 1055C365 1025 420 1010 480 1035C520 1010 590 1010 615 1050C570 1070 520 1060 480 1060C430 1065 380 1068 340 1055Z" fill="${WHITE_HAIR}"/>
+  <path d="M800 843C835 845 855 865 855 905C855 935 835 940 842 965C850 985 858 1000 860 1010L870 1100L822 1150C790 1170 745 1180 720 1195C700 1210 695 1245 655 1265C625 1265 595 1240 595 1215C600 1185 635 1130 655 1122C680 1125 695 1142 715 1140C745 1135 770 1115 785 1095L808 1025C800 1000 795 980 775 975C745 975 738 960 742 920C748 880 760 845 800 843Z" fill="${INK}"/>
+  <path d="M865 1000C900 1010 940 1040 945 1075C950 1115 935 1135 905 1150C870 1165 850 1165 830 1145C805 1125 790 1105 787 1085C785 1050 800 1030 815 1020C835 1010 850 1000 865 1000Z" fill="${SKIN}"/>
+ </g></g></svg>`;
 const daughter=()=>`<svg width="164" height="190" viewBox="0 0 164 190" role="img" aria-label="スマートフォンを見ながら笑っている娘"><defs><clipPath id="arch-d"><path d="${ARCH}"/></clipPath></defs><g clip-path="url(#arch-d)">
- <rect width="164" height="190" fill="#F8E1D8"/>
- <path d="M42 86C40 26 124 26 122 86L128 124Q130 136 116 136H48Q34 136 36 124Z" fill="#4A3428"/>
- <path d="M18 190C18 152 48 138 82 138S146 152 146 190Z" fill="#C9754F"/>
- <rect x="71" y="110" width="22" height="34" rx="10" fill="${SKIN2}"/>
- <ellipse cx="82" cy="84" rx="33" ry="37" fill="${SKIN}"/>
- <path d="M47 86C43 50 62 40 84 40C106 40 121 54 117 86C110 72 98 64 84 62C76 72 60 78 47 86Z" fill="#4A3428"/>
- ${happyEye(69,88)}${happyEye(95,88)}
- <circle cx="60" cy="100" r="7" fill="${BLUSH}" opacity=".55"/><circle cx="104" cy="100" r="7" fill="${BLUSH}" opacity=".55"/>
- ${smile(82,102,22)}
- <path d="M30 190Q24 166 44 154" fill="none" stroke="#C9754F" stroke-width="20" stroke-linecap="round"/>
- <g transform="rotate(-10 44 136)"><rect x="30" y="112" width="30" height="50" rx="6" fill="${INK}"/><rect x="33" y="117" width="24" height="38" rx="2" fill="#FFFBF3"/><path d="M37 124h16M37 131h16M37 138h10" stroke="#8F806A" stroke-width="2.5" stroke-linecap="round"/></g>
- <circle cx="44" cy="156" r="10" fill="${SKIN}"/></g></svg>`;
+ <rect width="164" height="190" fill="#EDC58F"/>
+ <g transform="translate(-138.4 -70.7) scale(.158)" stroke="${INK}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M1240 1100V1345H1670V1100Z" fill="#201C16"/>
+  <path d="M1700 1385C1720 1440 1745 1500 1750 1590C1757 1700 1760 1800 1760 1932H1250L1248 1640C1225 1690 1180 1770 1135 1830C1115 1840 1090 1825 1070 1800C1055 1780 1060 1740 1065 1700L1078 1540L1200 1560L1280 1335C1310 1328 1340 1325 1362 1323C1400 1350 1420 1352 1450 1352C1490 1352 1505 1345 1533 1323C1580 1340 1620 1350 1665 1358Z" fill="#66CCFF"/>
+  <path d="M1170 1735C1190 1670 1205 1620 1208 1565M1672 1600C1670 1720 1660 1850 1655 1932" fill="none"/>
+  <path d="M1362 1260V1323C1400 1350 1420 1352 1450 1352C1490 1352 1505 1345 1533 1323V1260Z" fill="${SKIN_D2}"/>
+  <path d="M1240 900L1460 740L1668 900V1110C1660 1150 1650 1180 1630 1205C1580 1250 1520 1278 1455 1278C1390 1278 1320 1250 1275 1195C1255 1165 1245 1130 1240 1100Z" fill="${SKIN_D}"/>
+  <path d="M1308 945C1350 925 1360 930 1403 947M1503 948C1550 925 1555 930 1597 950M1352 1023L1354 1080M1547 1023L1544 1080M1408 1163Q1460 1235 1515 1165" fill="none"/>
+  <path d="M1440 612C1530 612 1620 655 1680 705C1730 760 1765 880 1762 990C1758 1100 1745 1240 1730 1310C1720 1360 1705 1390 1680 1400L1642 1420C1665 1400 1668 1370 1668 1355V950C1620 895 1600 870 1550 840L1460 788C1420 840 1380 885 1330 925C1300 945 1270 960 1240 972V1155L1150 1170C1145 1060 1140 950 1150 880C1160 790 1200 720 1265 670C1310 630 1380 612 1440 612Z" fill="#4A3428"/>
+  <g transform="rotate(-11.5 1167 1350)"><rect x="1059" y="1177" width="216" height="346" rx="24" fill="${INK}"/><rect x="1075" y="1193" width="184" height="314" rx="12" fill="#FFFFFF" stroke="none"/></g>
+  <path d="M1076 1267L1210 1238M1088 1322L1220 1293M1100 1375L1190 1356" fill="none" stroke-width="10"/>
+  <path d="M1130 1435C1175 1437 1225 1465 1225 1500C1222 1550 1195 1590 1150 1590C1115 1590 1090 1570 1082 1540C1072 1490 1085 1440 1130 1435Z" fill="${SKIN_D}"/>
+ </g></g></svg>`;
 S.L1=()=>`<div class="screen">${status('20:13')}
  <div class="content" style="padding:8px 24px 0">
   <span class="title-m">かぞくAI</span>
   <div style="position:relative;width:345px;height:232px;margin-top:8px">
    <div style="position:absolute;left:0;top:42px">${grandpa()}</div>
    <div style="position:absolute;right:0;top:42px">${daughter()}</div>
-   <span style="position:absolute;left:154px;top:122px;width:37px;height:37px;border-radius:50%;background:${RAISED};box-shadow:0 2px 8px rgba(58,42,25,.18);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="${REC}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span>
+   <span style="position:absolute;left:154px;top:122px;width:37px;height:37px;border-radius:50%;background:${RAISED};box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="${ALERT}" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span>
    ${bubble('よく眠れたよ。','left:0;top:0','bottom-left')}
    ${bubble('元気そうでよかった。','right:0;top:0','bottom-right')}
   </div>
@@ -299,10 +305,10 @@ S.L1=()=>`<div class="screen">${status('20:13')}
  <div class="foot" style="padding:0 24px"><button class="btn L primary fillw">はじめる</button><button class="btn M ghost fillw">アカウントをお持ちの方はログイン</button>${homebar()}</div>
 </div>`;
 const orLine=()=>`<div style="display:flex;align-items:center;gap:12px"><i style="display:block;flex:1;height:1px;background:var(--line-strong)"></i><span class="label-m muted">または</span><i style="display:block;flex:1;height:1px;background:var(--line-strong)"></i></div>`;
-const mailField=(focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">メールアドレス</label><div class="field ${focus?'focus':''}"><span class="label-l" style="font-weight:500">misaki@example.com</span></div></div>`;
-const passField=(hint,focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">パスワード</label><div class="field ${focus?'focus':''}" style="justify-content:space-between;padding-right:6px"><span class="label-l" style="letter-spacing:.14em">••••••••</span><button class="iconbtn" aria-label="パスワードを表示">${icon('eye',22,INK2)}</button></div>${hint||''}</div>`;
-const disabledBtn=t=>`<button class="btn L fillw" disabled aria-disabled="true" style="background:#DDD2BE;color:${INK2};cursor:not-allowed">${t}</button>`;
-const agreeRow=(t,read)=>`<button class="card" style="flex-direction:row;align-items:center;gap:10px;padding:0 8px 0 12px;min-height:52px;border-radius:14px;text-align:left;width:100%">${read?`<span class="pill ok">${icon('check',14,'#34571D')}読みました</span>`:`<span class="pill care">未読</span>`}<span class="label-m" style="flex:1">${t}</span>${icon('chevron-right',20,INK2)}</button>`;
+const mailField=(focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">メールアドレス</label><div class="field ${focus?'focus':''}"><span class="label-l" style="font-weight:500"></span></div></div>`;
+const passField=(hint,focus)=>`<div style="display:flex;flex-direction:column;gap:6px"><label class="label-m">パスワード</label><div class="field ${focus?'focus':''}" style="justify-content:space-between;padding-right:6px"><span class="label-l" style="letter-spacing:.14em"></span><button class="iconbtn" aria-label="パスワードを表示">${icon('eye',22,INK2)}</button></div>${hint||''}</div>`;
+const disabledBtn=t=>`<button class="btn L fillw" disabled aria-disabled="true" style="background:#D5D6D9;color:${INK2};cursor:not-allowed">${t}</button>`;
+const agreeRow=(t,read)=>`<button class="card" style="flex-direction:row;align-items:center;gap:10px;padding:0 8px 0 12px;min-height:52px;border-radius:14px;text-align:left;width:100%">${read?`<span class="pill ok">${icon('check',14,INK)}読みました</span>`:`<span class="pill care">未読</span>`}<span class="label-m" style="flex:1">${t}</span>${icon('chevron-right',20,INK2)}</button>`;
 const signup=read=>`<div class="screen">${status('20:14')}
  <div class="content">
   ${navBar('chevron-left','もどる')}
@@ -312,7 +318,7 @@ const signup=read=>`<div class="screen">${status('20:14')}
     <span class="label-m">先に、次の2つをお読みください</span>
     ${agreeRow('利用規約',read)}${agreeRow('プライバシーポリシー',read)}
    </div>
-   <button class="btn L secondary fillw" ${read?'':'disabled aria-disabled="true"'} style="${read?'':'opacity:.5;cursor:not-allowed'}">${LOGO_GOOGLE}Googleで登録</button>
+   <button class="btn L secondary fillw" ${read?'':'disabled aria-disabled="true"'} style="${read?'':`background:#D5D6D9;color:${INK2};cursor:not-allowed`}">${LOGO_GOOGLE}Googleで登録</button>
    ${orLine()}
    ${mailField()}
    ${passField('<span class="body-s muted">8文字以上で入力してください</span>')}
@@ -340,7 +346,7 @@ const clause=(h,t)=>`<div style="display:flex;flex-direction:column;gap:4px"><h4
 S.L2c=()=>`<div class="screen">${status('20:15')}
  <div class="content">
   ${navBar('x','閉じる','利用規約')}
-  <div style="height:4px;background:var(--line)" role="progressbar" aria-label="読んだ割合" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"><i style="display:block;width:60%;height:4px;background:${INK}"></i></div>
+  <div style="height:4px;background:var(--line-strong)" role="progressbar" aria-label="読んだ割合" aria-valuenow="60" aria-valuemin="0" aria-valuemax="100"><i style="display:block;width:60%;height:4px;background:${INK}"></i></div>
   <div style="padding:16px;display:flex;flex-direction:column;gap:16px">
    <p class="label-s" style="padding:6px 10px;border-radius:8px;background:${SUNKEN}">モック用の見本です。実際の規約ではありません。</p>
    ${clause('第1条 サービスの内容','AIが見守る方の固定電話に電話をかけ、話した内容をまとめて、ご家族のアプリに届けます。')}
@@ -351,7 +357,7 @@ S.L2c=()=>`<div class="screen">${status('20:15')}
    ${clause('第6条 サービスの変更','サービスの内容は、事前にお知らせしたうえで変更または停止することがあります。')}
   </div>
  </div>
- <div class="foot" style="padding-top:40px;background:linear-gradient(180deg,rgba(246,240,228,0) 0,#F6F0E4 36px)"><span class="body-s muted" style="text-align:center">最後まで読むと押せるようになります</span>${disabledBtn('読みました')}${homebar()}</div>
+ <div class="foot" style="padding-top:40px;background:linear-gradient(180deg,rgba(241,241,241,0) 0,#F1F1F1 36px)"><span class="body-s muted" style="text-align:center">最後まで読むと押せるようになります</span>${disabledBtn('読みました')}${homebar()}</div>
 </div>`;
 S.L2d=()=>signup(true);
 
@@ -361,7 +367,7 @@ S.L3=()=>`<div class="screen">${status('20:16')}
  <div class="content">
   ${navBar('chevron-left','もどる','電話機とつなぐ')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('on','<span class="label-s" style="position:absolute;right:20px;top:66px;width:44px;text-align:center">ランプ</span><span class="label-s" style="position:absolute;right:16px;top:150px;width:48px;text-align:center;color:#96290F">押す</span>')}
+   ${illus('on','<span class="label-s" style="position:absolute;right:20px;top:66px;width:44px;text-align:center">ランプ</span><span class="label-s" style="position:absolute;right:16px;top:150px;width:48px;text-align:center">押す</span>')}
    <div class="steps">
     ${stepRow(1,'電話機のボタンを押す','絵の赤い点線のところにある、丸いボタンです')}
     ${stepRow(2,'ランプが光るのを確かめる','黄色く光れば、つなぐ準備ができています')}
@@ -376,7 +382,7 @@ S.L4=()=>`<div class="screen">${status('20:17')}
  <div class="content">
   ${navBar('x','閉じる','電話機とつなぐ')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('fail',`<span class="pill alert" style="position:absolute;left:16px;top:16px">${icon('alert',14,'#96290F')}つながっていません</span>`,false)}
+   ${illus('fail',`<span class="pill alert" style="position:absolute;left:16px;top:16px">${icon('alert',14,ALERT)}つながっていません</span>`,false)}
    <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期できませんでした</h3><span class="body-m muted">電話機が見つかりませんでした。次の3つを確かめて、もう一度ためしてください。</span></div>
    <div style="display:flex;flex-direction:column">
     ${checkRow('電話機の電源が入っている')}${checkRow('電話線がつながっている')}${checkRow('ボタンを押して、ランプが光っている')}
@@ -389,7 +395,7 @@ S.L5=()=>`<div class="screen">${status('20:18')}
  <div class="content">
   ${navBar('x','閉じる','電話機とつなぐ')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('ok',`<span class="pill ok" style="position:absolute;left:16px;top:16px">${icon('check',14,'#34571D')}つながりました</span>`,false)}
+   ${illus('ok',`<span class="pill ok" style="position:absolute;left:16px;top:16px">${icon('check',14,INK)}つながりました</span>`,false)}
    <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期が完了しました</h3><span class="body-m muted">ランプは緑色に変わります。この電話機に、AIから電話できるようになりました。</span></div>
    <div class="card" style="flex-direction:row;align-items:center"><span class="iconbtn tinted">${icon('phone',20)}</span><div style="display:flex;flex-direction:column"><span class="label-s muted">つながった電話機</span><span class="mono-m">03-0000-0000</span></div></div>
    <div style="display:flex;flex-direction:column;gap:4px"><span class="label-l">次は、見守る方のことを教えてください</span><span class="body-s muted">お名前と好きな話題の2つだけです。1分ほどで終わります。</span></div>
@@ -443,7 +449,7 @@ const askCard=calling=>`<section class="card" data-part="ask">
   <div class="field" style="min-height:48px"><span class="label-m muted">伝えたいことを入力</span></div>
   ${calling?disabledBtn('現在通話中です'):`<button class="btn L record fillw">${icon('phone',20,'#FFFFFF')}通話</button>`}
  </section>`;
-const stateRow=(ic,l,v,q,flag)=>`<div class="state"><span class="iconbtn tinted" style="width:36px;height:36px">${icon(ic,18)}</span><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="label-s muted">${l}</span>${flag?`<span class="pill care">${icon('alert',14,'#6F4700')}気になる話</span>`:''}</div><span class="label-l">${v}</span><span class="cap-s muted">${q}</span></div></div>`;
+const stateRow=(ic,l,v,q,flag)=>`<div class="state"><span class="iconbtn tinted" style="width:36px;height:36px">${icon(ic,18)}</span><div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="label-s muted">${l}</span>${flag?`<span class="pill care">${icon('alert',14,INK)}気になる話</span>`:''}</div><span class="label-l">${v}</span><span class="cap-s muted">${q}</span></div></div>`;
 const todayCard=()=>`<section class="card" data-part="today">
   <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">今日の様子</h3><span class="label-s muted">9:02の会話より</span></div>
   ${stateRow('utensils','食事','朝ごはんを食べた','「朝ごはんも食べたしね」')}
@@ -453,10 +459,10 @@ const todayCard=()=>`<section class="card" data-part="today">
  </section>`;
 const WEEK=[['30','金',14],['31','土',22],['1','日',31],['2','月',null],['3','火',18],['4','水',12],['5','木',6]];
 const weekChart=()=>{const W=329,H=112,col=W/7,bw=16,max=31;let o='';WEEK.forEach(([d,w,m],i)=>{const cx=col*i+col/2,today=i===6;
- if(m===null){o+=`<g><title>11月${d}日: 電話に出なかった</title><g transform="translate(${cx-9} ${H-20})" fill="none" stroke="${REC}" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 16 16"/><path d="M16 2 2 16"/></g><text x="${cx}" y="${H-28}" text-anchor="middle" font-size="12" font-weight="700" font-family="Zen Maru Gothic" fill="#96290F">不在</text></g>`}
- else{const h=Math.max(6,m/max*(H-20)),y=H-h;o+=`<g><title>${i<2?'10':'11'}月${d}日: ${m}分話した</title><path d="M${cx-bw/2} ${H}V${y+4}a4 4 0 0 1 4-4h${bw-8}a4 4 0 0 1 4 4V${H}Z" fill="${today?INK:'#8F806A'}"/><text x="${cx}" y="${y-5}" text-anchor="middle" font-size="12" font-family="DM Mono" fill="${INK}">${m}</text></g>`}
+ if(m===null){o+=`<g><title>11月${d}日: 電話に出なかった</title><g transform="translate(${cx-9} ${H-20})" fill="none" stroke="${ALERT}" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 16 16"/><path d="M16 2 2 16"/></g><text x="${cx}" y="${H-28}" text-anchor="middle" font-size="12" font-weight="700" font-family="Zen Maru Gothic" fill="${INK}">不在</text></g>`}
+ else{const h=Math.max(6,m/max*(H-20)),y=H-h;o+=`<g><title>${i<2?'10':'11'}月${d}日: ${m}分話した</title><path d="M${cx-bw/2} ${H}V${y+4}a4 4 0 0 1 4-4h${bw-8}a4 4 0 0 1 4 4V${H}Z" fill="${today?INK:GREY}"/><text x="${cx}" y="${y-5}" text-anchor="middle" font-size="12" font-family="DM Mono" fill="${INK}">${m}</text></g>`}
  o+=`<text x="${cx}" y="${H+18}" text-anchor="middle" font-size="12" font-family="DM Mono" font-weight="${today?500:400}" fill="${today?INK:INK2}">${d}</text><text x="${cx}" y="${H+34}" text-anchor="middle" font-size="12" font-family="Zen Maru Gothic" font-weight="${today?700:400}" fill="${today?INK:INK2}">${w}</text>`});
- return`<svg width="${W}" height="${H+38}" viewBox="0 0 ${W} ${H+38}" role="img" aria-label="この7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分"><line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="${'#8F806A'}"/>${o}</svg>`};
+ return`<svg width="${W}" height="${H+38}" viewBox="0 0 ${W} ${H+38}" role="img" aria-label="この7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分"><line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="${GREY}"/>${o}</svg>`};
 const weekCard=()=>`<section class="card" data-part="week">
   <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">この7日間の電話</h3><span class="label-s muted">棒の数字は話した分数</span></div>
   <div style="display:flex;gap:24px"><div style="display:flex;flex-direction:column"><span class="label-s muted">電話に出た日</span><span class="label-l"><span class="mono-m" style="font-size:24px;line-height:32px">6</span> / 7日</span></div><div style="display:flex;flex-direction:column"><span class="label-s muted">話した時間</span><span class="label-l"><span class="mono-m" style="font-size:24px;line-height:32px">103</span> 分</span></div></div>
@@ -494,16 +500,16 @@ S['01']=()=>`<div class="screen">${status('10:26')}
 </div>`;
 
 S['01+']=()=>`<div class="screen">${status('10:27',true)}
- <div role="status" style="position:absolute;left:0;top:0;width:393px;height:94px;padding-bottom:10px;background:#34571D;color:#fff;display:flex;align-items:flex-end;justify-content:center;gap:8px;z-index:4">${icon('phone',18,'#FFFFFF')}<span class="label-l">通話中</span></div>
+ <div role="status" style="position:absolute;left:0;top:0;width:393px;height:94px;padding-bottom:10px;background:var(--record);color:#fff;display:flex;align-items:flex-end;justify-content:center;gap:8px;z-index:4">${icon('phone',18,'#FFFFFF')}<span class="label-l">通話中</span></div>
  ${hhead('11月5日(木) 10:27 時点').replace('class="hhead"','class="hhead" style="top:94px"')}
  <div class="hview" style="top:154px;height:698px"><div class="hcol" style="top:0">${recentCard()}${askCard(true)}${todayCard()}${weekCard()}</div></div>${tabs('home')}</div>`;
 
 // ---------- 5. Calls ----------
 const tag=t=>`<span class="label-s muted">${t}</span>`;
 const callRow=(time,dur,one,tags)=>`<div class="tl-row"><span class="mono-s tl-time">${time}</span><div class="tl-rail"><span class="avatar S" style="background:${INK}">${icon('phone',12,'#FFFFFF')}</span><i></i></div><div class="tl-card"><div class="cap-s" style="font-size:15px">${one}</div><div style="display:flex;justify-content:space-between;align-items:center">${tag(tags)}<span class="mono-s muted">${dur}</span></div></div></div>`;
-const missRow=(time,one)=>`<div class="tl-row"><span class="mono-s tl-time">${time}</span><div class="tl-rail"><span class="avatar S" style="background:${REC}">${icon('phone-missed',12,'#FFFFFF')}</span><i></i></div><div class="tl-card miss"><span class="label-m" style="color:#96290F">${one}</span></div></div>`;
+const missRow=(time,one)=>`<div class="tl-row"><span class="mono-s tl-time">${time}</span><div class="tl-rail"><span class="avatar S" style="background:${ALERT}">${icon('phone-missed',12,'#FFFFFF')}</span><i></i></div><div class="tl-card miss"><span class="label-m" style="font-weight:700">${one}</span></div></div>`;
 const dayH=(d,n)=>`<div class="tl-day"><span class="label-l">${d}</span><span class="label-s muted">${n}</span></div>`;
-const dayMark=k=>`<span class="mark">${k==='call'?'<i></i>':k==='miss'?`<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${REC}" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8"/><path d="M10 2 2 10"/></svg>`:''}</span>`;
+const dayMark=k=>`<span class="mark">${k==='call'?'<i></i>':k==='miss'?`<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="${ALERT}" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M2 2l8 8"/><path d="M10 2 2 10"/></svg>`:''}</span>`;
 const MINI=[['30','金','call'],['31','土','call'],['1','日','call'],['2','月','miss'],['3','火','call'],['4','水','call'],['5','木','call']];
 const miniCal=(sel=6)=>`<button class="mini" aria-label="カレンダーを開いて日付を選ぶ"><span class="mini-head"><span class="label-m">2026年11月</span>${icon('chevron-down',20,INK2)}</span><span class="mini-days">${MINI.map(([d,w,k],i)=>`<span class="mini-day ${i===sel?'sel':''}"><span class="label-s">${w}</span><span class="mono-m">${d}</span>${dayMark(k)}</span>`).join('')}</span></button>`;
 const calSheet=()=>{const KIND={1:'call',2:'miss',3:'call',4:'call',5:'call'};let days='';for(let d=1;d<=30;d++)days+=`<div class="cal-d ${d===3?'sel':''} ${d===5?'today':''} ${d>5?'future':''}"><b>${d}</b>${dayMark(KIND[d])}</div>`;
@@ -533,7 +539,7 @@ const callList=()=>`${status('10:31')}
 S['04']=()=>`<div class="screen">${callList()}${tabs('calls')}</div>`;
 S['04+']=()=>`<div class="screen">${callList()}${calSheet()}</div>`;
 S['04c']=()=>`<div class="screen">${status('10:31')}
- <div style="position:absolute;left:0;top:54px;width:393px;height:166px;padding-top:8px;background:var(--paper-base);box-shadow:0 4px 10px rgba(58,42,25,.14);z-index:3">${miniCal(4)}${callChips()}</div>
+ <div style="position:absolute;left:0;top:54px;width:393px;height:166px;padding-top:8px;background:var(--paper-base);box-shadow:0 4px 10px rgba(0,0,0,.14);z-index:3">${miniCal(4)}${callChips()}</div>
  <div style="position:absolute;left:0;top:220px;width:393px;height:632px;overflow:hidden">
   <div style="position:absolute;left:0;top:-44px;width:393px;display:flex;flex-direction:column">
    ${callRow('12:00','9分','テレビの映し方を案内して解決','操作案内')}
@@ -548,7 +554,7 @@ S['04c']=()=>`<div class="screen">${status('10:31')}
   </div>
  </div>${tabs('calls')}</div>`;
 const sumRow=(t,at)=>`<div style="display:flex;justify-content:space-between;gap:12px;align-items:baseline;padding-top:8px;border-top:1px solid var(--line)"><span class="body-m">${t}</span><span class="mono-s" style="text-decoration:underline;text-underline-offset:3px;flex:none">${at}</span></div>`;
-const say=(t,who,txt,flag)=>`<div class="say ${flag?'flag':''}"><span class="mono-s t">${t}</span><div><div class="who" style="color:${who==='ai'?AI_C:HANA}">${who==='ai'?'AIヘルパー':'ハナさん'}</div><div class="cap-s txt">${txt}</div></div></div>`;
+const say=(t,who,txt,flag)=>`<div class="say ${flag?'flag':''}"><span class="mono-s t">${t}</span><div><div class="who" style="color:${who==='ai'?AI_C:HANA}">${who==='ai'?'AIヘルパー':'ハナさん'}${flag?`<span class="pill care">${icon('alert',14,INK)}気になる話</span>`:''}</div><div class="cap-s txt">${txt}</div></div></div>`;
 S['05']=()=>`<div class="screen">${status('10:32')}
  <div class="content">
   ${navBar('chevron-left','通話記録にもどる','朝の電話')}
@@ -572,7 +578,7 @@ S['05']=()=>`<div class="screen">${status('10:32')}
    </div>
   </div>
  </div>
- <div style="position:absolute;left:0;bottom:0;width:393px;padding-top:32px;background:linear-gradient(180deg,rgba(246,240,228,0) 0%,#F6F0E4 60%);display:flex;flex-direction:column;z-index:3">${homebar()}</div>
+ <div style="position:absolute;left:0;bottom:0;width:393px;padding-top:32px;background:linear-gradient(180deg,rgba(241,241,241,0) 0%,#F1F1F1 60%);display:flex;flex-direction:column;z-index:3">${homebar()}</div>
 </div>`;
 
 // ---------- 6. Booking ----------
@@ -597,7 +603,7 @@ S['06']=()=>`<div class="screen">${status('10:35')}
    <button class="card" style="flex-direction:row;align-items:center;text-align:left"><span class="iconbtn tinted">${icon('rotate',20)}</span><div style="display:flex;flex-direction:column;flex:1"><span class="label-l">かけなおしのルール</span><span class="body-s muted">15分おきに3回かけて、家族に通知</span></div>${icon('chevron-right',20,INK2)}</button>
   </div>
  </div>${tabs('book')}</div>`;
-const flowDot=(t,l,last)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:68px"><span class="iconbtn" style="width:36px;height:36px;background:${last?REC:INK}">${icon(last?'bell':'phone',16,'#FFFFFF')}</span><span class="mono-s">${t}</span><span class="label-s muted" style="text-align:center">${l}</span></div>`;
+const flowDot=(t,l,last)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:6px;width:68px"><span class="iconbtn" style="width:36px;height:36px;background:${last?ALERT:INK}">${icon(last?'bell':'phone',16,'#FFFFFF')}</span><span class="mono-s">${t}</span><span class="label-s muted" style="text-align:center">${l}</span></div>`;
 const flowLine=()=>`<i style="display:block;flex:1;height:2px;background:var(--line-strong);margin-top:17px"></i>`;
 S['07']=()=>`<div class="screen">${status('10:36')}
  <div class="content">
@@ -621,12 +627,12 @@ S['07']=()=>`<div class="screen">${status('10:36')}
 </div>`;
 S['07+']=()=>`<div class="screen">${status('9:31')}${hhead('11月5日(木) 9:31 時点')}
  <div class="hview"><div class="hcol" style="top:0">
-  <section class="nightcard" style="background:#8E2A12">
+  <section class="nightcard" style="background:${ALERT}">
    <div style="display:flex;gap:6px;align-items:center">${icon('phone-missed',16,'#FFFFFF')}<span class="label-m" style="color:#fff">確認をお願いします</span></div>
    <h3 class="title-l" style="margin-top:8px;color:#fff">朝の電話に出ていません</h3>
    <p class="body-m" style="margin-top:4px;color:#fff">9:00、9:15、9:30にかけましたが、応答がありません。外出中の可能性もあります。</p>
    <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-    <button class="btn L fillw" style="background:#fff;color:#7A230E">${icon('phone',20,'#7A230E')}もう一度電話する</button>
+    <button class="btn L fillw" style="background:#fff;color:${INK}">${icon('phone',20,INK)}もう一度電話する</button>
    </div>
   </section>
   <section class="card"><h3 class="title-m">今日の様子</h3><p class="body-m muted">今日はまだ話せていないので、様子は分かっていません。</p></section>
@@ -684,11 +690,10 @@ ${flow('6. 予約電話','決まった時間に電話する、出ないときに
 <section class="found"><div class="flow-head"><h2 class="title-l">Foundations</h2><span class="body-m muted">色と文字</span></div>
  <div class="found-grid">
   <div class="swatches">
-   ${[['paper/base','#F6F0E4'],['paper/raised','#FFFBF3'],['paper/sunken','#EBE3D2'],['ink/primary','#2A2420'],['ink/secondary','#665A4D'],['accent/call','#C9401F'],['night/base','#1A1613'],['night/raised','#28221D'],['state/ok','#4B7A2C'],['state/care','#9A6300'],['state/care-soft','#F6E7C4'],['state/alert','#8E2A12'],['state/alert-soft','#F8E1D8'],['speaker/ai','#2F5D8C'],['speaker/parent','#A23B5C']].map(([n,h])=>swatch(n,h)).join('')}
+   ${[['paper/base','#F1F1F1'],['paper/raised','#FFFFFF'],['paper/sunken','#E2E3E6'],['ink/primary','#1A1A1A'],['ink/secondary','#4D5359'],['accent/call','#0041FF'],['night/base','#1F2328'],['night/raised','#2D3238'],['state/ok','#35A16B'],['state/ok-soft','#D5F5E3'],['state/care','#FF9900'],['state/care-soft','#FFFF99'],['state/alert','#DC3800'],['state/alert-soft','#FFE3E3'],['speaker/ai','#0041FF'],['speaker/parent','#663300']].map(([n,h])=>swatch(n,h)).join('')}
   </div>
   <div class="spec">
-   <div><span class="mono-s muted">Zen Maru Gothic / 画面の文字</span><span class="title-l">親の様子を、ひと目で確かめる</span></div>
-   <div><span class="mono-s muted">Shippori Mincho / 会話の言葉</span><span class="cap-l">「よく眠れたよ。朝ごはんも食べたしね。」</span></div>
+   <div><span class="mono-s muted">Zen Maru Gothic / 画面の文字、会話の言葉</span><span class="title-l">親の様子を、ひと目で確かめる</span></div>
    <div><span class="mono-s muted">DM Mono / 時刻と分数</span><span class="mono-m">9:02　6分12秒　03-0000-0000</span></div>
   </div>
  </div>
