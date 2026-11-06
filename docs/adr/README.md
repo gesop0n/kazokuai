@@ -30,3 +30,4 @@
 | [00000000_template](00000000_template.md) | アーキテクチャ判断を記録する | Accepted |
 | [20261105_mobile_development_policy](20261105_mobile_development_policy.md) | モバイルアプリの開発方針 | Accepted |
 | [20261106_mobile_demo_behavior](20261106_mobile_demo_behavior.md) | モバイルアプリのデモの動き | Accepted |
+| [20261106_device_backend_architecture](20261106_device_backend_architecture.md) | デバイスおよびバックエンドのアーキテクチャ | Accepted |
