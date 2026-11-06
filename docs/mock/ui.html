@@ -6,7 +6,7 @@
 <title>かぞくAI</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@600&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@600&family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
 <style>
 :root{
@@ -15,25 +15,25 @@
   --ink:#1A1A1A;--ink-2:#4D5359;--ink-3:#6E757C;--line:#C8C8CB;--line-strong:#7F878F;
   --record:#0041FF;--on-record:#FFFFFF;--alert:#DC3800;--ok:#35A16B;--ok-soft:#D5F5E3;--care:#FF9900;--care-soft:#FFFF99;--alert-soft:#FFE3E3;
   --night:#1F2328;--night-raised:#2D3238;--night-line:#7F878F;--night-text:#FFFFFF;--night-text-2:#D0D3D8;
-  --zen:"Zen Maru Gothic",sans-serif;--mono:"DM Mono",monospace;
+  --sans:"BIZ UDPGothic",sans-serif;--mono:"DM Mono",monospace;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:#E4DCCB}
-body{width:1440px;font-family:var(--zen);color:var(--ink);-webkit-font-smoothing:antialiased}
+body{width:1440px;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 svg{display:block;flex:none}
 
-.display{font:900 32px/42px var(--zen);letter-spacing:.02em}
-.title-l{font:700 24px/32px var(--zen);letter-spacing:.02em}
-.title-m{font:700 18px/26px var(--zen);letter-spacing:.02em}
-.label-l{font:700 16px/24px var(--zen);letter-spacing:.02em}
-.label-m{font:500 14px/20px var(--zen);letter-spacing:.02em}
-.label-s{font:500 12px/16px var(--zen);letter-spacing:.02em}
-.body-m{font:400 15px/24px var(--zen);letter-spacing:.02em}
-.body-s{font:400 13px/20px var(--zen);letter-spacing:.02em}
-.cap-l{font:700 26px/40px var(--zen);letter-spacing:.04em}
-.cap-m{font:500 17px/28px var(--zen);letter-spacing:.04em}
-.cap-s{font:500 14px/22px var(--zen);letter-spacing:.03em}
+.display{font:900 32px/42px var(--sans);letter-spacing:.02em}
+.title-l{font:700 24px/32px var(--sans);letter-spacing:.02em}
+.title-m{font:700 18px/26px var(--sans);letter-spacing:.02em}
+.label-l{font:700 16px/24px var(--sans);letter-spacing:.02em}
+.label-m{font:500 14px/20px var(--sans);letter-spacing:.02em}
+.label-s{font:500 12px/16px var(--sans);letter-spacing:.02em}
+.body-m{font:400 15px/24px var(--sans);letter-spacing:.02em}
+.body-s{font:400 13px/20px var(--sans);letter-spacing:.02em}
+.cap-l{font:700 26px/40px var(--sans);letter-spacing:.04em}
+.cap-m{font:500 17px/28px var(--sans);letter-spacing:.04em}
+.cap-s{font:500 14px/22px var(--sans);letter-spacing:.03em}
 .mono-l{font:400 52px/56px var(--mono);letter-spacing:-.02em}
 .mono-m{font:500 14px/18px var(--mono)}
 .mono-s{font:400 12px/16px var(--mono)}
@@ -54,8 +54,8 @@ svg{display:block;flex:none}
 .note{color:var(--ink-2)}
 .why{display:flex;flex-direction:column;gap:10px}
 .why dl{display:grid;grid-template-columns:64px 1fr;gap:6px 8px;border-top:1px solid var(--line-strong);padding-top:10px}
-.why dt{font:700 12px/20px var(--zen);letter-spacing:.02em}
-.why dd{font:400 13px/20px var(--zen);letter-spacing:.02em;color:var(--ink-2)}
+.why dt{font:700 12px/20px var(--sans);letter-spacing:.02em}
+.why dd{font:400 13px/20px var(--sans);letter-spacing:.02em;color:var(--ink-2)}
 
 /* Alignment with the contest */
 .brief{display:flex;flex-direction:column;gap:32px}
@@ -64,14 +64,14 @@ svg{display:block;flex:none}
 .theme{padding:24px;border-radius:24px;background:var(--night);color:var(--night-text);display:flex;flex-direction:column;gap:12px}
 .fact{display:flex;flex-direction:column;gap:6px;border-top:2px solid var(--ink);padding-top:12px}
 .crit{width:100%;border-collapse:collapse}
-.crit th{font:700 12px/16px var(--zen);letter-spacing:.02em;text-align:left;color:var(--ink-2);padding:0 16px 8px 0;border-bottom:2px solid var(--ink)}
-.crit td{padding:10px 16px 10px 0;border-bottom:1px solid var(--line-strong);vertical-align:top;font:400 13px/20px var(--zen);letter-spacing:.02em}
+.crit th{font:700 12px/16px var(--sans);letter-spacing:.02em;text-align:left;color:var(--ink-2);padding:0 16px 8px 0;border-bottom:2px solid var(--ink)}
+.crit td{padding:10px 16px 10px 0;border-bottom:1px solid var(--line-strong);vertical-align:top;font:400 13px/20px var(--sans);letter-spacing:.02em}
 .crit td:first-child{width:262px;color:var(--ink-2)}
 .crit td:last-child{width:108px;padding-right:0;font:400 12px/20px var(--mono)}
-.crit .group td{padding-top:20px;font:700 14px/20px var(--zen);color:var(--ink);border-bottom:0;padding-bottom:0}
+.crit .group td{padding-top:20px;font:700 14px/20px var(--sans);color:var(--ink);border-bottom:0;padding-bottom:0}
 .tri{display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
 .tri ul{list-style:none;display:flex;flex-direction:column;gap:4px}
-.tri li{font:400 13px/20px var(--zen);letter-spacing:.02em;color:var(--ink-2);padding-left:1em;text-indent:-1em}
+.tri li{font:400 13px/20px var(--sans);letter-spacing:.02em;color:var(--ink-2);padding-left:1em;text-indent:-1em}
 .tri li::before{content:"・"}
 
 /* Screen */
@@ -85,13 +85,13 @@ svg{display:block;flex:none}
 
 /* Atoms */
 .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;color:#fff;flex:none}
-.avatar.S{width:24px;height:24px;font:500 12px/16px var(--zen)}
-.avatar.M{width:36px;height:36px;font:700 16px/24px var(--zen)}
+.avatar.S{width:24px;height:24px;font:500 12px/16px var(--sans)}
+.avatar.M{width:36px;height:36px;font:700 16px/24px var(--sans)}
 .iconbtn{width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .iconbtn.tinted{background:var(--paper-sunken)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;flex:none}
-.btn.L{height:56px;padding:0 24px;font:700 16px/24px var(--zen);letter-spacing:.02em}
-.btn.M{height:44px;padding:0 16px;font:500 14px/20px var(--zen);letter-spacing:.02em}
+.btn.L{height:56px;padding:0 24px;font:700 16px/24px var(--sans);letter-spacing:.02em}
+.btn.M{height:44px;padding:0 16px;font:500 14px/20px var(--sans);letter-spacing:.02em}
 .btn.primary{background:var(--ink);color:var(--paper-raised)}
 .btn.secondary{background:var(--paper-raised);color:var(--ink);border:1.5px solid var(--line-strong)}
 .btn.record{background:var(--record);color:var(--on-record)}
@@ -103,9 +103,9 @@ svg{display:block;flex:none}
 .field.focus{border:2px solid var(--ink)}
 .chips{display:flex;gap:8px;flex-wrap:wrap}
 .chip-hit{padding:4px 0;flex:none}
-.chip{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;border-radius:999px;background:var(--paper-raised);border:1px solid var(--line-strong);font:500 14px/20px var(--zen);letter-spacing:.02em;white-space:nowrap}
+.chip{height:36px;padding:0 16px;display:flex;align-items:center;gap:8px;border-radius:999px;background:var(--paper-raised);border:1px solid var(--line-strong);font:500 14px/20px var(--sans);letter-spacing:.02em;white-space:nowrap}
 .chip.sel{background:var(--ink);color:var(--paper-raised);border-color:var(--ink)}
-.dockact{width:88px;height:56px;border-radius:16px;display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;font:500 12px/16px var(--zen);letter-spacing:.02em;flex:none;color:var(--ink-2)}
+.dockact{width:88px;height:56px;border-radius:16px;display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;font:500 12px/16px var(--sans);letter-spacing:.02em;flex:none;color:var(--ink-2)}
 .dockact.on{background:var(--paper-sunken);color:var(--ink);font-weight:700}
 .dock{display:flex;justify-content:space-between;align-items:center;padding:8px 24px 0}
 .sheet{position:absolute;left:0;bottom:0;width:393px;background:var(--paper-raised);border-radius:24px 24px 0 0;box-shadow:0 -6px 24px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:4}
@@ -114,7 +114,7 @@ svg{display:block;flex:none}
 .ai-tag{display:flex;gap:6px;align-items:center}
 .steps{display:flex;flex-direction:column;gap:12px}
 .step{display:flex;gap:12px;align-items:flex-start}
-.step b{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper-raised);display:flex;align-items:center;justify-content:center;font:700 14px/20px var(--zen);flex:none}
+.step b{width:28px;height:28px;border-radius:50%;background:var(--ink);color:var(--paper-raised);display:flex;align-items:center;justify-content:center;font:700 14px/20px var(--sans);flex:none}
 .illus{border-radius:24px;background:var(--paper-sunken);display:flex;justify-content:center;align-items:center;padding:16px}
 .prog{display:flex;gap:6px}
 .prog i{display:block;height:4px;flex:1;border-radius:2px;background:var(--line-strong)}
@@ -126,7 +126,7 @@ svg{display:block;flex:none}
 .hcol{position:absolute;left:16px;width:361px;display:flex;flex-direction:column;gap:12px;padding-bottom:12px}
 .state{display:flex;gap:12px;align-items:flex-start;padding-top:12px;border-top:1px solid var(--line)}
 .state:first-of-type{border-top:0;padding-top:0}
-.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font:700 12px/16px var(--zen);letter-spacing:.02em;flex:none;color:var(--ink);border:1px solid var(--ink-2)}
+.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:999px;font:700 12px/16px var(--sans);letter-spacing:.02em;flex:none;color:var(--ink);border:1px solid var(--ink-2)}
 .pill.care{background:var(--care-soft)}
 .pill.ok{background:var(--ok-soft)}
 .pill.alert{background:var(--alert-soft)}
@@ -164,7 +164,7 @@ svg{display:block;flex:none}
 .log{display:flex;flex-direction:column;gap:12px}
 .say{display:grid;grid-template-columns:40px 1fr;gap:8px}
 .say .t{padding-top:2px;color:var(--ink-2)}
-.say .who{font:700 12px/16px var(--zen);letter-spacing:.02em}
+.say .who{font:700 12px/16px var(--sans);letter-spacing:.02em}
 .say.flag .who{display:flex;align-items:center;gap:8px}
 .say.flag .txt{background:var(--care-soft);border:1px solid var(--ink-2);border-radius:8px;padding:4px 8px;margin:2px 0 0 -8px}
 
@@ -459,9 +459,9 @@ const todayCard=()=>`<section class="card" data-part="today">
  </section>`;
 const WEEK=[['30','金',14],['31','土',22],['1','日',31],['2','月',null],['3','火',18],['4','水',12],['5','木',6]];
 const weekChart=()=>{const W=329,H=112,col=W/7,bw=16,max=31;let o='';WEEK.forEach(([d,w,m],i)=>{const cx=col*i+col/2,today=i===6;
- if(m===null){o+=`<g><title>11月${d}日: 電話に出なかった</title><g transform="translate(${cx-9} ${H-20})" fill="none" stroke="${ALERT}" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 16 16"/><path d="M16 2 2 16"/></g><text x="${cx}" y="${H-28}" text-anchor="middle" font-size="12" font-weight="700" font-family="Zen Maru Gothic" fill="${INK}">不在</text></g>`}
+ if(m===null){o+=`<g><title>11月${d}日: 電話に出なかった</title><g transform="translate(${cx-9} ${H-20})" fill="none" stroke="${ALERT}" stroke-width="2.5" stroke-linecap="round"><path d="M2 2 16 16"/><path d="M16 2 2 16"/></g><text x="${cx}" y="${H-28}" text-anchor="middle" font-size="12" font-weight="700" font-family="BIZ UDPGothic" fill="${INK}">不在</text></g>`}
  else{const h=Math.max(6,m/max*(H-20)),y=H-h;o+=`<g><title>${i<2?'10':'11'}月${d}日: ${m}分話した</title><path d="M${cx-bw/2} ${H}V${y+4}a4 4 0 0 1 4-4h${bw-8}a4 4 0 0 1 4 4V${H}Z" fill="${today?INK:GREY}"/><text x="${cx}" y="${y-5}" text-anchor="middle" font-size="12" font-family="DM Mono" fill="${INK}">${m}</text></g>`}
- o+=`<text x="${cx}" y="${H+18}" text-anchor="middle" font-size="12" font-family="DM Mono" font-weight="${today?500:400}" fill="${today?INK:INK2}">${d}</text><text x="${cx}" y="${H+34}" text-anchor="middle" font-size="12" font-family="Zen Maru Gothic" font-weight="${today?700:400}" fill="${today?INK:INK2}">${w}</text>`});
+ o+=`<text x="${cx}" y="${H+18}" text-anchor="middle" font-size="12" font-family="DM Mono" font-weight="${today?500:400}" fill="${today?INK:INK2}">${d}</text><text x="${cx}" y="${H+34}" text-anchor="middle" font-size="12" font-family="BIZ UDPGothic" font-weight="${today?700:400}" fill="${today?INK:INK2}">${w}</text>`});
  return`<svg width="${W}" height="${H+38}" viewBox="0 0 ${W} ${H+38}" role="img" aria-label="この7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分"><line x1="0" x2="${W}" y1="${H}" y2="${H}" stroke="${GREY}"/>${o}</svg>`};
 const weekCard=()=>`<section class="card" data-part="week">
   <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">この7日間の電話</h3><span class="label-s muted">棒の数字は話した分数</span></div>
@@ -693,7 +693,7 @@ ${flow('6. 予約電話','決まった時間に電話する、出ないときに
    ${[['paper/base','#F1F1F1'],['paper/raised','#FFFFFF'],['paper/sunken','#E2E3E6'],['ink/primary','#1A1A1A'],['ink/secondary','#4D5359'],['accent/call','#0041FF'],['night/base','#1F2328'],['night/raised','#2D3238'],['state/ok','#35A16B'],['state/ok-soft','#D5F5E3'],['state/care','#FF9900'],['state/care-soft','#FFFF99'],['state/alert','#DC3800'],['state/alert-soft','#FFE3E3'],['speaker/ai','#0041FF'],['speaker/parent','#663300']].map(([n,h])=>swatch(n,h)).join('')}
   </div>
   <div class="spec">
-   <div><span class="mono-s muted">Zen Maru Gothic / 画面の文字、会話の言葉</span><span class="title-l">親の様子を、ひと目で確かめる</span></div>
+   <div><span class="mono-s muted">BIZ UDPGothic / 画面の文字、会話の言葉</span><span class="title-l">親の様子を、ひと目で確かめる</span></div>
    <div><span class="mono-s muted">DM Mono / 時刻と分数</span><span class="mono-m">9:02　6分12秒　03-0000-0000</span></div>
   </div>
  </div>
