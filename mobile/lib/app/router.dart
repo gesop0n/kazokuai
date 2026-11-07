@@ -54,6 +54,8 @@ GoRouter createAppRouter({
     redirect: (context, state) {
       final location = state.matchedLocation;
       if (!auth.signedIn.value) {
+        // ログアウトすると L1 に戻す。見守る方が続いて unknown になっても、
+        // この分岐が先なので、読み込み中の画面には進まない
         return location.startsWith(_signedOutPath) ? null : _signedOutPath;
       }
       // 見守る方がいるかを読み終えるまでと、見守る方がいない間は、ホームに進ませない
@@ -62,7 +64,9 @@ GoRouter createAppRouter({
         WatchedPersonStatus.none => _watchedPersonNamePath,
         WatchedPersonStatus.registered => null,
       };
-      if (waitingAt != null) return location == waitingAt ? null : waitingAt;
+      if (waitingAt != null) {
+        return location == waitingAt ? null : waitingAt;
+      }
       final isBeforeHome =
           location.startsWith(_signedOutPath) ||
           location == _loadingPath ||

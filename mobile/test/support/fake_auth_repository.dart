@@ -55,6 +55,11 @@ class FakeAuthRepository implements AuthRepository {
     accounts[email] = password;
     signedIn.value = true;
   }
+
+  @override
+  Future<void> signOut() async {
+    signedIn.value = false;
+  }
 }
 
 // ログインしている家族としてアプリを開く

@@ -18,6 +18,9 @@ abstract interface class AuthRepository {
   // アカウントを作る。作れるとログインした状態になる。
   // 作れなかったときは CreateAccountException を投げる
   Future<void> createAccount({required String email, required String password});
+
+  // ログアウトする。L6 の「もどる」が、ようこそ(L1)に戻るときに使う
+  Future<void> signOut();
 }
 
 enum SignInError {
