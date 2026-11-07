@@ -39,6 +39,21 @@ void main() {
     );
     expect(logo.height, 45);
     expect(logo.width, 45 * 3078 / 1014);
+    // flutter_svg は paint-order を描かない。枠を先、塗りを後に分けてある。
+    final logoSvg = await rootBundle.loadString('assets/logos/kazoku.svg');
+    expect(logoSvg, isNot(contains('paint-order')));
+    expect(
+      logoSvg.indexOf(
+        '<g fill="none" stroke="#000" stroke-width="28" stroke-linejoin="round">',
+      ),
+      lessThan(logoSvg.indexOf('<g fill="#808080" stroke="none">')),
+    );
+    expect(
+      logoSvg.indexOf(
+        '<path fill="none" stroke="#000" stroke-width="28" stroke-linejoin="round" d="M2447',
+      ),
+      lessThan(logoSvg.indexOf('<path fill="#808080" stroke="none" d="M2447')),
+    );
 
     final phone = tester.widget<AppIcon>(
       find.byWidgetPredicate(
