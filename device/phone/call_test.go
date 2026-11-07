@@ -376,6 +376,25 @@ func TestToken(t *testing.T) {
 		}
 	})
 
+	t.Run("見守る方の文字起こしに、言語のヒントとして ja-JP を指定する", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		s.gemini.waitForSession(t, 1)
+
+		token := s.gemini.tokenConfigs()[0]
+		if token.LiveConnectConstraints == nil || token.LiveConnectConstraints.Config == nil {
+			t.Fatal("トークンに Live API の設定がない")
+		}
+		transcription := token.LiveConnectConstraints.Config.InputAudioTranscription
+		if transcription == nil {
+			t.Fatal("見守る方の声を文字起こししない")
+		}
+		want := []string{"ja-JP"}
+		if got := transcription.LanguageCodes; !reflect.DeepEqual(got, want) {
+			t.Errorf("見守る方の文字起こしの言語 = %v, want %v", got, want)
+		}
+	})
+
 	t.Run("システム指示は、締めの合図を受けたら話をまとめて別れの挨拶をするよう伝える", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		s.startCall(t)

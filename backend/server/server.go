@@ -126,8 +126,12 @@ func tokenConfig(config Config, person watchedPerson, now time.Time) *genai.Crea
 						PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{VoiceName: config.Voice},
 					},
 				},
-				SystemInstruction:        genai.NewContentFromText(systemInstruction(config, person, now), genai.RoleUser),
-				InputAudioTranscription:  &genai.AudioTranscriptionConfig{},
+				SystemInstruction: genai.NewContentFromText(systemInstruction(config, person, now), genai.RoleUser),
+				// 言語を自分で判定すると、「うん」のような短い返事が別の言語になる。
+				// 見守る方の文字起こしには、言語のヒントとして日本語を渡す。
+				InputAudioTranscription: &genai.AudioTranscriptionConfig{
+					LanguageCodes: []string{"ja-JP"},
+				},
 				OutputAudioTranscription: &genai.AudioTranscriptionConfig{},
 			},
 		},
