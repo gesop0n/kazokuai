@@ -66,6 +66,9 @@ class FirebaseAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<void> signOut() => _auth.signOut();
+
   void dispose() {
     _subscription.cancel();
     _signedIn.dispose();

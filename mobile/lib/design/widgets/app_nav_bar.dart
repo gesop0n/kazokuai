@@ -11,6 +11,7 @@ class AppNavBar extends StatelessWidget {
     this.leadingIcon = AppIcons.chevronLeft,
     this.leadingLabel = 'もどる',
     this.showsBack = true,
+    this.onLeadingTap,
   });
 
   final String title;
@@ -18,6 +19,9 @@ class AppNavBar extends StatelessWidget {
   final String leadingLabel;
   // もどる先のない画面では false にする。題名は真ん中のまま
   final bool showsBack;
+
+  // 指定したときだけ、前のルートへ戻る代わりにこれを呼ぶ
+  final VoidCallback? onLeadingTap;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +33,7 @@ class AppNavBar extends StatelessWidget {
             AppIconButton(
               leadingIcon,
               semanticLabel: leadingLabel,
-              onTap: () => Navigator.maybePop(context),
+              onTap: onLeadingTap ?? () => Navigator.maybePop(context),
             )
           else
             const SizedBox(width: 44),

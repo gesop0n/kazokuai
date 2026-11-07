@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/app/setup_return.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/app_theme.dart';
@@ -21,6 +22,7 @@ class _KazokuAiAppState extends ConsumerState<KazokuAiApp> {
   late final GoRouter _router = createAppRouter(
     auth: ref.read(authRepositoryProvider),
     watchedPerson: ref.read(watchedPersonRepositoryProvider),
+    setupReturn: ref.read(setupReturnProvider),
   );
 
   @override
