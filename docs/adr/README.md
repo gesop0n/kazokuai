@@ -33,3 +33,4 @@
 | [20261106_device_backend_architecture](20261106_device_backend_architecture.md) | デバイスおよびバックエンドのアーキテクチャ | Accepted |
 | [20261107_development_process](20261107_development_process.md) | 開発プロセス | Accepted |
 | [20261107_issue_pr_writing](20261107_issue_pr_writing.md) | issue とプルリクエストの書き方 | Accepted |
+| [20261107_single_reviewer](20261107_single_reviewer.md) | レビュー役を Codex だけにする | Accepted |

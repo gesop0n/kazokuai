@@ -7,3 +7,7 @@
 # git gtr new で、メインのリポジトリの .env を新しいワークツリーに写す
 [copy]
 	include = .env
+
+# git gtr clean --merged で PR を調べる先。リモートが SSH の別名なので、URL からは判定できない
+[defaults]
+	provider = github
