@@ -15,6 +15,9 @@ abstract interface class WatchedPersonRepository {
   // バックエンドを通して、ログインした家族の見守る方を登録する。
   // 登録できると status が registered になる。できなかったときは RegisterWatchedPersonException を投げる
   Future<void> register({required String name, required String callName});
+
+  // 見守る方を読み直す。待っているあいだ status は unknown になり、画面は何も描かない
+  void reload();
 }
 
 enum WatchedPersonStatus {
@@ -24,6 +27,9 @@ enum WatchedPersonStatus {
   none,
   // 家族に見守る方がいる
   registered,
+
+  // 読み取りが失敗した。いるかどうかは、まだ分からない
+  unreadable,
 }
 
 class RegisterWatchedPersonException implements Exception {
