@@ -133,12 +133,17 @@ When the ticket changes screens in `mobile/`, put each changed screen beside the
 
 5. The script prints each id with its title in the mock. Check that the title names the screen you took: a screen that only a state of another screen shows, such as a form after both documents are read, has an id of its own and no route.
 6. Look at every pair. Each difference the ticket does not explain goes into the PR body with the remaining findings.
+7. Publish the pairs for the PR body. This uploads each pair, 1000 pixels wide, to `<N>/<id>.png` on the `pr-images` branch, which shares no history with `main`, and prints a Markdown image line for each:
 
-Done when every changed screen has a pair in `<work>/shots/<id>.png`, or is listed as not captured because no route opens it.
+   ```bash
+   uv run --with pillow python3 .claude/skills/run-tickets/publish_pairs.py <N> <work>/shots <id>...
+   ```
+
+Done when every changed screen has a pair on `pr-images` with its image line, or is listed as not captured because no route opens it.
 
 ## 8. Open the PR
 
-1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewer, a section listing the remaining findings, and the screens compared in step 7 and those not captured.
+1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewer, a section listing the remaining findings, and the screens compared in step 7, each with its image line, and those not captured.
 2. Turn it into Japanese as `AGENTS.md` says for PR bodies: `mise run translate`, mistranslations fixed against the English, then the `yomiyasu` skill.
 3. Push and open the PR. The title is the ticket's title.
 
@@ -149,7 +154,7 @@ Done when every changed screen has a pair in `<work>/shots/<id>.png`, or is list
    ```
 
 4. When CI goes red, send the failure to the implementer, check its fix as in step 4, and push again.
-5. Notify the person with the PR URL and the paths of the pairs from step 7.
+5. Notify the person with the PR URL.
 
 Done when the PR is open, CI is green, and the person has the URL.
 
