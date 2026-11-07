@@ -7,28 +7,6 @@ const _summaryNotMade = '作れなかった';
 const _talked = '話した';
 const _notTalked = '話していない';
 
-// ログインした家族の見守る方と、その電話を読んで、ホームの型にする。
-// 見守る方がいなければ null。電話の選び方は homeViewFrom と同じ
-Future<HomeView?> readHome(
-  FirebaseFirestore firestore, {
-  required String uid,
-  required DateTime now,
-}) async {
-  final people = await firestore
-      .collection('watchedPersons')
-      .where('familyUids', arrayContains: uid)
-      .limit(1)
-      .get();
-  if (people.docs.isEmpty) return null;
-  final person = people.docs.first;
-  final calls = await person.reference.collection('calls').get();
-  return homeViewFrom(
-    person: person.data(),
-    calls: [for (final call in calls.docs) call.data()],
-    now: now,
-  );
-}
-
 // Firestore の見守る方と電話のドキュメントを、ホームの型にする。
 // 直近の電話は期間に関係なくいちばん新しいもの、今日の様子はその日の最後の電話、
 // 7 日間は今日を含む 7 日で、電話がなかった日は棒も印も出さない

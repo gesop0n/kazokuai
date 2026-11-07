@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kazokuai/data/firebase_home_repository.dart';
@@ -18,6 +19,7 @@ final homeRepositoryProvider = Provider<HomeRepository>((ref) {
   final repository = FirebaseHomeRepository(
     auth: FirebaseAuth.instance,
     firestore: FirebaseFirestore.instance,
+    binding: WidgetsBinding.instance,
   );
   ref.onDispose(repository.dispose);
   return repository;

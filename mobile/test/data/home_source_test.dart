@@ -40,9 +40,9 @@ void main() {
       ),
     );
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
+    final home = await _home(firestore, _now);
 
-    expect(home!.person.name, '田中ハナ');
+    expect(home.person.name, '田中ハナ');
     expect(home.person.callName, 'ハナさん');
     expect(home.person.initial, 'ハ');
     expect(home.now, _now);
@@ -93,13 +93,9 @@ void main() {
       ),
     );
 
-    final home = await readHome(
-      firestore,
-      uid: _uid,
-      now: DateTime(2026, 11, 5, 8),
-    );
+    final home = await _home(firestore, DateTime(2026, 11, 5, 8));
 
-    expect(home!.latestCall!.summary.headline, '昨日の電話です。');
+    expect(home.latestCall!.summary.headline, '昨日の電話です。');
     expect(home.todayCall, isNull);
     expect(_minutes(home, DateTime(2026, 11, 4)), 3);
     expect(_day(home, DateTime(2026, 11, 5)).quiet, isTrue);
@@ -143,8 +139,8 @@ void main() {
       _bare(at: DateTime(2026, 11, 3, 7, 0), durationMs: 0),
     );
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
-    final days = home!.week.days;
+    final home = await _home(firestore, _now);
+    final days = home.week.days;
 
     expect(days.map((day) => day.date), [
       DateTime(2026, 10, 30),
@@ -190,9 +186,9 @@ void main() {
       ),
     );
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
+    final home = await _home(firestore, _now);
 
-    expect(home!.latestCall!.summary.headline, 'だいぶ前の電話です。');
+    expect(home.latestCall!.summary.headline, 'だいぶ前の電話です。');
     expect(
       home.latestCall!.summary.quote.spokenAt,
       DateTime(2026, 10, 20, 9, 0, 1),
@@ -221,8 +217,8 @@ void main() {
       )['summary'],
     });
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
-    final call = home!.latestCall!;
+    final home = await _home(firestore, _now);
+    final call = home.latestCall!;
 
     expect(call.summary.headline, 'まとめを作れませんでした');
     expect(call.summary.quote.text, isEmpty);
@@ -249,9 +245,9 @@ void main() {
       _bare(at: DateTime(2026, 11, 5, 9, 2), durationMs: 30000),
     );
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
+    final home = await _home(firestore, _now);
 
-    expect(home!.latestCall!.summary.headline, isEmpty);
+    expect(home.latestCall!.summary.headline, isEmpty);
     expect(home.latestCall!.summary.quote.text, isEmpty);
     expect(home.latestCall!.summary.headline, isNot('まとめを作れませんでした'));
   });
@@ -279,11 +275,10 @@ void main() {
       ),
     );
 
-    final meal = (await readHome(
+    final meal = (await _home(
       firestore,
-      uid: _uid,
-      now: _now,
-    ))!.todayCall!.summary.conditions.first;
+      _now,
+    )).todayCall!.summary.conditions.first;
 
     expect(meal.value, '話していない');
     expect(meal.quote, isEmpty);
@@ -294,41 +289,28 @@ void main() {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
 
-    final home = await readHome(firestore, uid: _uid, now: _now);
+    final home = await _home(firestore, _now);
 
-    expect(home!.latestCall, isNull);
+    expect(home.latestCall, isNull);
     expect(home.todayCall, isNull);
     expect(home.week.days, hasLength(7));
     expect(home.week.days.every((day) => day.quiet), isTrue);
     expect(home.week.answeredDays, 0);
   });
+}
 
-  test('ほかの家族の見守る方の電話は読まない', () async {
-    final firestore = FakeFirebaseFirestore();
-    await firestore.collection('watchedPersons').doc('other').set({
-      'name': '佐藤タロウ',
-      'callName': 'タロウさん',
-      'familyUids': ['kenta'],
-    });
-    await firestore
-        .collection('watchedPersons')
-        .doc('other')
-        .collection('calls')
-        .doc('secret')
-        .set(_bare(at: DateTime(2026, 11, 5, 9), durationMs: 60000));
-    await _person(firestore);
-
-    final home = await readHome(firestore, uid: _uid, now: _now);
-
-    expect(home!.person.name, '田中ハナ');
-    expect(home.latestCall, isNull);
-  });
-
-  test('見守る方がいなければ、ホームの中身はない', () async {
-    final home = await readHome(FakeFirebaseFirestore(), uid: _uid, now: _now);
-
-    expect(home, isNull);
-  });
+// ドキュメントの形は Firestore に書いてから読む。誰の電話を取るかはリポジトリのテスト
+Future<HomeView> _home(FakeFirebaseFirestore firestore, DateTime now) async {
+  final person = await firestore
+      .collection('watchedPersons')
+      .doc('hanako')
+      .get();
+  final calls = await person.reference.collection('calls').get();
+  return homeViewFrom(
+    person: person.data()!,
+    calls: [for (final call in calls.docs) call.data()],
+    now: now,
+  );
 }
 
 Future<void> _person(FakeFirebaseFirestore firestore) {

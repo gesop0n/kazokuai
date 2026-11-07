@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/data/home_source.dart';
@@ -10,21 +11,27 @@ import 'package:kazokuai/features/home/home_data.dart';
 
 // ホームに出す見守る方と電話を Firestore から読む。アプリは Firestore に何も書かない。
 // いるかどうかの監視は変えず、ホームに必要な名前と電話だけをここで読む
-class FirebaseHomeRepository implements HomeRepository {
+class FirebaseHomeRepository
+    with WidgetsBindingObserver
+    implements HomeRepository {
   FirebaseHomeRepository({
     required FirebaseAuth auth,
     required this._firestore,
     DateTime Function()? now,
+    this._binding,
   }) : _now = now ?? DateTime.now {
+    _binding?.addObserver(this);
     _authSubscription = auth.authStateChanges().listen(_watch);
   }
 
   final FirebaseFirestore _firestore;
   final DateTime Function() _now;
+  final WidgetsBinding? _binding;
   final _view = ValueNotifier<HomeView?>(null);
   late final StreamSubscription<User?> _authSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _personSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callsSubscription;
+  Timer? _dateChange;
   String? _personId;
   Map<String, dynamic>? _person;
   List<Map<String, dynamic>>? _calls;
@@ -74,11 +81,28 @@ class FirebaseHomeRepository implements HomeRepository {
     _publish();
   }
 
+  // バックグラウンドから戻ったとき。日付が変わっていれば今日と 7 日間を直す
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _publish();
+  }
+
   void _publish() {
     final person = _person;
     final calls = _calls;
     if (person == null || calls == null) return;
     _view.value = homeViewFrom(person: person, calls: calls, now: _now());
+    _armDateChange();
+  }
+
+  // Firestore が静かでも、次の深夜に今日の様子と 7 日間を計算し直す
+  void _armDateChange() {
+    _dateChange?.cancel();
+    final now = _now();
+    final nextMidnight = DateTime(now.year, now.month, now.day + 1);
+    var delay = nextMidnight.difference(now);
+    if (delay <= Duration.zero) delay = const Duration(milliseconds: 1);
+    _dateChange = Timer(delay, _publish);
   }
 
   void _stopCalls() {
@@ -90,6 +114,7 @@ class FirebaseHomeRepository implements HomeRepository {
   }
 
   void _stop() {
+    _dateChange?.cancel();
     _personSubscription?.cancel();
     _personSubscription = null;
     _stopCalls();
@@ -107,6 +132,8 @@ class FirebaseHomeRepository implements HomeRepository {
   }
 
   void dispose() {
+    _dateChange?.cancel();
+    _binding?.removeObserver(this);
     _authSubscription.cancel();
     _stop();
     _view.dispose();
