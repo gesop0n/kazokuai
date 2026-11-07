@@ -187,7 +187,7 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 		return
 	}
 	if in := content.InputTranscription; in != nil {
-		lines.addInput(in.Text)
+		lines.addInput(in.Text, in.Finished)
 		if in.Finished {
 			lines.flushInput()
 		}
@@ -206,11 +206,14 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 		}
 	}
 	// 終わりの印がなくても、モデルが話し終えたら、そこまでの AI の発話は 1 行である。
-	// 文字起こしは、この印より先に届く。
+	// 出力の文字起こしは、この印より先に届く。
 	if content.GenerationComplete {
 		lines.modelTurnCompleted()
 	}
+	// 割り込まれたターンには、モデルが話し終えた印は来ない。そこまでの AI の発話を区切る。
+	// 出力の文字起こしは、この印より先に届く。見守る方の発話は、ここでは区切らない。
 	if content.Interrupted {
+		lines.flushOutput()
 		d.Phone.Handset.Hush()
 	}
 }
@@ -270,9 +273,10 @@ func send(session Session, done <-chan struct{}) (outgoing, turns chan<- func(Se
 }
 
 // transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
-// 行を区切るのは、その人の文字起こしが終わったとき、モデルが話し終えたとき、電話が終わったときである。
+// AI の行を区切るのは、その文字起こしが終わったとき、モデルが話し終えたとき、話に割り込まれたとき、電話が終わったときである。
+// 見守る方の行を区切るのは、その文字起こしが終わったとき、モデルが話し終えたあとに終わりの印のない次の発話が届いたとき、電話が終わったときである。
+// 終わりの印が付いた欠片は、モデルの通知より遅れても、開いている発話の末尾である。
 // 相手の文字起こしや TurnComplete では区切らない。入り交じって届いた欠片は、1 つの発話のままである。
-// モデルが話し終えたあとに見守る方がまた話し始めたら、前の発話とは別の行にする。
 type transcript struct {
 	out   io.Writer
 	clock Clock
@@ -306,10 +310,12 @@ type openLine struct {
 	modelTurns int
 }
 
-func (t *transcript) addInput(chunk string) {
-	// モデルが一度話し終えてから届いた見守る方の文字起こしは、新しい発話である。
-	// 話し終える前に入り交じって届いた欠片は、開いている行につなぐ。
-	if t.input.text.Len() > 0 && t.modelTurns > t.input.modelTurns {
+// addInput は、見守る方の文字起こしを開いている行へ足す。
+// finished は、この欠片がその発話の終わりの印を持つかである。
+// 終わりの印は、モデルが話し終えた通知と到着順が決まっていない。印の付いた欠片は、開いている発話の末尾である。
+// 印のない欠片が、モデルが話し終えたあとに届いたときだけ、次の発話として前の行を区切る。
+func (t *transcript) addInput(chunk string, finished bool) {
+	if !finished && t.input.text.Len() > 0 && t.modelTurns > t.input.modelTurns {
 		t.flushInput()
 	}
 	t.add(&t.input, chunk)

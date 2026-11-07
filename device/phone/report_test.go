@@ -166,6 +166,89 @@ func TestCallReport(t *testing.T) {
 	})
 }
 
+// TestReviewInputFragmentsAcrossGenerationComplete は、見守る方の同じ発話の末尾が
+// モデルの生成完了より遅れて、終わりの印付きで届いても、1 行のまま残ることを確かめる。
+// 入力の文字起こしとモデルの通知には、到着順の保証がない。
+func TestReviewInputFragmentsAcrossGenerationComplete(t *testing.T) {
+	started := morning.Add(13 * time.Hour)
+	s := newSystem(t, hanako, started)
+	c := s.startCall(t)
+	session := s.gemini.waitForSession(t, 1)
+	s.phone.pickUp()
+	waitForText(t, session, "[電話がつながりました]")
+
+	s.clock.advance(time.Second)
+	session.reply(inputTranscription("朝ごはんを"), aiAudio(1))
+	waitUntil(t, "見守る方の発話の開始を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 1 })
+
+	s.clock.advance(time.Second)
+	session.reply(outputTranscription("そうですか。"), generationComplete())
+	s.terminal.waitForLines(t, "かぞくAI: そうですか。")
+
+	s.clock.advance(time.Second)
+	session.reply(finished(inputTranscription("食べました。")), aiAudio(2))
+	waitUntil(t, "遅れて届いた見守る方の発話を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
+
+	s.phone.putDown()
+	if err := c.result(t); err != nil {
+		t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+	}
+
+	got := utterancesOf(t, waitCall(t, started).Ref)
+	if len(got) != 2 {
+		t.Fatalf("生成完了をまたいだ同じ発話が分かれた: %+v", got)
+	}
+	if got[0].speaker != "見守る方" || got[0].text != "朝ごはんを食べました。" || got[0].offsetMs != 1000 {
+		t.Fatalf("見守る方の発話 = %+v, want 1 秒の「朝ごはんを食べました。」", got)
+	}
+}
+
+// TestReviewInterruptedModelUtterancesStaySeparate は、割り込まれた AI の発話が
+// 次の返答と 1 行にならないことを確かめる。割り込まれたターンには、生成完了が来ない。
+func TestReviewInterruptedModelUtterancesStaySeparate(t *testing.T) {
+	started := morning.Add(14 * time.Hour)
+	s := newSystem(t, hanako, started)
+	c := s.startCall(t)
+	session := s.gemini.waitForSession(t, 1)
+	s.phone.pickUp()
+	waitForText(t, session, "[電話がつながりました]")
+
+	s.clock.advance(time.Second)
+	session.reply(outputTranscription("今日はいい天気で"), aiAudio(1))
+	waitUntil(t, "AI の発話の開始を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 1 })
+
+	session.reply(interrupted(), turnComplete())
+	waitUntil(t, "割り込みを扱わなかった", func() bool { return s.phone.hushCount() == 1 })
+
+	s.clock.advance(time.Second)
+	session.reply(inputTranscription("朝ごはんの話をしたいです。"), aiAudio(2))
+	waitUntil(t, "見守る方の発話を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
+
+	s.clock.advance(time.Second)
+	session.reply(outputTranscription("何を食べましたか。"), generationComplete(), aiAudio(3))
+	waitUntil(t, "次の AI の発話を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 3 })
+
+	s.phone.putDown()
+	if err := c.result(t); err != nil {
+		t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+	}
+
+	got := utterancesOf(t, waitCall(t, started).Ref)
+	want := []storedUtterance{
+		{speaker: "AI", offsetMs: 1000, text: "今日はいい天気で"},
+		{speaker: "見守る方", offsetMs: 2000, text: "朝ごはんの話をしたいです。"},
+		{speaker: "AI", offsetMs: 3000, text: "何を食べましたか。"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("発話 = %+v, want %+v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("発話[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
+
 func waitCall(t *testing.T, started time.Time) *firestore.DocumentSnapshot {
 	t.Helper()
 	var found *firestore.DocumentSnapshot

@@ -113,7 +113,7 @@ func TestTalking(t *testing.T) {
 		}
 	})
 
-	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨てる。行は、電話が終わったときに、そこまで話した順で出す", func(t *testing.T) {
+	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨て、そこまでの AI の発話を区切る", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		c := s.startCall(t)
 		session := s.gemini.waitForSession(t, 1)
@@ -129,8 +129,9 @@ func TestTalking(t *testing.T) {
 		)
 
 		waitUntil(t, "AI の音声を捨てなかった", func() bool { return s.phone.hushCount() == 1 })
-		if text := s.terminal.text(); strings.Contains(text, "かぞくAI:") || strings.Contains(text, "見守る方:") {
-			t.Fatalf("割り込みと相手の文字起こしと TurnComplete では行を区切らない:\n%s", text)
+		s.terminal.waitForLines(t, "かぞくAI: 今日は")
+		if text := s.terminal.text(); strings.Contains(text, "見守る方:") {
+			t.Fatalf("割り込みと相手の文字起こしと TurnComplete では、見守る方の行を区切らない:\n%s", text)
 		}
 
 		s.phone.putDown()
