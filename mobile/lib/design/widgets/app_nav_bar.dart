@@ -5,9 +5,16 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 
 class AppNavBar extends StatelessWidget {
-  const AppNavBar({super.key, required this.title});
+  const AppNavBar({
+    super.key,
+    required this.title,
+    this.leadingIcon = AppIcons.chevronLeft,
+    this.leadingLabel = 'もどる',
+  });
 
   final String title;
+  final AppIcons leadingIcon;
+  final String leadingLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -16,8 +23,8 @@ class AppNavBar extends StatelessWidget {
       child: Row(
         children: [
           AppIconButton(
-            AppIcons.chevronLeft,
-            semanticLabel: 'もどる',
+            leadingIcon,
+            semanticLabel: leadingLabel,
             onTap: () => Navigator.maybePop(context),
           ),
           Expanded(

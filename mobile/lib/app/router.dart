@@ -3,7 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
+import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
+import 'package:kazokuai/features/account/register_screen.dart';
+import 'package:kazokuai/features/account/sample_documents.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
@@ -15,6 +18,9 @@ import 'package:kazokuai/features/home/home_screen.dart';
 abstract final class AppRoutes {
   static const welcome = 'welcome';
   static const login = 'login';
+  static const register = 'register';
+  static const terms = 'terms';
+  static const privacy = 'privacy';
   static const home = 'home';
   static const calls = 'calls';
   static const booking = 'booking';
@@ -53,6 +59,25 @@ GoRouter createAppRouter({required AuthRepository auth}) {
             name: AppRoutes.login,
             path: 'login',
             builder: (context, state) => const LoginScreen(),
+          ),
+          GoRoute(
+            name: AppRoutes.register,
+            path: 'register',
+            builder: (context, state) => const RegisterScreen(),
+            routes: [
+              GoRoute(
+                name: AppRoutes.terms,
+                path: 'terms',
+                builder: (context, state) =>
+                    const DocumentScreen(document: termsDocument),
+              ),
+              GoRoute(
+                name: AppRoutes.privacy,
+                path: 'privacy',
+                builder: (context, state) =>
+                    const DocumentScreen(document: privacyDocument),
+              ),
+            ],
           ),
         ],
       ),

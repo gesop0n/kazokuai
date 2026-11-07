@@ -3,7 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
+import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
+import 'package:kazokuai/features/account/register_screen.dart';
+import 'package:kazokuai/features/account/sample_documents.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
@@ -52,6 +55,27 @@ void main() {
     await tester.pump();
 
     expect(find.text('ログインできませんでした。時間をおいて、もう一度お試しください'), findsOneWidget);
+  });
+
+  testEachLayout('L2d が崩れない', (tester, layout) async {
+    await pumpScreenInLayout(tester, layout, const RegisterScreen());
+
+    expect(find.text('新規登録'), findsOneWidget);
+    expect(find.text('利用規約'), findsOneWidget);
+    expect(find.text('プライバシーポリシー'), findsOneWidget);
+    expect(find.text('同意して登録する'), findsOneWidget);
+  });
+
+  testEachLayout('L2c が崩れない', (tester, layout) async {
+    await pumpScreenInLayout(
+      tester,
+      layout,
+      const DocumentScreen(document: termsDocument),
+    );
+
+    expect(find.text('利用規約'), findsOneWidget);
+    expect(find.text('読みました'), findsOneWidget);
+    expect(find.text('モック用の見本です。実際の規約ではありません。'), findsOneWidget);
   });
 
   testWidgets('L2 のパスワードは、目のボタンで表示と非表示を切り替えられる', (tester) async {
