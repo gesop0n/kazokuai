@@ -25,7 +25,10 @@ class WelcomeScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text('かぞくAI', style: AppTextStyles.titleM),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: _KazokuLogo(),
+                    ),
                     const SizedBox(height: 8),
                     const _WelcomeIllustration(),
                     const SizedBox(height: 16),
@@ -86,6 +89,24 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
+// モックの kazokuLogo(45)。字は SVG の中で線になっている。viewBox は 3078×1014
+class _KazokuLogo extends StatelessWidget {
+  const _KazokuLogo();
+
+  static const height = 45.0;
+  static const width = height * 3078 / 1014;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      'assets/logos/kazoku.svg',
+      width: width,
+      height: height,
+      semanticsLabel: 'かぞくAI',
+    );
+  }
+}
+
 // おじいちゃんと娘の絵に、吹き出しとハートを重ねた 1 枚の絵。
 // 幅が足りないときは全体を縮める。吹き出しの文字だけが大きくなると重なるので、文字倍率には従わない
 class _WelcomeIllustration extends StatelessWidget {
@@ -133,7 +154,7 @@ class _WelcomeIllustration extends StatelessWidget {
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0x2E3A2A19),
+                        color: Color(0x2E000000),
                         offset: Offset(0, 2),
                         blurRadius: 8,
                       ),
@@ -192,7 +213,7 @@ class _Bubble extends StatelessWidget {
         ),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x143A2A19),
+            color: Color(0x14000000),
             offset: Offset(0, 3),
             blurRadius: 10,
           ),
@@ -219,10 +240,10 @@ class _WelcomeLine extends StatelessWidget {
           height: 36,
           alignment: Alignment.center,
           decoration: const BoxDecoration(
-            color: AppColors.stateCareSoft,
+            color: AppColors.welcomeIconCircle,
             shape: BoxShape.circle,
           ),
-          child: AppIcon(icon, size: 18, color: AppColors.stateCareOn),
+          child: AppIcon(icon, size: 18, color: AppColors.inkPrimary),
         ),
         Expanded(child: Text(text, style: AppTextStyles.labelM)),
       ],

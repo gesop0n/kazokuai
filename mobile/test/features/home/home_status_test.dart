@@ -255,7 +255,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.text('通話中')).style?.color,
-        AppColors.onStateOk,
+        AppColors.onAccentCall,
       );
     });
 

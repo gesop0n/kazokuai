@@ -138,7 +138,24 @@ void main() {
 
       final text = tester.widget<Text>(find.text('気になる話'));
       expect(text.style?.fontWeight, FontWeight.w700);
-      expect(text.style?.color, AppColors.stateCareOn);
+      expect(text.style?.color, AppColors.inkPrimary);
+      expect(
+        tester.widget<AppIcon>(find.byType(AppIcon)).color,
+        AppColors.inkPrimary,
+      );
+      final decoration =
+          tester
+                  .widget<Container>(
+                    find
+                        .descendant(
+                          of: find.byType(AppPill),
+                          matching: find.byType(Container),
+                        )
+                        .first,
+                  )
+                  .decoration!
+              as BoxDecoration;
+      expect(decoration.border, Border.all(color: AppColors.inkSecondary));
     });
   });
 

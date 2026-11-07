@@ -123,7 +123,7 @@ void main() {
     expect(surface.color, AppColors.paperRaised);
     expect(
       surface.shape,
-      const StadiumBorder(side: BorderSide(color: AppColors.line)),
+      const StadiumBorder(side: BorderSide(color: AppColors.lineStrong)),
     );
     expect(
       tester.widget<Text>(find.text('体調')).style?.color,

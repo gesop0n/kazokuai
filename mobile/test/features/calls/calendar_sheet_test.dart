@@ -81,7 +81,7 @@ void main() {
       final barrier = tester.widget<ModalBarrier>(
         find.byType(ModalBarrier).last,
       );
-      expect(barrier.color, AppColors.nightBase.withAlpha(0x7A));
+      expect(barrier.color, AppColors.scrim);
 
       await tester.tap(
         find.descendant(of: find.byType(AppTabBar), matching: find.text('ホーム')),
@@ -200,7 +200,7 @@ void main() {
       await openCalendar(tester);
 
       final future = _dayText(tester, 6).style!;
-      expect(future.color, AppColors.lineStrong);
+      expect(future.color, AppColors.inkTertiary);
       expect(future.fontWeight, FontWeight.w400);
       expect(_dayText(tester, 5).style?.fontWeight, FontWeight.w500);
     });
@@ -225,6 +225,22 @@ void main() {
 
       expect(markOf(1), DayMark.answered);
       expect(markOf(2), DayMark.missed);
+      expect(
+        tester
+            .widget<DayMarkIcon>(
+              find.descendant(
+                of: find
+                    .ancestor(
+                      of: _inSheet(find.text('2')),
+                      matching: find.byType(Column),
+                    )
+                    .first,
+                matching: find.byType(DayMarkIcon),
+              ),
+            )
+            .missedColor,
+        AppColors.stateAlert,
+      );
       expect(markOf(3), DayMark.answered);
       expect(markOf(4), DayMark.answered);
       expect(markOf(5), DayMark.answered);

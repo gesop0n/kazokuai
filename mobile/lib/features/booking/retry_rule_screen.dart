@@ -173,7 +173,7 @@ class _RetryFlow extends StatelessWidget {
         ),
       _FlowDot(
         icon: AppIcons.bell,
-        color: AppColors.accentCall,
+        color: AppColors.stateAlert,
         time: formatTime(times.last),
         label: const _NotifyLabel(),
         semanticLabel: '${formatTime(times.last)} 家族に通知',

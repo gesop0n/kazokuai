@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/data/auth_repository.dart';
+import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
@@ -18,6 +22,68 @@ void main() {
 
     expect(find.text('はじめる'), findsOneWidget);
     expect(find.text('アカウントをお持ちの方はログイン'), findsOneWidget);
+  });
+
+  testWidgets('L1 は文字の代わりにロゴを出し、アイコンの円は薄い青', (tester) async {
+    await pumpScreenInLayout(
+      tester,
+      const LayoutCase(393, 1.0),
+      const WelcomeScreen(),
+    );
+
+    expect(find.text('かぞくAI'), findsNothing);
+    final logo = tester.widget<SvgPicture>(
+      find.byWidgetPredicate(
+        (widget) => widget is SvgPicture && widget.semanticsLabel == 'かぞくAI',
+      ),
+    );
+    expect(logo.height, 45);
+    expect(logo.width, 45 * 3078 / 1014);
+    // flutter_svg は paint-order を描かない。枠を先、塗りを後に分けてある。
+    final logoSvg = await rootBundle.loadString('assets/logos/kazoku.svg');
+    expect(logoSvg, isNot(contains('paint-order')));
+    expect(
+      logoSvg.indexOf(
+        '<g fill="none" stroke="#000" stroke-width="28" stroke-linejoin="round">',
+      ),
+      lessThan(logoSvg.indexOf('<g fill="#808080" stroke="none">')),
+    );
+    expect(
+      logoSvg.indexOf(
+        '<path fill="none" stroke="#000" stroke-width="28" stroke-linejoin="round" d="M2447',
+      ),
+      lessThan(logoSvg.indexOf('<path fill="#808080" stroke="none" d="M2447')),
+    );
+
+    final phone = tester.widget<AppIcon>(
+      find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.icon == AppIcons.phone,
+      ),
+    );
+    expect(phone.color, AppColors.inkPrimary);
+    final circle = tester.widget<Container>(
+      find
+          .ancestor(of: find.byWidget(phone), matching: find.byType(Container))
+          .first,
+    );
+    expect(
+      (circle.decoration! as BoxDecoration).color,
+      AppColors.welcomeIconCircle,
+    );
+
+    final grandpa = await rootBundle.loadString(
+      'assets/illustrations/grandpa.svg',
+    );
+    expect(grandpa, contains('#B4EBFA'));
+    expect(grandpa, contains('#FFF3D1'));
+    expect(
+      await rootBundle.loadString('assets/illustrations/daughter.svg'),
+      contains('#EDC58F'),
+    );
+    expect(
+      await rootBundle.loadString('assets/illustrations/heart.svg'),
+      contains('#DC3800'),
+    );
   });
 
   testEachLayout('L1 の絵は、幅に収まるように縮む', (tester, layout) async {

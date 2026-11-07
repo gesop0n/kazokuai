@@ -24,8 +24,7 @@ Future<DateTime?> showCalendarSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    // 不透明度 48%
-    barrierColor: AppColors.nightBase.withAlpha(0x7A),
+    barrierColor: AppColors.scrim,
     builder: (context) => CalendarSheet(log: log, initialDay: selectedDay),
   );
 }
@@ -57,7 +56,7 @@ class _CalendarSheetState extends State<CalendarSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x2E3A2A19),
+            color: Color(0x2E000000),
             offset: Offset(0, -6),
             blurRadius: 24,
           ),
@@ -267,7 +266,7 @@ class _DayCell extends StatelessWidget {
                 style: AppTextStyles.monoM.copyWith(
                   color: switch ((isSelected, isFuture)) {
                     (true, _) => AppColors.paperRaised,
-                    (_, true) => AppColors.lineStrong,
+                    (_, true) => AppColors.inkTertiary,
                     _ => AppColors.inkPrimary,
                   },
                   fontWeight: isFuture ? FontWeight.w400 : null,

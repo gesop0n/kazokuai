@@ -235,7 +235,7 @@ class _PinnedHeader extends StatelessWidget {
         boxShadow: showsShadow
             ? const [
                 BoxShadow(
-                  color: Color(0x243A2A19),
+                  color: Color(0x24000000),
                   offset: Offset(0, 4),
                   blurRadius: 10,
                 ),

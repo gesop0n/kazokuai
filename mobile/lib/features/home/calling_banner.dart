@@ -20,7 +20,7 @@ class CallingBanner extends StatelessWidget {
         container: true,
         liveRegion: true,
         child: ColoredBox(
-          color: AppColors.stateOkOn,
+          color: AppColors.accentCall,
           child: Padding(
             padding: EdgeInsets.only(
               top: MediaQuery.paddingOf(context).top,
@@ -39,13 +39,13 @@ class CallingBanner extends StatelessWidget {
                     const AppIcon(
                       AppIcons.phone,
                       size: 18,
-                      color: AppColors.onStateOk,
+                      color: AppColors.onAccentCall,
                     ),
                     Flexible(
                       child: Text(
                         '通話中',
                         style: AppTextStyles.labelL.copyWith(
-                          color: AppColors.onStateOk,
+                          color: AppColors.onAccentCall,
                         ),
                       ),
                     ),

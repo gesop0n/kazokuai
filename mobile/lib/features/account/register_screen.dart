@@ -199,7 +199,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         message,
                         textAlign: TextAlign.center,
                         style: AppTextStyles.labelM.copyWith(
-                          color: AppColors.stateAlertOn,
+                          color: AppColors.stateAlert,
                         ),
                       ),
                     ),
