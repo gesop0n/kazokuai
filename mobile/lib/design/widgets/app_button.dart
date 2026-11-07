@@ -56,11 +56,8 @@ enum AppButtonVariant {
   ),
   light(background: AppColors.nightText, foreground: AppColors.nightBase),
   ghost(background: Colors.transparent, foreground: AppColors.inkSecondary),
-  // 07b の濃い赤のカードに置く
-  white(
-    background: AppColors.onStateAlert,
-    foreground: AppColors.stateAlertOnStrong,
-  );
+  // 07b の注意の赤のカードに置く。文字とアイコンは ink
+  white(background: AppColors.onStateAlert, foreground: AppColors.inkPrimary);
 
   const AppButtonVariant({
     required this.background,
@@ -105,7 +102,9 @@ class AppButton extends StatelessWidget {
     return AppPressable(
       onTap: onTap,
       foregroundColor: foreground,
-      backgroundColor: isEnabled ? variant.background : AppColors.line,
+      backgroundColor: isEnabled
+          ? variant.background
+          : AppColors.buttonDisabled,
       shape: StadiumBorder(side: isEnabled ? variant.border : BorderSide.none),
       minHeight: size.minHeight,
       padding: EdgeInsets.symmetric(horizontal: size.horizontalPadding),

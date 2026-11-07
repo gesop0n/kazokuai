@@ -227,7 +227,7 @@ class _AbsentMark extends StatelessWidget {
           textAlign: TextAlign.center,
           style: AppTextStyles.labelS.copyWith(
             fontWeight: FontWeight.w700,
-            color: AppColors.stateAlertOn,
+            color: AppColors.inkPrimary,
           ),
         ),
         const SizedBox(height: 5),
@@ -238,7 +238,7 @@ class _AbsentMark extends StatelessWidget {
           child: OverflowBox(
             maxWidth: 28,
             maxHeight: 28,
-            child: AppIcon(AppIcons.x, size: 28, color: AppColors.accentCall),
+            child: AppIcon(AppIcons.x, size: 28, color: AppColors.stateAlert),
           ),
         ),
         const SizedBox(height: 2),

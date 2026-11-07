@@ -29,7 +29,7 @@ class AppTabBar extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Color(0x2E3A2A19),
+            color: Color(0x2E000000),
             offset: Offset(0, -6),
             blurRadius: 24,
           ),

@@ -219,7 +219,7 @@ void main() {
 
       await scrollCallsTo(tester, titleHeight + 1);
       final shadow = _pinnedShadow(tester)!.single;
-      expect(shadow.color, const Color(0x243A2A19));
+      expect(shadow.color, const Color(0x24000000));
       expect(shadow.offset, const Offset(0, 4));
       expect(shadow.blurRadius, 10);
 

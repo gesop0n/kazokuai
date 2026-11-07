@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
@@ -232,6 +233,18 @@ void main() {
         AppIcons.phone,
         AppIcons.bell,
       ]);
+      final bell = tester.widget<AppIcon>(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.icon == AppIcons.bell,
+        ),
+      );
+      expect(bell.color, AppColors.onAccentCall);
+      final circle = tester.widget<Container>(
+        find
+            .ancestor(of: find.byWidget(bell), matching: find.byType(Container))
+            .first,
+      );
+      expect((circle.decoration! as BoxDecoration).color, AppColors.stateAlert);
     });
 
     testWidgets('通知の文字は 1 行に入るときは見た目も 1 行に並ぶ', (tester) async {

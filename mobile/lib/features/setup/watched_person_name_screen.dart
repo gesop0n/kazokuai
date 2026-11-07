@@ -149,7 +149,7 @@ class _ErrorMessage extends StatelessWidget {
       liveRegion: true,
       child: Text(
         '登録できませんでした。時間をおいて、もう一度お試しください',
-        style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlertOn),
+        style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlert),
       ),
     );
   }

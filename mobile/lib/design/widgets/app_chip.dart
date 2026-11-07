@@ -44,7 +44,7 @@ class AppChip extends StatelessWidget {
       backgroundColor: selected ? AppColors.inkPrimary : AppColors.paperRaised,
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected ? AppColors.inkPrimary : AppColors.line,
+          color: selected ? AppColors.inkPrimary : AppColors.lineStrong,
         ),
       ),
       minHeight: size.height,

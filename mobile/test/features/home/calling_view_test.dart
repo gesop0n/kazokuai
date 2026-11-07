@@ -34,7 +34,7 @@ void main() {
       final icon = tester.widget<AppIcon>(find.byType(AppIcon));
       expect(icon.icon, AppIcons.phone);
       expect(icon.size, 18);
-      expect(icon.color, AppColors.onStateOk);
+      expect(icon.color, AppColors.onAccentCall);
       expect(find.text('通話中'), findsOneWidget);
     });
 
@@ -47,10 +47,10 @@ void main() {
           matching: find.byType(ColoredBox),
         ),
       );
-      expect(background.color, AppColors.stateOkOn);
+      expect(background.color, AppColors.accentCall);
       expect(
         tester.widget<Text>(find.text('通話中')).style!.color,
-        AppColors.onStateOk,
+        AppColors.onAccentCall,
       );
     });
 
@@ -150,7 +150,7 @@ void main() {
             )
             .first,
       );
-      expect(surface.color, AppColors.line);
+      expect(surface.color, AppColors.buttonDisabled);
       expect(
         tester.widget<Text>(find.text('現在通話中です')).style!.color,
         AppColors.inkSecondary,

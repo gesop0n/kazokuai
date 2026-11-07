@@ -5,13 +5,12 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 
 enum AppPillVariant {
-  care(background: AppColors.stateCareSoft, foreground: AppColors.stateCareOn),
-  ok(background: AppColors.stateOkSoft, foreground: AppColors.stateOkOn);
+  care(background: AppColors.stateCareSoft),
+  ok(background: AppColors.stateOkSoft);
 
-  const AppPillVariant({required this.background, required this.foreground});
+  const AppPillVariant({required this.background});
 
   final Color background;
-  final Color foreground;
 }
 
 class AppPill extends StatelessWidget {
@@ -35,19 +34,21 @@ class AppPill extends StatelessWidget {
       decoration: BoxDecoration(
         color: variant.background,
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.inkSecondary),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: icon == null ? 0 : 4,
         children: [
-          if (icon != null) AppIcon(icon, size: 14, color: variant.foreground),
+          if (icon != null)
+            AppIcon(icon, size: 14, color: AppColors.inkPrimary),
           Flexible(
             child: Text(
               label,
               // .pill は .label-s と同じ大きさで、太さだけ 700
               style: AppTextStyles.labelS.copyWith(
                 fontWeight: FontWeight.w700,
-                color: variant.foreground,
+                color: AppColors.inkPrimary,
               ),
             ),
           ),

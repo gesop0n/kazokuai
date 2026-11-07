@@ -233,7 +233,7 @@ class _ErrorMessage extends StatelessWidget {
       child: Text(switch (error) {
         SignInError.wrongCredentials => 'メールアドレスかパスワードが違います',
         SignInError.other => 'ログインできませんでした。時間をおいて、もう一度お試しください',
-      }, style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlertOn)),
+      }, style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlert)),
     );
   }
 }

@@ -255,17 +255,19 @@ class _MissedRow extends StatelessWidget {
       child: _RowFrame(
         time: entry.startedAt,
         icon: AppIcons.phoneMissed,
-        iconBackground: AppColors.accentCall,
+        iconBackground: AppColors.stateAlert,
         card: Container(
-          padding: const EdgeInsets.all(12),
+          // 枠を 1pt から 2pt に厚くした分、上下の余白を 1 ずつ減らす。
+          // カードの高さは今の 46 のままにし、測り直しは #47 に残す。
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
           decoration: BoxDecoration(
             color: AppColors.stateAlertSoft,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.stateAlertLine),
+            border: Border.all(color: AppColors.stateAlert, width: 2),
           ),
           child: Text(
             entry.text,
-            style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlertOn),
+            style: AppTextStyles.labelM.copyWith(color: AppColors.inkPrimary),
           ),
         ),
       ),

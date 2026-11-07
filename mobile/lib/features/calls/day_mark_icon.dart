@@ -9,10 +9,12 @@ class DayMarkIcon extends StatelessWidget {
     this.mark, {
     super.key,
     this.answeredColor = AppColors.lineStrong,
+    this.missedColor = AppColors.stateAlert,
   });
 
   final DayMark? mark;
   final Color answeredColor;
+  final Color missedColor;
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +31,9 @@ class DayMarkIcon extends StatelessWidget {
               shape: BoxShape.circle,
             ),
           ),
-          DayMark.missed => const CustomPaint(
-            size: Size.square(12),
-            painter: _MissedMarkPainter(),
+          DayMark.missed => CustomPaint(
+            size: const Size.square(12),
+            painter: _MissedMarkPainter(missedColor),
           ),
         },
       ),
@@ -41,12 +43,14 @@ class DayMarkIcon extends StatelessWidget {
 
 // モックの × は太さ 2.2 で、x.svg を縮めると細くなるので描く
 class _MissedMarkPainter extends CustomPainter {
-  const _MissedMarkPainter();
+  const _MissedMarkPainter(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = AppColors.accentCall
+      ..color = color
       ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
     canvas
@@ -55,5 +59,6 @@ class _MissedMarkPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MissedMarkPainter oldDelegate) => false;
+  bool shouldRepaint(_MissedMarkPainter oldDelegate) =>
+      color != oldDelegate.color;
 }

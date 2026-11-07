@@ -110,7 +110,7 @@ final _pressables = [
     semanticLabel: 'もう一度電話する',
     minHeight: 56,
     surface: AppColors.onStateAlert,
-    foreground: AppColors.stateAlertOnStrong,
+    foreground: AppColors.inkPrimary,
   ),
   _Pressable(
     name: 'ボタン L record',
@@ -401,7 +401,7 @@ void main() {
               )
               .first,
         );
-        expect(material.color, AppColors.line);
+        expect(material.color, AppColors.buttonDisabled);
         expect(material.shape, const StadiumBorder());
         expect(
           tester.widget<Text>(find.text('現在通話中です')).style?.color,

@@ -93,6 +93,10 @@ void main() {
           tester.widget<Container>(card.first).decoration! as BoxDecoration;
       expect(tester.getSize(card.first).height, 46);
       expect(decoration.color, AppColors.stateAlertSoft);
+      expect(
+        decoration.border,
+        Border.all(color: AppColors.stateAlert, width: 2),
+      );
     });
 
     testWidgets('幅 393 では「不在」のチップが端で切れる(モックと同じ)', (tester) async {
