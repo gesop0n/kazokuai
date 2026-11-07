@@ -7,11 +7,15 @@ import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
+import 'support/fake_auth_repository.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('アプリが起動してロケールが ja になる', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
+    await tester.pumpWidget(
+      ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+    );
     await tester.pumpAndSettle();
 
     final context = tester.element(find.byType(HomeScreen));
@@ -22,7 +26,9 @@ void main() {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
-    await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
+    await tester.pumpWidget(
+      ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+    );
     await tester.pumpAndSettle();
 
     final context = tester.element(find.byType(HomeScreen));

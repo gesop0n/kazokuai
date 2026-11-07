@@ -37,6 +37,11 @@ description = "Mac で電話機のプログラムを起動する。イヤホン�
 dir = "{{config_root}}"
 run = "go run ./device"
 
+[emulators]
+description = "Firebase の Auth と Firestore のエミュレーターを起動する。エミュレーターの画面は http://localhost:4000"
+dir = "{{config_root}}/firebase"
+run = "firebase emulators:start --project demo-kazokuai"
+
 [translate]
 description = "英語の Markdown を plamo-translate で日本語に訳す。例: mise run translate en.md ja.md"
 run = "python3 -I {{config_root}}/scripts/plamo_translate.py"

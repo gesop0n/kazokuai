@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/app_theme.dart';
 
-class KazokuAiApp extends StatefulWidget {
+class KazokuAiApp extends ConsumerStatefulWidget {
   const KazokuAiApp({super.key});
 
   @override
-  State<KazokuAiApp> createState() => _KazokuAiAppState();
+  ConsumerState<KazokuAiApp> createState() => _KazokuAiAppState();
 }
 
-class _KazokuAiAppState extends State<KazokuAiApp> {
+class _KazokuAiAppState extends ConsumerState<KazokuAiApp> {
   // build で作り直すと開いている画面を失うので、State に持つ
-  final GoRouter _router = createAppRouter();
+  late final GoRouter _router = createAppRouter(
+    auth: ref.read(authRepositoryProvider),
+  );
 
   @override
   void dispose() {

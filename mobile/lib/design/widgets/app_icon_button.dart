@@ -10,11 +10,15 @@ class AppIconButton extends StatelessWidget {
     super.key,
     required this.semanticLabel,
     required this.onTap,
+    this.iconSize = 24,
+    this.iconColor = AppColors.inkPrimary,
   });
 
   final AppIcons icon;
   final String semanticLabel;
   final VoidCallback onTap;
+  final double iconSize;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
@@ -22,10 +26,12 @@ class AppIconButton extends StatelessWidget {
       dimension: 44,
       child: AppPressable(
         onTap: onTap,
-        foregroundColor: AppColors.inkPrimary,
+        foregroundColor: iconColor,
         shape: const CircleBorder(),
         semanticLabel: semanticLabel,
-        child: Center(child: AppIcon(icon)),
+        child: Center(
+          child: AppIcon(icon, size: iconSize, color: iconColor),
+        ),
       ),
     );
   }

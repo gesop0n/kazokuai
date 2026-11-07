@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
+import 'package:kazokuai/features/account/login_screen.dart';
+import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
@@ -10,6 +13,8 @@ import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 abstract final class AppRoutes {
+  static const welcome = 'welcome';
+  static const login = 'login';
   static const home = 'home';
   static const calls = 'calls';
   static const booking = 'booking';
@@ -18,13 +23,39 @@ abstract final class AppRoutes {
   static const retryRule = 'retryRule';
 }
 
-GoRouter createAppRouter() {
+// ログインする前に開ける画面は、すべてこの下に置く
+const _signedOutPath = '/welcome';
+
+GoRouter createAppRouter({required AuthRepository auth}) {
   final rootNavigatorKey = GlobalKey<NavigatorState>();
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
+    // ログインの状態が変わったら、ログインしていない家族を L1 に、ログインした家族をホームに移す
+    refreshListenable: auth.signedIn,
+    redirect: (context, state) {
+      final signedIn = auth.signedIn.value;
+      final isSignedOutScreen = state.matchedLocation.startsWith(
+        _signedOutPath,
+      );
+      if (!signedIn && !isSignedOutScreen) return _signedOutPath;
+      if (signedIn && isSignedOutScreen) return '/home';
+      return null;
+    },
     routes: [
+      GoRoute(
+        name: AppRoutes.welcome,
+        path: _signedOutPath,
+        builder: (context, state) => const WelcomeScreen(),
+        routes: [
+          GoRoute(
+            name: AppRoutes.login,
+            path: 'login',
+            builder: (context, state) => const LoginScreen(),
+          ),
+        ],
+      ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => Scaffold(
           // 本文をタブバーの下まで伸ばす。タブバーの高さは本文の MediaQuery の padding.bottom に入る

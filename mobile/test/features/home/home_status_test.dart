@@ -19,6 +19,7 @@ import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
 import 'package:kazokuai/features/home/week_card.dart';
 
+import '../../support/fake_auth_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -260,7 +261,7 @@ void main() {
     testWidgets('通話中は状態バーの文字が明るくなり、ほかの画面では暗い文字に戻る', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _startingAt(HomeStatus.calling),
+          overrides: [..._startingAt(HomeStatus.calling), signedInAuth()],
           child: const KazokuAiApp(),
         ),
       );

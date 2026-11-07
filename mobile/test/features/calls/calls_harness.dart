@@ -8,6 +8,7 @@ import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 
+import '../../support/fake_auth_repository.dart';
 import '../../support/layout_matrix.dart';
 
 // モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 98 になる
@@ -21,7 +22,9 @@ void useMockScreen(WidgetTester tester) {
 // 本物のアプリを起動して、通話記録タブを開く
 Future<void> pumpCallsTab(WidgetTester tester) async {
   useMockScreen(tester);
-  await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
+  await tester.pumpWidget(
+    ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+  );
   await tester.pumpAndSettle();
   await tester.tap(
     find.descendant(of: find.byType(AppTabBar), matching: find.text('通話記録')),

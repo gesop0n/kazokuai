@@ -75,6 +75,7 @@ enum AppButtonVariant {
 
 // 親が幅を決めればその幅に広がり、決めなければ中身の幅になる。
 // onTap が null のときは押せず、どの variant でもモックの disabledBtn の見た目になる。
+// leading は AppIcons にない、色を変えずに出す画像(Google のロゴ)に使う。
 class AppButton extends StatelessWidget {
   const AppButton({
     super.key,
@@ -83,14 +84,16 @@ class AppButton extends StatelessWidget {
     required this.size,
     required this.onTap,
     this.leadingIcon,
+    this.leading,
     this.trailingIcon,
-  });
+  }) : assert(leadingIcon == null || leading == null);
 
   final String label;
   final AppButtonVariant variant;
   final AppButtonSize size;
   final VoidCallback? onTap;
   final AppIcons? leadingIcon;
+  final Widget? leading;
   final AppIcons? trailingIcon;
 
   @override
@@ -113,6 +116,7 @@ class AppButton extends StatelessWidget {
         children: [
           if (leadingIcon != null)
             AppIcon(leadingIcon, size: size.iconSize, color: foreground),
+          ?leading,
           Flexible(
             child: Text(
               label,

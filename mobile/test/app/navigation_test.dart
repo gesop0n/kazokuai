@@ -12,8 +12,12 @@ import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
+import '../support/fake_auth_repository.dart';
+
 Future<void> pumpApp(WidgetTester tester) async {
-  await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
+  await tester.pumpWidget(
+    ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+  );
   await tester.pumpAndSettle();
 }
 
