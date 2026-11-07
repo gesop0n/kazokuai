@@ -108,33 +108,37 @@ func TestCallReport(t *testing.T) {
 		session.reply(outputTranscription("おはようございます。"), generationComplete())
 		s.terminal.waitForLines(t, "かぞくAI: おはようございます。")
 
-		s.clock.advance(10 * time.Second)
-		session.reply(inputTranscription("朝に おにぎり 食べ て 昼 は ラーメン を 食べ た よ 。"))
-		session.reply(aiAudio(1))
-		waitUntil(t, "見守る方の発話を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 1 })
+		// 文字起こしは話し終えたあとに届く。行の時刻は、そのときではなく話し始めの音声の時刻である。
+		s.clock.advance(8 * time.Second)
+		session.reply(voiceActivity(8 * time.Second))
+		s.clock.advance(2 * time.Second)
+		session.reply(
+			inputTranscription("朝に おにぎり 食べ て 昼 は ラーメン を 食べ た よ 。"),
+			voiceActivity(9500*time.Millisecond),
+		)
+		s.terminal.waitForLines(t, "見守る方: 朝におにぎり食べて昼はラーメンを食べたよ。")
 
 		s.clock.advance(10 * time.Second)
 		session.reply(outputTranscription("それはよかったです。"), generationComplete())
 		s.terminal.waitForLines(t, "かぞくAI: それはよかったです。")
 
-		s.clock.advance(10 * time.Second)
-		session.reply(inputTranscription("hello world"))
-		session.reply(aiAudio(2))
-		waitUntil(t, "見守る方の次の発話を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
-		s.terminal.waitForLines(t, "見守る方: 朝におにぎり食べて昼はラーメンを食べたよ。")
+		s.clock.advance(8 * time.Second)
+		session.reply(voiceActivity(28 * time.Second))
+		s.clock.advance(2 * time.Second)
+		session.reply(inputTranscription("hello world"), voiceActivity(29*time.Second))
+		s.terminal.waitForLines(t, "見守る方: hello world")
 
 		s.phone.putDown()
 		if err := c.result(t); err != nil {
 			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
 		}
-		s.terminal.waitForLines(t, "見守る方: hello world")
 
 		got := utterancesOf(t, waitCall(t, started).Ref)
 		want := []storedUtterance{
 			{speaker: "AI", offsetMs: 0, text: "おはようございます。"},
-			{speaker: "見守る方", offsetMs: 10_000, text: "朝におにぎり食べて昼はラーメンを食べたよ。"},
+			{speaker: "見守る方", offsetMs: 8_000, text: "朝におにぎり食べて昼はラーメンを食べたよ。"},
 			{speaker: "AI", offsetMs: 20_000, text: "それはよかったです。"},
-			{speaker: "見守る方", offsetMs: 30_000, text: "hello world"},
+			{speaker: "見守る方", offsetMs: 28_000, text: "hello world"},
 		}
 		if len(got) != len(want) {
 			t.Fatalf("発話 = %+v, want %+v", got, want)

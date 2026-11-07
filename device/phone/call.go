@@ -173,7 +173,7 @@ func (d *Device) Call(ctx context.Context) error {
 			if msg.GoAway != nil {
 				return fmt.Errorf("Live API のサーバーが GoAway で、残り %s で接続を終えると知らせてきた", msg.GoAway.TimeLeft)
 			}
-			d.hear(msg.ServerContent, lines)
+			d.hear(msg, lines)
 
 		case err := <-lost:
 			return fmt.Errorf("Live API との接続が切れた: %w", err)
@@ -182,39 +182,55 @@ func (d *Device) Call(ctx context.Context) error {
 }
 
 // hear は、AI の音声を受話器で流し、両方の文字起こしを出す。
-func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
-	if content == nil {
+// 話し始めは文字起こしより先に扱い、話し終わりは文字起こしのあとに扱う。
+// 同じ知らせに両方が入っていても、その発話の文字は行に入る。
+func (d *Device) hear(msg *genai.LiveServerMessage, lines *transcript) {
+	if msg == nil {
 		return
 	}
-	if in := content.InputTranscription; in != nil {
-		lines.addInput(in.Text, in.Finished)
-		if in.Finished {
-			lines.flushInput()
+	stop := false
+	if msg.VoiceActivity != nil && !lines.pickedUp.IsZero() {
+		if lines.speechStarted(msg.VoiceActivity) {
+			lines.startSpeech(msg.VoiceActivity.AudioOffset)
+		} else {
+			stop = true
 		}
 	}
-	if content.ModelTurn != nil {
-		for _, part := range content.ModelTurn.Parts {
-			if part.InlineData != nil && strings.HasPrefix(part.InlineData.MIMEType, "audio/pcm") {
-				d.Phone.Handset.Play(part.InlineData.Data)
+	content := msg.ServerContent
+	if content != nil {
+		if in := content.InputTranscription; in != nil {
+			lines.addInput(in.Text)
+			if in.Finished {
+				lines.flushInput()
 			}
 		}
-	}
-	if out := content.OutputTranscription; out != nil {
-		lines.addOutput(out.Text)
-		if out.Finished {
+		if content.ModelTurn != nil {
+			for _, part := range content.ModelTurn.Parts {
+				if part.InlineData != nil && strings.HasPrefix(part.InlineData.MIMEType, "audio/pcm") {
+					d.Phone.Handset.Play(part.InlineData.Data)
+				}
+			}
+		}
+		if out := content.OutputTranscription; out != nil {
+			lines.addOutput(out.Text)
+			if out.Finished {
+				lines.flushOutput()
+			}
+		}
+		// 終わりの印がなくても、モデルが話し終えたら、そこまでの AI の発話は 1 行である。
+		// 出力の文字起こしは、この印より先に届く。見守る方の発話は、ここでは区切らない。
+		if content.GenerationComplete {
+			lines.modelTurnCompleted()
+		}
+		// 割り込まれたターンには、モデルが話し終えた印は来ない。そこまでの AI の発話を区切る。
+		// 出力の文字起こしは、この印より先に届く。見守る方の発話は、ここでは区切らない。
+		if content.Interrupted {
 			lines.flushOutput()
+			d.Phone.Handset.Hush()
 		}
 	}
-	// 終わりの印がなくても、モデルが話し終えたら、そこまでの AI の発話は 1 行である。
-	// 出力の文字起こしは、この印より先に届く。
-	if content.GenerationComplete {
-		lines.modelTurnCompleted()
-	}
-	// 割り込まれたターンには、モデルが話し終えた印は来ない。そこまでの AI の発話を区切る。
-	// 出力の文字起こしは、この印より先に届く。見守る方の発話は、ここでは区切らない。
-	if content.Interrupted {
-		lines.flushOutput()
-		d.Phone.Handset.Hush()
+	if stop {
+		lines.stopSpeech()
 	}
 }
 
@@ -274,9 +290,9 @@ func send(session Session, done <-chan struct{}) (outgoing, turns chan<- func(Se
 
 // transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
 // AI の行を区切るのは、その文字起こしが終わったとき、モデルが話し終えたとき、話に割り込まれたとき、電話が終わったときである。
-// 見守る方の行を区切るのは、その文字起こしが終わったとき、モデルが話し終えたあとに終わりの印のない次の発話が届いたとき、電話が終わったときである。
-// 終わりの印が付いた欠片は、モデルの通知より遅れても、開いている発話の末尾である。
-// 相手の文字起こしや TurnComplete では区切らない。入り交じって届いた欠片は、1 つの発話のままである。
+// 見守る方の行は、話し始めたときに始まり、話し終えたときか、電話が終わったときに区切る。時刻は、話し始めの音声の中の時刻である。
+// 文字起こしに終わりの印が付いたときも区切る。相手の文字起こしや TurnComplete では区切らない。
+// ひと続きの発話の欠片は、AI の文字起こしやモデルの知らせが間に入っても、1 行のままである。
 type transcript struct {
 	out   io.Writer
 	clock Clock
@@ -284,12 +300,13 @@ type transcript struct {
 	pickedUp time.Time
 	// input は見守る方の声の文字起こし、output は AI の声の文字起こしである。
 	input, output openLine
-	// seq は、開いている行が始まった順番を数える。電話の終わりに、先に始まった行から出す。
+	// speaking は、見守る方が話し始めてから、話し終えるまでのあいだである。
+	// 種類の空の音声活動を、話し始めと話し終わりに振り分ける。
+	speaking bool
+	// seq は、開いている行が始まった順番を数える。時刻が同じ発話は、この順に報告する。
 	seq int
-	// modelTurns は、モデルが話し終えた回数である。見守る方の次の発話を、前の発話と分けるのに使う。
-	modelTurns int
 	// recorded は、区切った発話と、それが始まった順番である。
-	// 文字起こしが終わる順に増える。報告の直前に、始まった順へ並べる。
+	// 区切った順に増える。報告の直前に、始まった時刻の順へ並べる。
 	recorded []recordedUtterance
 }
 
@@ -304,37 +321,61 @@ type openLine struct {
 	text strings.Builder
 	// seq は、この行が始まった順番である。0 なら、この行は空である。
 	seq int
-	// at は、この行の最初の文字が届いた時刻である。
+	// at は、この行が始まった時刻である。
+	// 見守る方は話し始めの音声の時刻、AI は最初の文字起こしが届いた時刻である。
 	at time.Time
-	// modelTurns は、この行が始まったときに、モデルが話し終えていた回数である。
-	modelTurns int
 }
 
-// addInput は、見守る方の文字起こしを開いている行へ足す。
-// finished は、この欠片がその発話の終わりの印を持つかである。
-// 終わりの印は、モデルが話し終えた通知と到着順が決まっていない。印の付いた欠片は、開いている発話の末尾である。
-// 印のない欠片が、モデルが話し終えたあとに届いたときだけ、次の発話として前の行を区切る。
-func (t *transcript) addInput(chunk string, finished bool) {
-	if !finished && t.input.text.Len() > 0 && t.modelTurns > t.input.modelTurns {
+// speechStarted は、この音声活動が話し始めかを返す。
+// genai の SDK v1.77.0 は、サーバーが type で送る種類を VoiceActivityType に入れない。
+// 種類が空のときは、話しているあいだは話し終わり、そうでなければ話し始めである。
+// 試しでは、ひと続きの発話ごとに、話し始めと話し終わりが交互に届いた。
+func (t *transcript) speechStarted(activity *genai.VoiceActivity) bool {
+	switch activity.VoiceActivityType {
+	case genai.VoiceActivityTypeActivityStart:
+		return true
+	case genai.VoiceActivityTypeActivityEnd:
+		return false
+	default:
+		return !t.speaking
+	}
+}
+
+// startSpeech は、見守る方の発話を、音声の中の offset で始める。
+// 時刻は、文字起こしが届いたときではなく、話し始めたときである。
+func (t *transcript) startSpeech(offset time.Duration) {
+	if t.speaking {
 		t.flushInput()
 	}
-	t.add(&t.input, chunk)
+	t.speaking = true
+	if t.input.seq != 0 {
+		return
+	}
+	t.seq++
+	t.input.seq = t.seq
+	t.input.at = t.pickedUp.Add(offset)
 }
+
+// stopSpeech は、見守る方が話し終えたので、開いている発話を区切る。
+func (t *transcript) stopSpeech() {
+	t.speaking = false
+	t.flushInput()
+}
+
+func (t *transcript) addInput(chunk string) { t.add(&t.input, chunk) }
 
 func (t *transcript) addOutput(chunk string) { t.add(&t.output, chunk) }
 
 // modelTurnCompleted は、モデルが話し終えたので、開いている AI の発話を区切る。
 func (t *transcript) modelTurnCompleted() {
 	t.flushOutput()
-	t.modelTurns++
 }
 
 func (t *transcript) add(line *openLine, chunk string) {
-	if line.text.Len() == 0 {
+	if line.seq == 0 {
 		t.seq++
 		line.seq = t.seq
 		line.at = t.clock.Now()
-		line.modelTurns = t.modelTurns
 	}
 	line.text.WriteString(chunk)
 }
@@ -439,8 +480,17 @@ func (t *transcript) report(ended time.Time) protocol.CallReport {
 	if duration < 0 {
 		duration = 0
 	}
-	// 先に始まった発話を先にする。文字起こしが先に終わった発話が、会話の前に来ないようにする。
-	slices.SortFunc(t.recorded, func(a, b recordedUtterance) int { return a.seq - b.seq })
+	// 先に始まった発話を先にする。時刻が同じときは、始まりを扱った順にする。
+	// 返答の文字起こしが先に届いても、見守る方の発話は、話し始めの時刻が早ければ前に来る。
+	slices.SortFunc(t.recorded, func(a, b recordedUtterance) int {
+		if a.utterance.OffsetMs != b.utterance.OffsetMs {
+			if a.utterance.OffsetMs < b.utterance.OffsetMs {
+				return -1
+			}
+			return 1
+		}
+		return a.seq - b.seq
+	})
 	utterances := make([]protocol.Utterance, len(t.recorded))
 	for i, item := range t.recorded {
 		utterances[i] = item.utterance

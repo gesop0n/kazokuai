@@ -642,6 +642,12 @@ func inputTranscription(text string) *genai.LiveServerMessage {
 	}}
 }
 
+// voiceActivity は、種類を空にした音声活動である。
+// genai の SDK v1.77.0 は、サーバーが type で送る話し始めと話し終わりを渡さない。
+func voiceActivity(offset time.Duration) *genai.LiveServerMessage {
+	return &genai.LiveServerMessage{VoiceActivity: &genai.VoiceActivity{AudioOffset: offset}}
+}
+
 // finished は、文字起こしに、その発話の終わりの印を付ける。
 func finished(msg *genai.LiveServerMessage) *genai.LiveServerMessage {
 	for _, transcription := range []*genai.Transcription{
