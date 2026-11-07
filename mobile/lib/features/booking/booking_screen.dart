@@ -248,7 +248,7 @@ class _BookedRow extends StatelessWidget {
           spacing: 12,
           children: [
             SizedBox(
-              // モックの 72 は「11/7 10:00」がちょうど入る幅なので、文字倍率に合わせて広げる
+              // モックの幅 72。短い時刻は 1 行で、「11/7 10:00」は 2 行になる。文字倍率に合わせて広げる
               width: MediaQuery.textScalerOf(context).scale(72),
               child: Text(formatBookedAt(call.at), style: AppTextStyles.monoS),
             ),

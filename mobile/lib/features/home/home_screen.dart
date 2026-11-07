@@ -88,7 +88,6 @@ class _HomeCards extends StatelessWidget {
       children: [
         RecentCallCard(
           call: data.latestCall,
-          person: data.person,
           now: data.now,
           onOpenConversation: () => context.pushNamed(AppRoutes.callDetail),
         ),

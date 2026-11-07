@@ -75,23 +75,9 @@ flutter:
     - assets/logos/
 
   fonts:
-    - family: ZenMaruGothic
+    - family: BIZUDPGothic
       fonts:
-        - asset: assets/fonts/ZenMaruGothic-Regular.ttf
+        - asset: assets/fonts/BIZUDPGothic-Regular.ttf
           weight: 400
-        - asset: assets/fonts/ZenMaruGothic-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/ZenMaruGothic-Bold.ttf
+        - asset: assets/fonts/BIZUDPGothic-Bold.ttf
           weight: 700
-        - asset: assets/fonts/ZenMaruGothic-Black.ttf
-          weight: 900
-    - family: ShipporiMincho
-      fonts:
-        - asset: assets/fonts/ShipporiMincho-Medium.ttf
-          weight: 500
-    - family: DMMono
-      fonts:
-        - asset: assets/fonts/DMMono-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/DMMono-Medium.ttf
-          weight: 500

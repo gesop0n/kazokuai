@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
-import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/features/home/home_data.dart';
@@ -13,13 +12,11 @@ class RecentCallCard extends StatelessWidget {
   const RecentCallCard({
     super.key,
     required this.call,
-    required this.person,
     required this.now,
     required this.onOpenConversation,
   });
 
   final Call call;
-  final WatchedPerson person;
   final DateTime now;
   final VoidCallback onOpenConversation;
 
@@ -46,11 +43,6 @@ class RecentCallCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const AppAiTag(
-          label: 'Geminiのまとめ',
-          color: AppColors.nightTextSecondary,
-        ),
-        const SizedBox(height: 4),
         Text(summary.headline, style: AppTextStyles.titleM),
         const SizedBox(height: 12),
         Container(
@@ -60,19 +52,7 @@ class RecentCallCard extends StatelessWidget {
               left: BorderSide(color: AppColors.nightLine, width: 2),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            spacing: 2,
-            children: [
-              Text(quote.text, style: AppTextStyles.capS),
-              Text(
-                '${person.callName}の言葉 ・ ${formatTime(quote.spokenAt)}',
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.nightTextSecondary,
-                ),
-              ),
-            ],
-          ),
+          child: Text(quote.text, style: AppTextStyles.capS),
         ),
         const SizedBox(height: 16),
         AppButton(

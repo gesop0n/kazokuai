@@ -195,14 +195,15 @@ void main() {
       expect(other.border, isNull);
     });
 
-    testWidgets('今日より先の日は薄く細い', (tester) async {
+    testWidgets('今日より先の日は薄い', (tester) async {
       await pumpCallsScreen(tester, _mockLayout);
       await openCalendar(tester);
 
+      // モックの 500 は同梱の 400 になるので、今日も先の日も太さは 400。色で分ける
       final future = _dayText(tester, 6).style!;
       expect(future.color, AppColors.inkTertiary);
       expect(future.fontWeight, FontWeight.w400);
-      expect(_dayText(tester, 5).style?.fontWeight, FontWeight.w500);
+      expect(_dayText(tester, 5).style?.fontWeight, FontWeight.w400);
     });
 
     testWidgets('印はモックと同じで、凡例がある', (tester) async {

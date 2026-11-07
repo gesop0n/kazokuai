@@ -13,7 +13,7 @@ final appTheme = ThemeData(
   textSelectionTheme: const TextSelectionThemeData(
     selectionHandleColor: AppColors.inkPrimary,
   ),
-  fontFamily: 'ZenMaruGothic',
+  fontFamily: 'BIZUDPGothic',
   scaffoldBackgroundColor: AppColors.paperBase,
   splashFactory: NoSplash.splashFactory,
 );

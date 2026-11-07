@@ -48,10 +48,7 @@ class MissedCallView extends StatelessWidget {
             const SizedBox(height: 8),
             const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
             const SizedBox(height: 4),
-            Text(
-              '$attemptedAtにかけましたが、応答がありません。外出中の可能性もあります。',
-              style: AppTextStyles.bodyM,
-            ),
+            Text('$attemptedAtにかけましたが、応答がありません。', style: AppTextStyles.bodyM),
             const SizedBox(height: 16),
             AppButton(
               label: 'もう一度電話する',

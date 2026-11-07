@@ -257,9 +257,7 @@ class _MissedRow extends StatelessWidget {
         icon: AppIcons.phoneMissed,
         iconBackground: AppColors.stateAlert,
         card: Container(
-          // 枠を 1pt から 2pt に厚くした分、上下の余白を 1 ずつ減らす。
-          // カードの高さは今の 46 のままにし、測り直しは #47 に残す。
-          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.stateAlertSoft,
             borderRadius: BorderRadius.circular(16),

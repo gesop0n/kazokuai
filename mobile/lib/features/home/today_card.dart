@@ -26,10 +26,6 @@ class TodayCard extends StatelessWidget {
         ),
         for (final condition in call.summary.conditions)
           _ConditionRow(condition),
-        Text(
-          'ご本人の話をAIがまとめたものです。医療上の判断ではありません。',
-          style: AppTextStyles.bodyS.copyWith(color: AppColors.inkSecondary),
-        ),
       ],
     );
   }

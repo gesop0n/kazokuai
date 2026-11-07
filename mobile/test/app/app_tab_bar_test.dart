@@ -88,7 +88,7 @@ void main() {
     expect(materialOf('通話記録').color, AppColors.paperSunken);
     expect(weightOf('通話記録'), FontWeight.w700);
     expect(materialOf('ホーム').color, Colors.transparent);
-    expect(weightOf('ホーム'), FontWeight.w500);
+    expect(weightOf('ホーム'), FontWeight.w400);
   });
 
   testWidgets('押すと選んだタブの番号を返す', (tester) async {

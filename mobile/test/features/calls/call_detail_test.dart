@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
+import 'package:kazokuai/design/widgets/app_pill.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
@@ -38,7 +39,7 @@ void main() {
     testEachLayout('先頭', (tester, layout) async {
       await _pumpDetail(tester, layout);
 
-      expect(find.text('詳細なまとめ'), findsOneWidget);
+      expect(find.text('通話時間'), findsOneWidget);
     });
 
     testEachLayout('一番下までスクロールしたとき', (tester, layout) async {
@@ -78,7 +79,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('詳細なまとめ'), findsOneWidget);
+      expect(find.text('通話時間'), findsOneWidget);
     });
   });
 
@@ -88,9 +89,8 @@ void main() {
 
       for (final text in [
         '朝の電話',
-        '詳細なまとめ',
+        '通話時間',
         '11/5 9:02 ・ 6分12秒',
-        'Geminiのまとめ。右の時刻で元の発言へ移動します',
         '朝ごはんを食べ、よく眠れたそうです',
         '昨日の夕方から膝が痛く、階段がつらいそうです',
         '朝の薬は飲んだと話しています',
@@ -105,6 +105,7 @@ void main() {
       ]) {
         expect(find.text(text), findsOneWidget, reason: text);
       }
+      expect(find.text('Geminiのまとめ。右の時刻で元の発言へ移動します'), findsNothing);
     });
 
     testWidgets('4:12 に見本の発言がある', (tester) async {
@@ -131,7 +132,7 @@ void main() {
       );
     });
 
-    testWidgets('気になる発言だけ背景があり、文字より 8 左に出る', (tester) async {
+    testWidgets('気になる発言は印と枠があり、文字は枠の分だけ右に入る', (tester) async {
       await _pumpDetail(tester, _mockLayout);
 
       final flagged = find.ancestor(
@@ -142,13 +143,25 @@ void main() {
           tester.widget<Container>(flagged.first).decoration! as BoxDecoration;
       expect(decoration.color, AppColors.stateCareSoft);
       expect(decoration.borderRadius, BorderRadius.circular(8));
+      expect(decoration.border, Border.all(color: AppColors.inkSecondary));
+
+      final plain = tester.getTopLeft(find.text('それは何よりです。お体の具合はいかがですか。'));
+      // 枠は文字より 8 左にあり、枠の太さ 1 のぶん文字が内側に入る
       expect(
         tester.getTopLeft(find.text('昨日の夕方から膝が痛くてね。階段がつらいの。')).dx,
-        tester.getTopLeft(find.text('それは何よりです。お体の具合はいかがですか。')).dx,
+        plain.dx + 1,
       );
+      expect(tester.getTopLeft(flagged.first).dx, plain.dx - 8);
+
+      final speakerRow = find
+          .ancestor(
+            of: find.widgetWithText(AppPill, '気になる話'),
+            matching: find.byType(Row),
+          )
+          .first;
       expect(
-        tester.getTopLeft(flagged.first).dx,
-        tester.getTopLeft(find.text('それは何よりです。お体の具合はいかがですか。')).dx - 8,
+        find.descendant(of: speakerRow, matching: find.text('ハナさん')),
+        findsOneWidget,
       );
 
       expect(
@@ -320,7 +333,10 @@ void main() {
     testWidgets('気になる発言は、色だけでなく言葉でも伝える', (tester) async {
       await _pumpDetail(tester, _mockLayout);
 
-      expect(find.bySemanticsLabel(RegExp('気になる発言')), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('1:03\nハナさん\n気になる話\n昨日の夕方から膝が痛くてね。階段がつらいの。'),
+        findsOneWidget,
+      );
     });
   });
 }

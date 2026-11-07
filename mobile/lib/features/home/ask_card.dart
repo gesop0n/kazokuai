@@ -17,7 +17,7 @@ class AskCard extends StatelessWidget {
     return AppCard(
       variant: AppCardVariant.paper,
       children: [
-        const HomeCardHeading(title: 'AIに伝えてもらう', label: '予約もできます'),
+        const HomeCardHeading(title: 'AIに伝えてもらう'),
         AppField(text: '伝えたいことを入力', minHeight: 48, onTap: onOpenAsk),
         if (isCalling)
           const AppButton(

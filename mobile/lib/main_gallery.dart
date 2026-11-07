@@ -268,11 +268,6 @@ class _RecentCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const AppAiTag(
-          label: 'Geminiのまとめ',
-          color: AppColors.nightTextSecondary,
-        ),
-        const SizedBox(height: 4),
         const Text(
           '朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。',
           style: AppTextStyles.titleM,
@@ -298,24 +293,7 @@ class _AskCard extends StatelessWidget {
     return AppCard(
       variant: AppCardVariant.paper,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          spacing: 8,
-          children: [
-            // 幅 360、文字倍率 1.3 では 1 行に収まらないので折り返す
-            const Flexible(
-              child: Text('AIに伝えてもらう', style: AppTextStyles.titleM),
-            ),
-            Text(
-              '予約もできます',
-              style: AppTextStyles.labelS.copyWith(
-                color: AppColors.inkSecondary,
-              ),
-            ),
-          ],
-        ),
+        const Text('AIに伝えてもらう', style: AppTextStyles.titleM),
         AppField(text: '伝えたいことを入力', minHeight: 48, onTap: GalleryScreen._noop),
         AppButton(
           label: '通話',
@@ -396,7 +374,7 @@ class _MissedCard extends StatelessWidget {
         const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
         const SizedBox(height: 4),
         const Text(
-          '9:00、9:15、9:30にかけましたが、応答がありません。外出中の可能性もあります。',
+          '9:00、9:15、9:30にかけましたが、応答がありません。',
           style: AppTextStyles.bodyM,
         ),
         const SizedBox(height: 16),

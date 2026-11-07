@@ -112,6 +112,16 @@ void main() {
     });
   });
 
+  group('見出し', () {
+    testWidgets('題はなく、流れは「出ないとき」', (tester) async {
+      await _pumpRule(tester);
+
+      expect(find.textContaining('どうしますか'), findsNothing);
+      expect(find.textContaining('出ないときの流れ'), findsNothing);
+      expect(find.text('朝9:00の電話に出ないとき'), findsOneWidget);
+    });
+  });
+
   group('選択', () {
     testWidgets('モックの選択肢が並び、初期値は 15 分と 3 回', (tester) async {
       await _pumpRule(tester);

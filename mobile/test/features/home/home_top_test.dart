@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
-import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_avatar.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_field.dart';
@@ -29,12 +28,10 @@ Widget buildHeader({
 
 Widget buildRecentCard({
   Call? call,
-  WatchedPerson? person,
   DateTime? now,
   VoidCallback? onOpenConversation,
 }) => RecentCallCard(
   call: call ?? sampleHomeData.latestCall,
-  person: person ?? sampleHomeData.person,
   now: now ?? sampleHomeData.now,
   onOpenConversation: onOpenConversation ?? () {},
 );
@@ -159,10 +156,10 @@ void main() {
       final summary = sampleHomeData.latestCall.summary;
       expect(find.text('直近の電話'), findsOneWidget);
       expect(find.text('今日 9:02 ・ 6分'), findsOneWidget);
-      expect(find.text('Geminiのまとめ'), findsOneWidget);
+      expect(find.text('Geminiのまとめ'), findsNothing);
       expect(find.text(summary.headline), findsOneWidget);
       expect(find.text(summary.quote.text), findsOneWidget);
-      expect(find.text('ハナさんの言葉 ・ 9:03'), findsOneWidget);
+      expect(find.textContaining('の言葉'), findsNothing);
       expect(find.text('会話を見る'), findsOneWidget);
     });
 
@@ -182,11 +179,6 @@ void main() {
         tester,
         standardLayout,
         buildRecentCard(
-          person: const WatchedPerson(
-            name: '佐藤タロウ',
-            callName: 'タロウさん',
-            initial: 'タ',
-          ),
           call: Call(
             startedAt: DateTime(2026, 11, 5, 18, 30),
             duration: const Duration(minutes: 12, seconds: 40),
@@ -205,7 +197,7 @@ void main() {
       expect(find.text('今日 18:30 ・ 12分'), findsOneWidget);
       expect(find.text('夕方に散歩をしたそうです。'), findsOneWidget);
       expect(find.text('「今日は風が気持ちよかった。」'), findsOneWidget);
-      expect(find.text('タロウさんの言葉 ・ 18:41'), findsOneWidget);
+      expect(find.textContaining('の言葉'), findsNothing);
     });
 
     testWidgets('間隔はモックの margin-top と同じになる', (tester) async {
@@ -213,17 +205,13 @@ void main() {
 
       final summary = sampleHomeData.latestCall.summary;
       final title = tester.getRect(find.text('直近の電話'));
-      final tag = tester.getRect(find.byType(AppAiTag));
       final headline = tester.getRect(find.text(summary.headline));
       final quote = tester.getRect(find.text(summary.quote.text));
-      final speaker = tester.getRect(find.text('ハナさんの言葉 ・ 9:03'));
       final button = tester.getRect(find.byType(AppButton));
 
-      expect(tag.top - title.bottom, 12);
-      expect(headline.top - tag.bottom, 4);
+      expect(headline.top - title.bottom, 12);
       expect(quote.top - headline.bottom, 12);
-      expect(speaker.top - quote.bottom, 2);
-      expect(button.top - speaker.bottom, 16);
+      expect(button.top - quote.bottom, 16);
     });
 
     testWidgets('引用は線と余白の分だけ字下げする', (tester) async {
@@ -268,7 +256,7 @@ void main() {
       await pumpInLayout(tester, standardLayout, AskCard(onOpenAsk: () {}));
 
       expect(find.text('AIに伝えてもらう'), findsOneWidget);
-      expect(find.text('予約もできます'), findsOneWidget);
+      expect(find.text('予約もできます'), findsNothing);
       expect(find.text('伝えたいことを入力'), findsOneWidget);
       expect(find.text('通話'), findsOneWidget);
 
@@ -309,37 +297,6 @@ void main() {
   });
 
   group('見出しと右のラベルの行', () {
-    Future<void> pumpBothCards(WidgetTester tester, LayoutCase layout) =>
-        pumpInLayout(
-          tester,
-          layout,
-          Column(
-            children: [
-              buildRecentCard(),
-              AskCard(onOpenAsk: () {}),
-            ],
-          ),
-        );
-
-    testWidgets('入るときは同じ行の左右に分かれる', (tester) async {
-      await pumpBothCards(tester, const LayoutCase(440, 1.0));
-
-      final title = tester.getRect(find.text('AIに伝えてもらう'));
-      final label = tester.getRect(find.text('予約もできます'));
-      // 行の高さが同じなら、大きさの違う文字でも baseline が揃う
-      expect(label.top, title.top);
-      expect(label.height, title.height);
-      expect(label.right, 440 - 16 - 1 - 16);
-    });
-
-    testWidgets('入らないときは右のラベルが次の行に折り返す', (tester) async {
-      await pumpBothCards(tester, const LayoutCase(360, 1.3));
-
-      final title = tester.getRect(find.text('AIに伝えてもらう'));
-      final label = tester.getRect(find.text('予約もできます'));
-      expect(label.top, greaterThanOrEqualTo(title.bottom));
-    });
-
     testWidgets('直近の電話の行も、入らないときは折り返す', (tester) async {
       await pumpInLayout(
         tester,

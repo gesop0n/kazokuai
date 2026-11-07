@@ -41,11 +41,6 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Text(
-                      '電話に出なかったら、\nどうしますか',
-                      style: AppTextStyles.titleL,
-                    ),
-                    const SizedBox(height: 20),
                     _ChoiceGroup(
                       label: 'かけなおす間隔',
                       choices: {
@@ -75,7 +70,7 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                       variant: AppCardVariant.paper,
                       children: [
                         const Text(
-                          '朝9:00の電話に出ないときの流れ',
+                          '朝9:00の電話に出ないとき',
                           style: AppTextStyles.labelM,
                         ),
                         _RetryFlow(rule: _draft),
