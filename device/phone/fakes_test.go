@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gesop0n/kazokuai/backend/server"
 	"github.com/gesop0n/kazokuai/device/phone"
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 // テストの境目の外側だけを偽物にする。偽物は電話機、時計、Gemini の 3 つで、
@@ -40,28 +42,106 @@ type system struct {
 	terminal *terminal
 	device   *phone.Device
 	clock    *fakeClock
+	backend  *httptest.Server
+	// reportHold は、電話の報告の応答をテストが返すまで止める。止めていなければ素通りする。
+	reportHold reportHold
 }
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
-	backend := httptest.NewServer(server.New(config, emulators, gemini, clock))
+	s := &system{}
+	handler := server.New(config, emulators, gemini, gemini, clock)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.reportHold.wait(r.URL.Path)
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}
-	return &system{
-		phone:    p,
-		gemini:   gemini,
-		terminal: term,
-		clock:    clock,
-		device: &phone.Device{
-			Backend: backend.URL,
-			Gemini:  gemini,
-			Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
-			Out:     term,
-			Clock:   clock,
-		},
+	s.phone = p
+	s.gemini = gemini
+	s.terminal = term
+	s.clock = clock
+	s.backend = backend
+	s.device = &phone.Device{
+		Backend: backend.URL,
+		Gemini:  gemini,
+		Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
+		Out:     term,
+		Clock:   clock,
+	}
+	return s
+}
+
+// holdReport は、このあとの電話の報告に、releaseReport まで応答しないようにする。
+func (s *system) holdReport() { s.reportHold.arm() }
+
+// releaseReport は、止めていた電話の報告の応答を返す。
+func (s *system) releaseReport() { s.reportHold.release() }
+
+// reportArrived は、電話の報告がバックエンドに届き、応答を待っているかを返す。
+func (s *system) reportArrived() bool { return s.reportHold.arrived() }
+
+// reportHold は、電話の報告の HTTP 応答を止める。
+type reportHold struct {
+	mu      sync.Mutex
+	entered chan struct{}
+	gate    chan struct{}
+	seen    bool
+}
+
+func (h *reportHold) arm() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.entered = make(chan struct{})
+	h.gate = make(chan struct{})
+	h.seen = false
+}
+
+func (h *reportHold) release() {
+	h.mu.Lock()
+	ch := h.gate
+	h.gate = nil
+	h.mu.Unlock()
+	if ch != nil {
+		close(ch)
+	}
+}
+
+func (h *reportHold) arrived() bool {
+	h.mu.Lock()
+	entered := h.entered
+	h.mu.Unlock()
+	if entered == nil {
+		return false
+	}
+	select {
+	case <-entered:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *reportHold) wait(path string) {
+	if path != protocol.CallReportPath {
+		return
+	}
+	h.mu.Lock()
+	entered, gate, seen := h.entered, h.gate, h.seen
+	if gate != nil && !seen {
+		h.seen = true
+	} else {
+		entered = nil
+	}
+	h.mu.Unlock()
+	if entered != nil {
+		close(entered)
+	}
+	if gate != nil {
+		<-gate
 	}
 }
 
@@ -200,6 +280,7 @@ type fakePhone struct {
 	mic     chan []byte // マイクが開いている間だけある
 	played  []byte
 	hushes  int
+	offs    int
 }
 
 func (p *fakePhone) Listen(ctx context.Context) (<-chan []byte, error) {
@@ -234,7 +315,13 @@ func (p *fakePhone) Events() <-chan phone.HookEvent { return p.hook }
 func (p *fakePhone) Ring() { p.set(&p.ringing, true) }
 func (p *fakePhone) Stop() { p.set(&p.ringing, false) }
 func (p *fakePhone) On()   { p.set(&p.lit, true) }
-func (p *fakePhone) Off()  { p.set(&p.lit, false) }
+
+func (p *fakePhone) Off() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.lit = false
+	p.offs++
+}
 
 func (p *fakePhone) set(field *bool, v bool) {
 	p.mu.Lock()
@@ -250,6 +337,18 @@ func (p *fakePhone) get(field *bool) bool {
 
 func (p *fakePhone) isRinging() bool { return p.get(&p.ringing) }
 func (p *fakePhone) isLit() bool     { return p.get(&p.lit) }
+
+func (p *fakePhone) offCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.offs
+}
+
+func (p *fakePhone) micOpen() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mic != nil
+}
 
 func (p *fakePhone) pickUp()  { p.hook <- phone.PickedUp }
 func (p *fakePhone) putDown() { p.hook <- phone.PutDown }
@@ -286,12 +385,25 @@ func (p *fakePhone) hushCount() int {
 	return p.hushes
 }
 
+// summaryRequest は、まとめのために Gemini に届いた 1 回の generateContent である。
+type summaryRequest struct {
+	model    string
+	contents []*genai.Content
+	config   *genai.GenerateContentConfig
+}
+
 // fakeGemini は偽の Gemini である。トークンを作るときの制約を記録し、
-// Live のセッションとして fakeSession を開く。
+// Live のセッションとして fakeSession を開き、まとめの generateContent に決めた応答を返す。
 type fakeGemini struct {
 	mu       sync.Mutex
 	tokens   []*genai.CreateAuthTokenConfig
 	sessions []*fakeSession
+
+	summaries   []summaryRequest
+	summaryGate chan struct{}
+	summaryOnce sync.Once
+	summaryResp *genai.GenerateContentResponse
+	summaryErr  error
 }
 
 func (g *fakeGemini) Create(ctx context.Context, config *genai.CreateAuthTokenConfig) (*genai.AuthToken, error) {
@@ -313,6 +425,81 @@ func (g *fakeGemini) Connect(ctx context.Context, token, model string) (phone.Se
 	}
 	g.sessions = append(g.sessions, s)
 	return s, nil
+}
+
+// holdSummary は、generateContent が releaseSummary まで応答を返さないようにする。
+func (g *fakeGemini) holdSummary() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryGate = make(chan struct{})
+	g.summaryOnce = sync.Once{}
+}
+
+// releaseSummary は、止めていた generateContent の応答を返す。
+func (g *fakeGemini) releaseSummary() {
+	g.mu.Lock()
+	gate := g.summaryGate
+	g.mu.Unlock()
+	if gate == nil {
+		return
+	}
+	g.summaryOnce.Do(func() { close(gate) })
+}
+
+// setSummary は、generateContent が返すまとめを決める。
+func (g *fakeGemini) setSummary(resp *genai.GenerateContentResponse) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryResp = resp
+	g.summaryErr = nil
+}
+
+// failSummary は、generateContent を毎回失敗させる。
+func (g *fakeGemini) failSummary(err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryErr = err
+	g.summaryResp = nil
+}
+
+func (g *fakeGemini) GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	g.mu.Lock()
+	g.summaries = append(g.summaries, summaryRequest{model: model, contents: contents, config: config})
+	gate := g.summaryGate
+	resp := g.summaryResp
+	err := g.summaryErr
+	g.mu.Unlock()
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		resp = summaryResponse(`{"headline":"","quote":{"text":"","offsetMs":0},"meal":{"status":"話していない","said":"","quote":"","concerning":false},"sleep":{"status":"話していない","said":"","quote":"","concerning":false},"health":{"status":"話していない","said":"","quote":"","concerning":false},"topic":"話し相手","points":[]}`)
+	}
+	return resp, nil
+}
+
+func (g *fakeGemini) summaryRequests() []summaryRequest {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]summaryRequest(nil), g.summaries...)
+}
+
+func summaryResponse(text string) *genai.GenerateContentResponse {
+	return &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			Content: &genai.Content{
+				Role:  genai.RoleModel,
+				Parts: []*genai.Part{{Text: text}},
+			},
+		}},
+	}
 }
 
 func (g *fakeGemini) tokenConfigs() []*genai.CreateAuthTokenConfig {
@@ -480,6 +667,10 @@ func turnComplete() *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{TurnComplete: true}}
 }
 
+func generationComplete() *genai.LiveServerMessage {
+	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{GenerationComplete: true}}
+}
+
 func interrupted() *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{Interrupted: true}}
 }
@@ -496,10 +687,14 @@ func (w *terminal) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-func (w *terminal) lines() []string {
+func (w *terminal) text() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return strings.Split(strings.TrimSuffix(w.buf.String(), "\n"), "\n")
+	return w.buf.String()
+}
+
+func (w *terminal) lines() []string {
+	return strings.Split(strings.TrimSuffix(w.text(), "\n"), "\n")
 }
 
 // waitForLines は、ターミナルにこれらの行がこの順に出るのを待つ。

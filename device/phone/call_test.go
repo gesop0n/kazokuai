@@ -3,6 +3,7 @@ package phone_test
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -94,13 +95,11 @@ func TestTalking(t *testing.T) {
 		session.reply(
 			outputTranscription("ハナさん、"),
 			aiAudio(1, 2, 3, 4),
-			outputTranscription("こんにちは。"),
-			turnComplete(),
+			finished(outputTranscription("こんにちは。")),
 			inputTranscription("はい、"),
-			inputTranscription("元気です。"),
-			outputTranscription("よかったです。"),
+			finished(inputTranscription("元気です。")),
+			finished(outputTranscription("よかったです。")),
 			aiAudio(5, 6),
-			turnComplete(),
 		)
 
 		s.terminal.waitForLines(t,
@@ -114,9 +113,9 @@ func TestTalking(t *testing.T) {
 		}
 	})
 
-	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨て、AI がそこまで話したことを出す", func(t *testing.T) {
+	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨て、そこまでの AI の発話を区切る", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
-		s.startCall(t)
+		c := s.startCall(t)
 		session := s.gemini.waitForSession(t, 1)
 		s.phone.pickUp()
 
@@ -129,12 +128,43 @@ func TestTalking(t *testing.T) {
 			turnComplete(),
 		)
 
+		waitUntil(t, "AI の音声を捨てなかった", func() bool { return s.phone.hushCount() == 1 })
+		s.terminal.waitForLines(t, "かぞくAI: 今日は")
+		if text := s.terminal.text(); strings.Contains(text, "見守る方:") {
+			t.Fatalf("割り込みと相手の文字起こしと TurnComplete では、見守る方の行を区切らない:\n%s", text)
+		}
+
+		s.phone.putDown()
+		if err := c.result(t); err != nil {
+			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
 		s.terminal.waitForLines(t,
 			"かぞくAI: 今日は",
 			"見守る方: あのね、聞いてほしいの。",
 		)
-		if s.phone.hushCount() != 1 {
-			t.Errorf("AI の音声を捨てた回数 = %d, want 1", s.phone.hushCount())
+	})
+
+	t.Run("2 人の文字起こしが入り交じって届いても、相手の文字起こしや TurnComplete では区切らず、1 つの発話は 1 行のままである", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+
+		session.reply(
+			outputTranscription("こんにちは、"),
+			inputTranscription("うん、"),
+			turnComplete(),
+			finished(outputTranscription("ハナさん。")),
+			finished(inputTranscription("元気です。")),
+		)
+
+		want := []string{
+			"かぞくAI: こんにちは、ハナさん。",
+			"見守る方: うん、元気です。",
+		}
+		s.terminal.waitForLines(t, want...)
+		if got := s.terminal.lines(); !reflect.DeepEqual(got, want) {
+			t.Errorf("ターミナル = %q, want %q", got, want)
 		}
 	})
 
@@ -179,7 +209,50 @@ func TestPutDown(t *testing.T) {
 		if s.phone.isLit() {
 			t.Error("電話が終わってもランプが点いている")
 		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("ランプを消した回数 = %d, want 1", n)
+		}
 		s.terminal.waitForLines(t, "かぞくAI: ハナさん、こんにちは。")
+	})
+
+	t.Run("報告の応答を待っているあいだに、マイクを止め、まだ流していない音を捨て、接続を閉じてランプを消す", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		s.holdReport()
+		t.Cleanup(s.releaseReport)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+		session.reply(aiAudio(1, 2))
+		waitUntil(t, "AI の音声を流さなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
+
+		s.phone.putDown()
+
+		waitUntil(t, "報告がバックエンドに届かなかった", s.reportArrived)
+		if c.hasEnded() {
+			t.Fatal("報告の応答を待っているあいだに、電話の処理が戻った")
+		}
+		if !session.isClosed() {
+			t.Error("報告の応答を待っているあいだ、Live API との接続が開いている")
+		}
+		if s.phone.isLit() {
+			t.Error("報告の応答を待っているあいだ、ランプが点いている")
+		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("報告の応答を待っているあいだ、ランプを消した回数 = %d, want 1", n)
+		}
+		waitUntil(t, "報告の応答を待っているあいだ、マイクが開いている", func() bool { return !s.phone.micOpen() })
+		if s.phone.hushCount() == 0 {
+			t.Error("報告の応答を待っているあいだ、まだ流していない音を捨てていない")
+		}
+
+		s.releaseReport()
+		if err := c.result(t); err != nil {
+			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("報告が戻ったあとのランプを消した回数 = %d, want 1", n)
+		}
 	})
 
 	t.Run("Gemini への送信が詰まっていても、受話器を置くと電話が終わり、接続を閉じる", func(t *testing.T) {

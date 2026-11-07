@@ -1,4 +1,4 @@
-// backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受けるバックエンドのプログラムである。
+// backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受け、電話の報告からまとめを作るバックエンドのプログラムである。
 // 電話をかける見守る方は、アプリで登録したときの ID をフラグで渡す。名前と呼び方は、トークンを作るたびに Firestore から読む。
 // フラグがなければ、見守る方の登録だけを受ける。
 // Gemini の API キーは環境変数 GEMINI_API_KEY から読み、デバイスには渡さない。
@@ -56,9 +56,13 @@ func defineFlags(fs *flag.FlagSet, config *server.Config) {
 	fs.DurationVar(&config.MaxCall, "max-call", defaultMaxCall, "電話の長さの上限")
 	fs.DurationVar(&config.WrapUpBefore, "wrap-up-before", defaultWrapUpBefore, "締めの合図を送る時間")
 	fs.DurationVar(&config.TokenMargin, "token-margin", defaultTokenMargin, "トークンの有効期限の余裕")
+	fs.StringVar(&config.SummaryModel, "summary-model", server.DefaultSummaryModel, "まとめに使う Gemini のモデル")
 }
 
 func run(config server.Config) error {
+	if config.SummaryRetryWait == 0 {
+		config.SummaryRetryWait = time.Second
+	}
 	if config.RingTimeout+config.MaxCall > connectionLimit {
 		limit := protocol.DurationWords(connectionLimit)
 		return fmt.Errorf("呼び出しの上限（--ring-timeout=%s）と電話の長さの上限（--max-call=%s）の合計が %s を超えています。Live API の接続は呼び出しが始まってから約 %s で切れるので、起動できません",
@@ -94,8 +98,8 @@ func run(config server.Config) error {
 	} else if err := server.CheckWatchedPerson(ctx, firebase, config.WatchedPerson); err != nil {
 		return fmt.Errorf("--watched-person=%s の見守る方を Firestore から読めないので、起動できません。エミュレーターを起動し直すと、登録した見守る方は消えます: %w", config.WatchedPerson, err)
 	}
-	log.Printf("http://%s でトークンを渡し、見守る方の登録を受けます。モデル: %s、声: %s", addr, config.Model, config.Voice)
-	return http.ListenAndServe(addr, server.New(config, firebase, client.AuthTokens, systemClock{}))
+	log.Printf("http://%s でトークンを渡し、見守る方の登録と電話の報告を受けます。モデル: %s、声: %s、まとめ: %s", addr, config.Model, config.Voice, config.SummaryModel)
+	return http.ListenAndServe(addr, server.New(config, firebase, client.AuthTokens, client.Models, systemClock{}))
 }
 
 type systemClock struct{}

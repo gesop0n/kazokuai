@@ -113,3 +113,104 @@ describe('見守る方', () => {
     );
   });
 });
+
+// バックエンドが報告を保存したときと同じ形で、電話と会話を置く。
+// 電話には familyUids を写さない。読めるかどうかは、親の見守る方を get() するルールで決まる
+async function savedCall() {
+  await registered('hanako', hanako);
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'watchedPersons/hanako/calls/morning'), {
+      startedAt: new Date('2026-11-07T06:00:00Z'),
+      durationMs: 35000,
+    });
+    await setDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0000'), {
+      index: 0,
+      speaker: 'AI',
+      offsetMs: 10000,
+      text: 'おはようございます。',
+    });
+    await setDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001'), {
+      index: 1,
+      speaker: '見守る方',
+      offsetMs: 30000,
+      text: '朝ごはんも食べたしね。',
+    });
+  });
+}
+
+describe('電話と会話', () => {
+  test('家族は、familyUids のない自分の見守る方の電話と会話を読める', async () => {
+    await savedCall();
+    const db = firestoreOf(misaki);
+
+    const call = await assertSucceeds(getDoc(doc(db, 'watchedPersons/hanako/calls/morning')));
+    if (call.data().familyUids !== undefined) {
+      throw new Error('電話に familyUids がある。家族の確認は親の見守る方を get() する');
+    }
+    const calls = await assertSucceeds(getDocs(collection(db, 'watchedPersons/hanako/calls')));
+    if (calls.docs.map((d) => d.id).join() !== 'morning') {
+      throw new Error(`見つかった電話 = ${calls.docs.map((d) => d.id)}, want morning だけ`);
+    }
+
+    const line = await assertSucceeds(
+      getDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001')),
+    );
+    if (line.data().text !== '朝ごはんも食べたしね。') {
+      throw new Error(`会話 = ${line.data().text}, want 朝ごはんも食べたしね。`);
+    }
+    const lines = await assertSucceeds(
+      getDocs(collection(db, 'watchedPersons/hanako/calls/morning/utterances')),
+    );
+    const ids = lines.docs.map((d) => d.id).sort().join();
+    if (ids !== '0000,0001') {
+      throw new Error(`見つかった会話 = ${ids}, want 0000 と 0001`);
+    }
+  });
+
+  test('ほかの家族の電話と会話は読めない', async () => {
+    await savedCall();
+    const db = firestoreOf(kenta);
+
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/calls/morning')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/calls')));
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/calls/morning/utterances')));
+  });
+
+  test('ログインしていなければ電話も会話も読めない', async () => {
+    await savedCall();
+    const db = env.unauthenticatedContext().firestore();
+
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/calls/morning')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/calls')));
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/calls/morning/utterances')));
+  });
+
+  test('家族は、自分の見守る方の電話と会話でも書けない', async () => {
+    await savedCall();
+    const db = firestoreOf(misaki);
+
+    await assertFails(
+      setDoc(doc(db, 'watchedPersons/hanako/calls/evening'), {
+        startedAt: new Date('2026-11-07T18:00:00Z'),
+        durationMs: 1000,
+      }),
+    );
+    await assertFails(updateDoc(doc(db, 'watchedPersons/hanako/calls/morning'), { durationMs: 1 }));
+    await assertFails(deleteDoc(doc(db, 'watchedPersons/hanako/calls/morning')));
+    await assertFails(
+      setDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0002'), {
+        index: 2,
+        speaker: '見守る方',
+        offsetMs: 40000,
+        text: 'あとでね。',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001'), { text: '違う' }),
+    );
+    await assertFails(deleteDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001')));
+  });
+});

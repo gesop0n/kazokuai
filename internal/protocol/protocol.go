@@ -52,6 +52,38 @@ type CallTimes struct {
 	WrapUpBefore time.Duration `json:"wrapUpBefore"`
 }
 
+// CallReportPath は、電話が終わったときにデバイスが報告を送る、バックエンドのパスである。
+// 認証は付けない。バックエンドは 202 Accepted をすぐ返す。
+const CallReportPath = "/calls"
+
+// 発話の話した人である。
+const (
+	// SpeakerWatched は見守る方である。
+	SpeakerWatched = "見守る方"
+	// SpeakerAI は AI である。
+	SpeakerAI = "AI"
+)
+
+// Utterance は、電話の中の 1 つの発話である。
+type Utterance struct {
+	// Speaker は、話した人である。SpeakerWatched か SpeakerAI。
+	Speaker string `json:"speaker"`
+	// OffsetMs は、受話器を上げてから、この発話が始まるまでのミリ秒である。
+	OffsetMs int64 `json:"offsetMs"`
+	// Text は、その発話の文字起こしである。
+	Text string `json:"text"`
+}
+
+// CallReport は、受話器が上がった電話が終わったときの報告である。
+type CallReport struct {
+	// StartedAt は、受話器を上げた時刻である。
+	StartedAt time.Time `json:"startedAt"`
+	// DurationMs は、受話器を上げてから電話が終わるまでのミリ秒である。
+	DurationMs int64 `json:"durationMs"`
+	// Utterances は、始まった順の発話である。
+	Utterances []Utterance `json:"utterances"`
+}
+
 // TokenResponse は、TokenPath のレスポンスである。
 type TokenResponse struct {
 	// Token は、1 回だけ使える短命トークンである。Live API への接続で API キーの代わりに使う。

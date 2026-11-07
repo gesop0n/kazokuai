@@ -50,6 +50,24 @@ func TestTimeFlags(t *testing.T) {
 	})
 }
 
+func TestSummaryModelFlag(t *testing.T) {
+	t.Run("既定のまとめのモデルは gemini-3.6-flash である", func(t *testing.T) {
+		config := parseConfig(t)
+
+		if config.SummaryModel != "gemini-3.6-flash" {
+			t.Errorf("まとめのモデル = %q, want gemini-3.6-flash", config.SummaryModel)
+		}
+	})
+
+	t.Run("--summary-model でまとめのモデルを選べる", func(t *testing.T) {
+		config := parseConfig(t, "--summary-model=gemini-3.6-pro")
+
+		if config.SummaryModel != "gemini-3.6-pro" {
+			t.Errorf("まとめのモデル = %q, want gemini-3.6-pro", config.SummaryModel)
+		}
+	})
+}
+
 func TestWatchedPersonFlag(t *testing.T) {
 	t.Run("--watched-person で、電話をかける見守る方の ID を受け取る", func(t *testing.T) {
 		config := parseConfig(t, "--watched-person=hanako-id")

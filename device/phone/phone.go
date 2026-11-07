@@ -67,6 +67,8 @@ type Phone struct {
 // Clock は、呼び出しの上限と電話の長さを測る時計である。
 // テストは偽の時計を渡し、待たずに時刻を進める。
 type Clock interface {
+	// Now は、今の時刻を返す。
+	Now() time.Time
 	// NewTimer は、d が経ったことを知らせるタイマーを返す。d が 0 以下なら、すぐ知らせる。
 	NewTimer(d time.Duration) Timer
 }
