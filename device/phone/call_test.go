@@ -211,6 +211,40 @@ func TestPutDown(t *testing.T) {
 		s.terminal.waitForLines(t, "かぞくAI: ハナさん、こんにちは。")
 	})
 
+	t.Run("報告の応答を待っているあいだに、マイクを止め、まだ流していない音を捨て、接続を閉じてランプを消す", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		s.holdReport()
+		t.Cleanup(s.releaseReport)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+		session.reply(aiAudio(1, 2))
+		waitUntil(t, "AI の音声を流さなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
+
+		s.phone.putDown()
+
+		waitUntil(t, "報告がバックエンドに届かなかった", s.reportArrived)
+		if c.hasEnded() {
+			t.Fatal("報告の応答を待っているあいだに、電話の処理が戻った")
+		}
+		if !session.isClosed() {
+			t.Error("報告の応答を待っているあいだ、Live API との接続が開いている")
+		}
+		if s.phone.isLit() {
+			t.Error("報告の応答を待っているあいだ、ランプが点いている")
+		}
+		waitUntil(t, "報告の応答を待っているあいだ、マイクが開いている", func() bool { return !s.phone.micOpen() })
+		if s.phone.hushCount() == 0 {
+			t.Error("報告の応答を待っているあいだ、まだ流していない音を捨てていない")
+		}
+
+		s.releaseReport()
+		if err := c.result(t); err != nil {
+			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
+	})
+
 	t.Run("Gemini への送信が詰まっていても、受話器を置くと電話が終わり、接続を閉じる", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		c := s.startCall(t)

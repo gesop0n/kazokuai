@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/gesop0n/kazokuai/backend/server"
 	"github.com/gesop0n/kazokuai/device/phone"
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 // テストの境目の外側だけを偽物にする。偽物は電話機、時計、Gemini の 3 つで、
@@ -41,29 +43,105 @@ type system struct {
 	device   *phone.Device
 	clock    *fakeClock
 	backend  *httptest.Server
+	// reportHold は、電話の報告の応答をテストが返すまで止める。止めていなければ素通りする。
+	reportHold reportHold
 }
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
-	backend := httptest.NewServer(server.New(config, emulators, gemini, gemini, clock))
+	s := &system{}
+	handler := server.New(config, emulators, gemini, gemini, clock)
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s.reportHold.wait(r.URL.Path)
+		handler.ServeHTTP(w, r)
+	}))
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}
-	return &system{
-		phone:    p,
-		gemini:   gemini,
-		terminal: term,
-		clock:    clock,
-		backend:  backend,
-		device: &phone.Device{
-			Backend: backend.URL,
-			Gemini:  gemini,
-			Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
-			Out:     term,
-			Clock:   clock,
-		},
+	s.phone = p
+	s.gemini = gemini
+	s.terminal = term
+	s.clock = clock
+	s.backend = backend
+	s.device = &phone.Device{
+		Backend: backend.URL,
+		Gemini:  gemini,
+		Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
+		Out:     term,
+		Clock:   clock,
+	}
+	return s
+}
+
+// holdReport は、このあとの電話の報告に、releaseReport まで応答しないようにする。
+func (s *system) holdReport() { s.reportHold.arm() }
+
+// releaseReport は、止めていた電話の報告の応答を返す。
+func (s *system) releaseReport() { s.reportHold.release() }
+
+// reportArrived は、電話の報告がバックエンドに届き、応答を待っているかを返す。
+func (s *system) reportArrived() bool { return s.reportHold.arrived() }
+
+// reportHold は、電話の報告の HTTP 応答を止める。
+type reportHold struct {
+	mu      sync.Mutex
+	entered chan struct{}
+	gate    chan struct{}
+	seen    bool
+}
+
+func (h *reportHold) arm() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.entered = make(chan struct{})
+	h.gate = make(chan struct{})
+	h.seen = false
+}
+
+func (h *reportHold) release() {
+	h.mu.Lock()
+	ch := h.gate
+	h.gate = nil
+	h.mu.Unlock()
+	if ch != nil {
+		close(ch)
+	}
+}
+
+func (h *reportHold) arrived() bool {
+	h.mu.Lock()
+	entered := h.entered
+	h.mu.Unlock()
+	if entered == nil {
+		return false
+	}
+	select {
+	case <-entered:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *reportHold) wait(path string) {
+	if path != protocol.CallReportPath {
+		return
+	}
+	h.mu.Lock()
+	entered, gate, seen := h.entered, h.gate, h.seen
+	if gate != nil && !seen {
+		h.seen = true
+	} else {
+		entered = nil
+	}
+	h.mu.Unlock()
+	if entered != nil {
+		close(entered)
+	}
+	if gate != nil {
+		<-gate
 	}
 }
 
@@ -252,6 +330,12 @@ func (p *fakePhone) get(field *bool) bool {
 
 func (p *fakePhone) isRinging() bool { return p.get(&p.ringing) }
 func (p *fakePhone) isLit() bool     { return p.get(&p.lit) }
+
+func (p *fakePhone) micOpen() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.mic != nil
+}
 
 func (p *fakePhone) pickUp()  { p.hook <- phone.PickedUp }
 func (p *fakePhone) putDown() { p.hook <- phone.PutDown }

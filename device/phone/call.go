@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/genai"
@@ -34,6 +36,20 @@ var errNoAnswer = errors.New("見守る方が出ませんでした")
 // Call は 1 回の電話をする。呼び出しを始め、受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
 // 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
 func (d *Device) Call(ctx context.Context) error {
+	// 報告の送信は、後始末の defer より先に登録する。
+	// defer は登録の逆順に動くので、送信はマイクを止め、まだ流していない音を捨て、接続を閉じ、ランプを消したあとに行われる。
+	// 送信は最大 reportTimeout 待つ。そのあいだ受話器の後始末を残すと、置いたあとも音声が流れ、ランプが点いたままになる。
+	var pending *protocol.CallReport
+	defer func() {
+		if pending == nil {
+			return
+		}
+		if err := d.sendReport(*pending); err != nil {
+			// 送れなかった電話は、送り直さない。ターミナルに理由だけ出す。
+			fmt.Fprintf(d.Out, "電話の報告を送れなかった: %v\n", err)
+		}
+	}()
+
 	token, err := d.fetchToken(ctx)
 	if err != nil {
 		return fmt.Errorf("短命トークンをもらえなかった: %w", err)
@@ -42,9 +58,15 @@ func (d *Device) Call(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("Live API につなげなかった: %w", err)
 	}
-	defer session.Close()
 	done := make(chan struct{})
-	defer close(done)
+	var ended sync.Once
+	endSession := func() {
+		ended.Do(func() {
+			close(done)
+			session.Close()
+		})
+	}
+	defer endSession()
 	received, lost := receive(session, done)
 	outgoing, turns, unsent := send(session, done)
 
@@ -79,13 +101,14 @@ func (d *Device) Call(ctx context.Context) error {
 	lines := &transcript{out: d.Out, clock: d.Clock}
 	defer func() {
 		lines.flush()
-		if lines.pickedUp.IsZero() {
-			return
+		if !lines.pickedUp.IsZero() {
+			built := lines.report(d.Clock.Now())
+			pending = &built
 		}
-		if err := d.sendReport(lines.report(d.Clock.Now())); err != nil {
-			// 送れなかった電話は、送り直さない。ターミナルに理由だけ出す。
-			fmt.Fprintf(d.Out, "電話の報告を送れなかった: %v\n", err)
-		}
+		closeMic()
+		d.Phone.Handset.Hush()
+		endSession()
+		d.Phone.Lamp.Off()
 	}()
 
 	for {
@@ -252,8 +275,15 @@ type transcript struct {
 	input, output openLine
 	// seq は、開いている行が始まった順番を数える。電話の終わりに、先に始まった行から出す。
 	seq int
-	// utterances は、区切った発話を、区切った順に持つ。
-	utterances []protocol.Utterance
+	// recorded は、区切った発話と、それが始まった順番である。
+	// 文字起こしが終わる順に増える。報告の直前に、始まった順へ並べる。
+	recorded []recordedUtterance
+}
+
+// recordedUtterance は、区切った 1 つの発話と、その発話が始まった順番である。
+type recordedUtterance struct {
+	seq       int
+	utterance protocol.Utterance
 }
 
 // openLine は、まだ区切っていない 1 人の文字起こしである。
@@ -299,6 +329,7 @@ func (t *transcript) flush() {
 func (t *transcript) close(label, speaker string, line *openLine) {
 	text := strings.TrimSpace(line.text.String())
 	at := line.at
+	seq := line.seq
 	line.text.Reset()
 	line.seq = 0
 	if text == "" {
@@ -312,10 +343,13 @@ func (t *transcript) close(label, speaker string, line *openLine) {
 	if offset < 0 {
 		offset = 0
 	}
-	t.utterances = append(t.utterances, protocol.Utterance{
-		Speaker:  speaker,
-		OffsetMs: offset.Milliseconds(),
-		Text:     text,
+	t.recorded = append(t.recorded, recordedUtterance{
+		seq: seq,
+		utterance: protocol.Utterance{
+			Speaker:  speaker,
+			OffsetMs: offset.Milliseconds(),
+			Text:     text,
+		},
 	})
 }
 
@@ -325,9 +359,11 @@ func (t *transcript) report(ended time.Time) protocol.CallReport {
 	if duration < 0 {
 		duration = 0
 	}
-	utterances := t.utterances
-	if utterances == nil {
-		utterances = []protocol.Utterance{}
+	// 先に始まった発話を先にする。文字起こしが先に終わった発話が、会話の前に来ないようにする。
+	slices.SortFunc(t.recorded, func(a, b recordedUtterance) int { return a.seq - b.seq })
+	utterances := make([]protocol.Utterance, len(t.recorded))
+	for i, item := range t.recorded {
+		utterances[i] = item.utterance
 	}
 	return protocol.CallReport{
 		StartedAt:  t.pickedUp,

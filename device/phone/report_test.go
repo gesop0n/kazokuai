@@ -53,6 +53,50 @@ func TestCallReport(t *testing.T) {
 		}
 	})
 
+	t.Run("先に始まった発話が、文字起こしが終わる順に関わらず、会話の前に残る", func(t *testing.T) {
+		started := morning.Add(6 * time.Hour)
+		s := newSystem(t, hanako, started)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+
+		// 見守る方の発話を先に始め、その処理が終わってから AI の発話を始める。
+		// 音声は、前の文字起こしを扱ったしるしに使う。発話そのものにはしない。
+		s.clock.advance(time.Second)
+		session.reply(inputTranscription("朝ごはんも"))
+		session.reply(aiAudio(1))
+		waitUntil(t, "見守る方の発話の開始を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 1 })
+
+		s.clock.advance(time.Second)
+		session.reply(outputTranscription("おはよう"))
+		session.reply(aiAudio(2))
+		waitUntil(t, "AI の発話の開始を扱わなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
+
+		session.reply(finished(outputTranscription("ございます。")))
+		s.terminal.waitForLines(t, "かぞくAI: おはようございます。")
+		session.reply(finished(inputTranscription("食べたしね。")))
+		s.terminal.waitForLines(t, "見守る方: 朝ごはんも食べたしね。")
+		s.phone.putDown()
+		if err := c.result(t); err != nil {
+			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
+
+		got := utterancesOf(t, waitCall(t, started).Ref)
+		want := []storedUtterance{
+			{speaker: "見守る方", offsetMs: 1_000, text: "朝ごはんも食べたしね。"},
+			{speaker: "AI", offsetMs: 2_000, text: "おはようございます。"},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("発話 = %+v, want %+v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("発話[%d] = %+v, want %+v", i, got[i], want[i])
+			}
+		}
+	})
+
 	t.Run("受話器が上がらなかった電話は、報告しない", func(t *testing.T) {
 		started := morning.Add(time.Hour)
 		s := newSystem(t, hanako, started)
