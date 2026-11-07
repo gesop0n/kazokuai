@@ -12,6 +12,10 @@ The architecture diagram is in `docs/architecture/`. When a change adds or remov
 
 `mise run check` must pass before you hand off a commit. CI runs the same task.
 
+## Code exploration
+
+Explore code with codegraph before you read source files or search them with grep. Use the `codegraph_explore` MCP tool. Where it is not available, as in a subagent, run `codegraph explore -p <checkout> "<symbols or question>"`. Each worktree has its own index, so pass the checkout you work in as `projectPath` or `-p`. Read files directly for what codegraph does not index, such as Markdown, TOML, and YAML.
+
 ## Writing
 
 Issues, specs, PR bodies, commit messages, and ADRs are published in Japanese.
