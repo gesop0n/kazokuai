@@ -56,3 +56,8 @@ run = "firebase emulators:start --project demo-kazokuai"
 [translate]
 description = "英語の Markdown を plamo-translate で日本語に訳す。例: mise run translate en.md ja.md"
 run = "python3 -I {{config_root}}/scripts/plamo_translate.py"
+
+[launcher-icons]
+description = "元の画像から iOS と Android のホーム画面のアイコンを作り直す"
+dir = "{{config_root}}/mobile"
+run = "dart run tool/launcher_icons.dart"

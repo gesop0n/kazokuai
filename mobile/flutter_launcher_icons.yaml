@@ -1,0 +1,11 @@
+# 元の画像からホーム画面のアイコンを作り直す: mise run launcher-icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app_icon/icon_1024.png
+  remove_alpha_ios: true
+  background_color_ios: "#FFF5D3"
+  adaptive_icon_background: "#FFF5D3"
+  adaptive_icon_foreground: assets/app_icon/android_foreground.png
+  # 前景の画像自体に、絵を安全な範囲へ収めた余白がある。ここを足すと二重に小さくなる。
+  adaptive_icon_foreground_inset: 0
