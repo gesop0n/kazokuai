@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
+import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
@@ -161,12 +163,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       color: AppColors.inkSecondary,
                     ),
                   ),
-                  // 新規登録は次に作る
                   AppButton(
                     label: '新規登録へ',
                     variant: AppButtonVariant.secondary,
                     size: AppButtonSize.m,
-                    onTap: () => showComingSoon(context),
+                    onTap: () => context.pushNamed(AppRoutes.register),
                   ),
                 ],
               ),

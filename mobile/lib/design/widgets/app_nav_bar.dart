@@ -5,9 +5,17 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 
 class AppNavBar extends StatelessWidget {
-  const AppNavBar({super.key, required this.title, this.showsBack = true});
+  const AppNavBar({
+    super.key,
+    required this.title,
+    this.leadingIcon = AppIcons.chevronLeft,
+    this.leadingLabel = 'もどる',
+    this.showsBack = true,
+  });
 
   final String title;
+  final AppIcons leadingIcon;
+  final String leadingLabel;
   // もどる先のない画面では false にする。題名は真ん中のまま
   final bool showsBack;
 
@@ -19,8 +27,8 @@ class AppNavBar extends StatelessWidget {
         children: [
           if (showsBack)
             AppIconButton(
-              AppIcons.chevronLeft,
-              semanticLabel: 'もどる',
+              leadingIcon,
+              semanticLabel: leadingLabel,
               onTap: () => Navigator.maybePop(context),
             )
           else

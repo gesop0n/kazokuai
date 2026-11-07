@@ -5,7 +5,8 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 
 enum AppPillVariant {
-  care(background: AppColors.stateCareSoft, foreground: AppColors.stateCareOn);
+  care(background: AppColors.stateCareSoft, foreground: AppColors.stateCareOn),
+  ok(background: AppColors.stateOkSoft, foreground: AppColors.stateOkOn);
 
   const AppPillVariant({required this.background, required this.foreground});
 
@@ -17,16 +18,17 @@ class AppPill extends StatelessWidget {
   const AppPill({
     super.key,
     required this.variant,
-    required this.icon,
+    this.icon,
     required this.label,
   });
 
   final AppPillVariant variant;
-  final AppIcons icon;
+  final AppIcons? icon;
   final String label;
 
   @override
   Widget build(BuildContext context) {
+    final icon = this.icon;
     return Container(
       constraints: const BoxConstraints(minHeight: 24),
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -36,9 +38,9 @@ class AppPill extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        spacing: 4,
+        spacing: icon == null ? 0 : 4,
         children: [
-          AppIcon(icon, size: 14, color: variant.foreground),
+          if (icon != null) AppIcon(icon, size: 14, color: variant.foreground),
           Flexible(
             child: Text(
               label,

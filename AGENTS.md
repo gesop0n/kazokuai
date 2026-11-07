@@ -6,6 +6,8 @@ A phone-style device at an elderly parent's home talks with them by voice throug
 - `device/`: the Go program on the Raspberry Pi.
 - `backend/`: the Go API on Cloud Run.
 
+The UI mock is `docs/mock/ui.html`, and the app follows it. After a PR that changes the mock is merged, the conductor compares the app with the new mock and proposes tickets that bring the app in line.
+
 The architecture diagram is in `docs/architecture/`. When a change adds or removes a component, changes how components connect, or moves a responsibility between them, update the diagram in the same PR as `docs/architecture/README.md` says.
 
 ## Check
