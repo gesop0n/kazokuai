@@ -18,6 +18,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -57,7 +58,11 @@ Future<void> _pumpAppAndOpenAsk(
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [..._startingAt(status), signedInAuth()],
+      overrides: [
+        ..._startingAt(status),
+        signedInAuth(),
+        registeredWatchedPerson(),
+      ],
       child: const KazokuAiApp(),
     ),
   );

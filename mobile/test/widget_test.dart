@@ -8,13 +8,17 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import 'support/fake_auth_repository.dart';
+import 'support/fake_watched_person_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('アプリが起動してロケールが ja になる', (tester) async {
     await tester.pumpWidget(
-      ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+      ProviderScope(
+        overrides: [signedInAuth(), registeredWatchedPerson()],
+        child: const KazokuAiApp(),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -27,7 +31,10 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
     await tester.pumpWidget(
-      ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+      ProviderScope(
+        overrides: [signedInAuth(), registeredWatchedPerson()],
+        child: const KazokuAiApp(),
+      ),
     );
     await tester.pumpAndSettle();
 

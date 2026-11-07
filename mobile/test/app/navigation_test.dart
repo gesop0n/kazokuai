@@ -13,10 +13,14 @@ import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_watched_person_repository.dart';
 
 Future<void> pumpApp(WidgetTester tester) async {
   await tester.pumpWidget(
-    ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+    ProviderScope(
+      overrides: [signedInAuth(), registeredWatchedPerson()],
+      child: const KazokuAiApp(),
+    ),
   );
   await tester.pumpAndSettle();
 }

@@ -1,4 +1,4 @@
-// Package server は、デバイスに短命トークンを渡すバックエンドの HTTP サーバーである。
+// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受けるバックエンドの HTTP サーバーである。
 package server
 
 import (
@@ -16,10 +16,9 @@ import (
 
 // Config は、電話をかける相手と、AI の設定である。
 type Config struct {
-	// Name は見守る方の名前である。
-	Name string
-	// CallName は、AI が見守る方を呼ぶときの呼び方である。
-	CallName string
+	// WatchedPerson は、電話をかける見守る方の、Firestore のドキュメントの ID である。
+	// 空のときは、アプリからの見守る方の登録だけを受け、デバイスにトークンを渡さない。
+	WatchedPerson string
 	// Model は Live API のモデルである。
 	Model string
 	// Voice は AI の声の名前である。
@@ -45,35 +44,58 @@ type Clock interface {
 	Now() time.Time
 }
 
-// New は、protocol.TokenPath でトークンを渡す http.Handler を返す。
-func New(config Config, tokens Tokens, clock Clock) http.Handler {
+// New は、protocol.TokenPath でデバイスにトークンを渡し、watchedPersonsPath でアプリから見守る方の登録を受ける http.Handler を返す。
+func New(config Config, firebase Firebase, tokens Tokens, clock Clock) http.Handler {
+	s := &server{config: config, firebase: firebase, tokens: tokens, clock: clock}
 	router := chi.NewRouter()
-	router.Post(protocol.TokenPath, func(w http.ResponseWriter, r *http.Request) {
-		now := clock.Now()
-		token, err := tokens.Create(r.Context(), tokenConfig(config, now))
-		if err != nil {
-			log.Printf("短命トークンを作れなかった: %v", err)
-			http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(protocol.TokenResponse{
-			Token: token.Name,
-			Model: config.Model,
-			Times: protocol.CallTimes{
-				RingTimeout:  config.RingTimeout,
-				MaxCall:      config.MaxCall,
-				WrapUpBefore: config.WrapUpBefore,
-			},
-		})
-	})
+	router.Post(protocol.TokenPath, s.token)
+	router.Post(watchedPersonsPath, s.registerWatchedPerson)
 	return router
+}
+
+type server struct {
+	config   Config
+	firebase Firebase
+	tokens   Tokens
+	clock    Clock
+}
+
+// token は、見守る方の名前と呼び方を Firestore から読み、それをシステム指示に書いたトークンを作る。
+func (s *server) token(w http.ResponseWriter, r *http.Request) {
+	config := s.config
+	if config.WatchedPerson == "" {
+		http.Error(w, "電話をかける見守る方が決まっていません。--watched-person で見守る方の ID を指定して、バックエンドを起動し直してください", http.StatusServiceUnavailable)
+		return
+	}
+	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, config.WatchedPerson)
+	if err != nil {
+		log.Printf("見守る方 %s を読めなかった: %v", config.WatchedPerson, err)
+		http.Error(w, "見守る方を読めなかった", http.StatusInternalServerError)
+		return
+	}
+	now := s.clock.Now()
+	token, err := s.tokens.Create(r.Context(), tokenConfig(config, person, now))
+	if err != nil {
+		log.Printf("短命トークンを作れなかった: %v", err)
+		http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(protocol.TokenResponse{
+		Token: token.Name,
+		Model: config.Model,
+		Times: protocol.CallTimes{
+			RingTimeout:  config.RingTimeout,
+			MaxCall:      config.MaxCall,
+			WrapUpBefore: config.WrapUpBefore,
+		},
+	})
 }
 
 // tokenConfig は、1 回の電話のための短命トークンの制約である。
 // LockAdditionalFields を指定しないので、モデルと設定のすべてのフィールドがトークンに固定され、
 // デバイスはどれも変えられない。
-func tokenConfig(config Config, now time.Time) *genai.CreateAuthTokenConfig {
+func tokenConfig(config Config, person watchedPerson, now time.Time) *genai.CreateAuthTokenConfig {
 	return &genai.CreateAuthTokenConfig{
 		// 有効期限が切れると開いている接続も切れるので、呼び出しと電話の全体を覆う。
 		// 新しいセッションを始められる期限は、SDK の既定の 60 秒のままにする。
@@ -88,7 +110,7 @@ func tokenConfig(config Config, now time.Time) *genai.CreateAuthTokenConfig {
 						PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{VoiceName: config.Voice},
 					},
 				},
-				SystemInstruction:        genai.NewContentFromText(systemInstruction(config, now), genai.RoleUser),
+				SystemInstruction:        genai.NewContentFromText(systemInstruction(config, person, now), genai.RoleUser),
 				InputAudioTranscription:  &genai.AudioTranscriptionConfig{},
 				OutputAudioTranscription: &genai.AudioTranscriptionConfig{},
 			},

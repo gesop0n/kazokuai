@@ -9,6 +9,7 @@ import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
 // モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 98 になる
@@ -23,7 +24,10 @@ void useMockScreen(WidgetTester tester) {
 Future<void> pumpCallsTab(WidgetTester tester) async {
   useMockScreen(tester);
   await tester.pumpWidget(
-    ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+    ProviderScope(
+      overrides: [signedInAuth(), registeredWatchedPerson()],
+      child: const KazokuAiApp(),
+    ),
   );
   await tester.pumpAndSettle();
   await tester.tap(

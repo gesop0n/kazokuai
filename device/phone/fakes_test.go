@@ -17,7 +17,7 @@ import (
 )
 
 // テストの境目の外側だけを偽物にする。偽物は電話機、時計、Gemini の 3 つで、
-// デバイスの電話の処理、その HTTP のクライアント、バックエンドの HTTP のサーバーは本物を動かす。
+// デバイスの電話の処理、その HTTP のクライアント、バックエンドの HTTP のサーバー、Firebase のエミュレーターは本物を動かす。
 
 const waitTimeout = 5 * time.Second
 
@@ -46,7 +46,7 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
-	backend := httptest.NewServer(server.New(config, gemini, clock))
+	backend := httptest.NewServer(server.New(config, emulators, gemini, clock))
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}

@@ -14,6 +14,7 @@ import 'package:kazokuai/features/home/calling_banner.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -205,6 +206,7 @@ void main() {
             (ref, self) => HomeStatus.calling,
           ),
           signedInAuth(),
+          registeredWatchedPerson(),
         ],
         child: const KazokuAiApp(),
       ),
