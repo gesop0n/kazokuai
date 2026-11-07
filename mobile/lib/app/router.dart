@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:kazokuai/app/loading_screen.dart';
 import 'package:kazokuai/data/auth_repository.dart';
+import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
@@ -14,6 +16,7 @@ import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 
 abstract final class AppRoutes {
   static const welcome = 'welcome';
@@ -21,6 +24,8 @@ abstract final class AppRoutes {
   static const register = 'register';
   static const terms = 'terms';
   static const privacy = 'privacy';
+  static const loading = 'loading';
+  static const watchedPersonName = 'watchedPersonName';
   static const home = 'home';
   static const calls = 'calls';
   static const booking = 'booking';
@@ -31,23 +36,38 @@ abstract final class AppRoutes {
 
 // ログインする前に開ける画面は、すべてこの下に置く
 const _signedOutPath = '/welcome';
+// ログインした家族に見守る方がいるかを読み終えるまで開く
+const _loadingPath = '/loading';
+const _watchedPersonNamePath = '/setup/name';
 
-GoRouter createAppRouter({required AuthRepository auth}) {
+GoRouter createAppRouter({
+  required AuthRepository auth,
+  required WatchedPersonRepository watchedPerson,
+}) {
   final rootNavigatorKey = GlobalKey<NavigatorState>();
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-    // ログインの状態が変わったら、ログインしていない家族を L1 に、ログインした家族をホームに移す
-    refreshListenable: auth.signedIn,
+    // ログインしていない家族は L1 に、見守る方がいない家族は L6 に、それ以外はホームに移す
+    refreshListenable: Listenable.merge([auth.signedIn, watchedPerson.status]),
     redirect: (context, state) {
-      final signedIn = auth.signedIn.value;
-      final isSignedOutScreen = state.matchedLocation.startsWith(
-        _signedOutPath,
-      );
-      if (!signedIn && !isSignedOutScreen) return _signedOutPath;
-      if (signedIn && isSignedOutScreen) return '/home';
-      return null;
+      final location = state.matchedLocation;
+      if (!auth.signedIn.value) {
+        return location.startsWith(_signedOutPath) ? null : _signedOutPath;
+      }
+      // 見守る方がいるかを読み終えるまでと、見守る方がいない間は、ホームに進ませない
+      final waitingAt = switch (watchedPerson.status.value) {
+        WatchedPersonStatus.unknown => _loadingPath,
+        WatchedPersonStatus.none => _watchedPersonNamePath,
+        WatchedPersonStatus.registered => null,
+      };
+      if (waitingAt != null) return location == waitingAt ? null : waitingAt;
+      final isBeforeHome =
+          location.startsWith(_signedOutPath) ||
+          location == _loadingPath ||
+          location == _watchedPersonNamePath;
+      return isBeforeHome ? '/home' : null;
     },
     routes: [
       GoRoute(
@@ -80,6 +100,16 @@ GoRouter createAppRouter({required AuthRepository auth}) {
             ],
           ),
         ],
+      ),
+      GoRoute(
+        name: AppRoutes.loading,
+        path: _loadingPath,
+        builder: (context, state) => const LoadingScreen(),
+      ),
+      GoRoute(
+        name: AppRoutes.watchedPersonName,
+        path: _watchedPersonNamePath,
+        builder: (context, state) => const WatchedPersonNameScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) => Scaffold(

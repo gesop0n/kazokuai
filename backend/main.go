@@ -1,7 +1,10 @@
-// backend は、デバイスに短命トークンを渡すバックエンドのプログラムである。
-// 見守る方はフラグで渡す。Gemini の API キーは環境変数 GEMINI_API_KEY から読み、デバイスには渡さない。
+// backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受けるバックエンドのプログラムである。
+// 電話をかける見守る方は、アプリで登録したときの ID をフラグで渡す。名前と呼び方は、トークンを作るたびに Firestore から読む。
+// フラグがなければ、見守る方の登録だけを受ける。
+// Gemini の API キーは環境変数 GEMINI_API_KEY から読み、デバイスには渡さない。
+// Firebase は、環境変数 FIRESTORE_EMULATOR_HOST と FIREBASE_AUTH_EMULATOR_HOST のエミュレーターを使う。
 //
-//	mise run backend -- --name 山田花子 --call-name ハナさん
+//	mise run backend -- --watched-person <見守る方の ID>
 package main
 
 import (
@@ -23,7 +26,8 @@ import (
 // 既定値と、Live API の接続の上限はここにまとめる。
 // 接続は呼び出しが始まってから約 connectionLimit で切れる。
 const (
-	// addr は、デバイスがトークンをもらいに来るアドレスである。device/main.go の backend と合わせる。
+	// addr は、デバイスがトークンをもらいに来て、アプリが見守る方を登録しに来るアドレスである。
+	// device/main.go の backend と、mobile/lib/data/backend.dart の既定値と合わせる。
 	addr                = "localhost:8080"
 	defaultModel        = "gemini-3.8-live"
 	defaultVoice        = "Kore"
@@ -45,8 +49,7 @@ func main() {
 }
 
 func defineFlags(fs *flag.FlagSet, config *server.Config) {
-	fs.StringVar(&config.Name, "name", "", "見守る方の名前(必須)")
-	fs.StringVar(&config.CallName, "call-name", "", "AI が見守る方を呼ぶときの呼び方(必須)。例: ハナさん")
+	fs.StringVar(&config.WatchedPerson, "watched-person", "", "電話をかける見守る方の ID。アプリで見守る方を登録すると、バックエンドのログに出る")
 	fs.StringVar(&config.Model, "model", defaultModel, "Live API のモデル")
 	fs.StringVar(&config.Voice, "voice", defaultVoice, "AI の声の名前")
 	fs.DurationVar(&config.RingTimeout, "ring-timeout", defaultRingTimeout, "呼び出しの上限")
@@ -56,9 +59,6 @@ func defineFlags(fs *flag.FlagSet, config *server.Config) {
 }
 
 func run(config server.Config) error {
-	if config.Name == "" || config.CallName == "" {
-		return errors.New("--name と --call-name で見守る方の名前と呼び方を指定してください")
-	}
 	if config.RingTimeout+config.MaxCall > connectionLimit {
 		limit := protocol.DurationWords(connectionLimit)
 		return fmt.Errorf("呼び出しの上限（--ring-timeout=%s）と電話の長さの上限（--max-call=%s）の合計が %s を超えています。Live API の接続は呼び出しが始まってから約 %s で切れるので、起動できません",
@@ -75,7 +75,8 @@ func run(config server.Config) error {
 	if apiKey == "" {
 		return errors.New("環境変数 GEMINI_API_KEY に Gemini の API キーを入れてください")
 	}
-	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{
+	ctx := context.Background()
+	client, err := genai.NewClient(ctx, &genai.ClientConfig{
 		APIKey:      apiKey,
 		Backend:     genai.BackendGeminiAPI,
 		HTTPOptions: genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion},
@@ -83,8 +84,18 @@ func run(config server.Config) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("http://%s でトークンを渡します。モデル: %s、声: %s", addr, config.Model, config.Voice)
-	return http.ListenAndServe(addr, server.New(config, client.AuthTokens, systemClock{}))
+	firebase, err := server.ConnectFirebase(ctx)
+	if err != nil {
+		return err
+	}
+	defer firebase.Firestore.Close()
+	if config.WatchedPerson == "" {
+		log.Print("--watched-person がないので、見守る方の登録だけを受けます。電話をかけるときは、アプリで登録した見守る方の ID を --watched-person で指定して、起動し直してください")
+	} else if err := server.CheckWatchedPerson(ctx, firebase, config.WatchedPerson); err != nil {
+		return fmt.Errorf("--watched-person=%s の見守る方を Firestore から読めないので、起動できません。エミュレーターを起動し直すと、登録した見守る方は消えます: %w", config.WatchedPerson, err)
+	}
+	log.Printf("http://%s でトークンを渡し、見守る方の登録を受けます。モデル: %s、声: %s", addr, config.Model, config.Voice)
+	return http.ListenAndServe(addr, server.New(config, firebase, client.AuthTokens, systemClock{}))
 }
 
 type systemClock struct{}

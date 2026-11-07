@@ -3,7 +3,7 @@
 
 [check]
 description = "PR を出す前に通すチェック。CI でも同じものを動かす"
-depends = ["check:mobile", "check:scripts", "check:go"]
+depends = ["check:mobile", "check:scripts", "check:go", "check:rules"]
 
 ["check:mobile"]
 description = "Flutter のアプリのフォーマット、静的解析、テスト"
@@ -15,12 +15,21 @@ run = [
 ]
 
 ["check:go"]
-description = "Go のデバイスとバックエンドのフォーマット、静的解析、テスト"
+description = "Go のデバイスとバックエンドのフォーマット、静的解析、テスト。テストは Firebase のエミュレーターの中で動かす"
 dir = "{{config_root}}"
 run = [
   'test -z "$(gofmt -l backend device internal | tee /dev/stderr)"',
   "go vet ./...",
-  "go test ./...",
+  # テストは毎回新しいエミュレーターを使うので、前の結果を使い回さない
+  "scripts/emulators_exec.sh 'go test -count=1 ./...'",
+]
+
+["check:rules"]
+description = "Firestore のセキュリティルールのテスト。Firestore のエミュレーターに対して動かす"
+dir = "{{config_root}}"
+run = [
+  "npm ci --prefix firebase --no-audit --no-fund --silent",
+  "scripts/emulators_exec.sh 'npm --prefix firebase test'",
 ]
 
 ["check:scripts"]
@@ -28,8 +37,10 @@ description = "scripts/ のテスト"
 run = "python3 -I -m unittest discover -s {{config_root}}/scripts -p '*_test.py'"
 
 [backend]
-description = "バックエンドを起動する。GEMINI_API_KEY が要る。例: mise run backend -- --name 山田花子 --call-name ハナさん"
+description = "バックエンドを起動する。GEMINI_API_KEY が要る。先に emulators を起動しておく。例: mise run backend -- --watched-person <見守る方の ID>"
 dir = "{{config_root}}"
+# firebase/firebase.json のポートと合わせる
+env = { FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099", FIRESTORE_EMULATOR_HOST = "127.0.0.1:8081" }
 run = "go run ./backend"
 
 [device]

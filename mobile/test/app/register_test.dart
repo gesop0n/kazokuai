@@ -4,12 +4,15 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/auth_repository.dart';
+import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_watched_person_repository.dart';
 
 // 見本の文が画面に収まると、開いただけで最後まで読んだことになる。
 // 幅 393 で条文が折り返し、高さ 700 では最後まで届かない。
@@ -23,7 +26,13 @@ Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(auth),
+        // 作ったばかりのアカウントには、見守る方がいない
+        watchedPersonRepositoryProvider.overrideWithValue(
+          FakeWatchedPersonRepository(status: WatchedPersonStatus.none),
+        ),
+      ],
       child: const KazokuAiApp(),
     ),
   );
@@ -208,7 +217,7 @@ void main() {
     expect(find.text('読みました'), findsNothing);
   });
 
-  testWidgets('両方を読むと登録でき、メールアドレスとパスワードがデータ層に届く', (tester) async {
+  testWidgets('両方を読むと登録でき、メールアドレスとパスワードがデータ層に届き、L6 が開く', (tester) async {
     final auth = FakeAuthRepository();
     await pumpApp(tester, auth);
     await openRegister(tester);
@@ -231,7 +240,7 @@ void main() {
 
     expect(auth.submittedEmail, 'misaki@example.com');
     expect(auth.submittedPassword, 'hanasan1234');
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
     expect(find.byType(WelcomeScreen), findsNothing);
   });
 

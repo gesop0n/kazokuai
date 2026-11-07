@@ -1,8 +1,14 @@
 rules_version = '2';
 
-// 今はすべての読み書きを断る。アプリは Firestore に書かず、書き込みはバックエンドを通す
+// アプリは家族としてログインして読むだけで、Firestore に何も書かない。
+// 書き込みはすべてバックエンドを通し、バックエンドのサーバーの SDK はこのルールに縛られない
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 見守る方。familyUids は、その見守る方に結び付いた家族の uid の一覧である
+    match /watchedPersons/{watchedPerson} {
+      allow read: if request.auth != null && request.auth.uid in resource.data.familyUids;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

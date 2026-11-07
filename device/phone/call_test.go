@@ -12,9 +12,9 @@ import (
 	"github.com/gesop0n/kazokuai/backend/server"
 )
 
+// hanako は、山田花子さん(呼び方はハナさん)に電話をかけるバックエンドの設定である。
+// 見守る方の ID は、TestMain がアプリと同じ API で登録してから入れる。
 var hanako = server.Config{
-	Name:         "山田花子",
-	CallName:     "ハナさん",
 	Model:        "gemini-3.8-live",
 	Voice:        "Kore",
 	RingTimeout:  time.Minute,
@@ -320,7 +320,7 @@ func TestToken(t *testing.T) {
 		}
 	})
 
-	t.Run("システム指示に、見守る方の名前と呼び方、日本時間の今の日時、AI であること、始まりの合図を書く", func(t *testing.T) {
+	t.Run("システム指示に、Firestore にある見守る方の名前と呼び方、日本時間の今の日時、AI であること、始まりの合図を書く", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		s.startCall(t)
 		s.gemini.waitForSession(t, 1)
@@ -338,6 +338,24 @@ func TestToken(t *testing.T) {
 			if !strings.Contains(instruction, want) {
 				t.Errorf("システム指示に %q がない:\n%s", want, instruction)
 			}
+		}
+	})
+
+	t.Run("見守る方を指定せずに起動したバックエンドからはトークンをもらえず、指定するよう伝えて電話を終える", func(t *testing.T) {
+		config := hanako
+		config.WatchedPerson = ""
+		s := newSystem(t, config, saturdayAfternoon)
+
+		err := s.startCall(t).result(t)
+
+		if err == nil || !strings.Contains(err.Error(), "--watched-person") {
+			t.Errorf("電話の終わり = %v, want --watched-person で見守る方を指定するよう伝える", err)
+		}
+		if tokens := s.gemini.tokenConfigs(); len(tokens) != 0 {
+			t.Errorf("トークンを %d 個作った, want 作らない", len(tokens))
+		}
+		if s.phone.isLit() || s.phone.isRinging() {
+			t.Error("トークンをもらえないのに、電話機を鳴らした")
 		}
 	})
 

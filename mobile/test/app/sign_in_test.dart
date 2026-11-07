@@ -9,11 +9,15 @@ import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_watched_person_repository.dart';
 
 Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(auth),
+        registeredWatchedPerson(),
+      ],
       child: const KazokuAiApp(),
     ),
   );

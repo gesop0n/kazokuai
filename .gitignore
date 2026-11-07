@@ -9,3 +9,6 @@ __pycache__/
 
 # firebase/ でエミュレーターを起動すると firebase-tools が作る
 *-debug.log
+
+# firebase/ のルールのテストに使う。npm ci で入れる
+node_modules/

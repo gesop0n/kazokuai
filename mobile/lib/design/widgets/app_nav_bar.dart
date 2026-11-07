@@ -10,11 +10,14 @@ class AppNavBar extends StatelessWidget {
     required this.title,
     this.leadingIcon = AppIcons.chevronLeft,
     this.leadingLabel = 'もどる',
+    this.showsBack = true,
   });
 
   final String title;
   final AppIcons leadingIcon;
   final String leadingLabel;
+  // もどる先のない画面では false にする。題名は真ん中のまま
+  final bool showsBack;
 
   @override
   Widget build(BuildContext context) {
@@ -22,11 +25,14 @@ class AppNavBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         children: [
-          AppIconButton(
-            leadingIcon,
-            semanticLabel: leadingLabel,
-            onTap: () => Navigator.maybePop(context),
-          ),
+          if (showsBack)
+            AppIconButton(
+              leadingIcon,
+              semanticLabel: leadingLabel,
+              onTap: () => Navigator.maybePop(context),
+            )
+          else
+            const SizedBox(width: 44),
           Expanded(
             child: Text(
               title,

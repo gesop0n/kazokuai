@@ -13,7 +13,7 @@ var japan = time.FixedZone("JST", 9*60*60)
 var weekdays = [...]string{"日", "月", "火", "水", "木", "金", "土"}
 
 // systemInstruction は、AI に渡すシステム指示を日本語で書く。
-func systemInstruction(config Config, now time.Time) string {
+func systemInstruction(config Config, person watchedPerson, now time.Time) string {
 	now = now.In(japan)
 	return fmt.Sprintf(`あなたは「かぞくAI」という名前の AI です。人ではありません。
 電話の相手のご家族に頼まれて、電話の相手に電話をかけています。
@@ -43,9 +43,9 @@ func systemInstruction(config Config, now time.Time) string {
 # 電話の終わり
 「%s」を受け取ったら、話をまとめて、別れの挨拶をしてください。
 `,
-		config.Name, config.CallName,
+		person.Name, person.CallName,
 		now.Year(), now.Month(), now.Day(), weekdays[now.Weekday()], now.Hour(), now.Minute(),
-		protocol.StartCue, config.CallName,
+		protocol.StartCue, person.CallName,
 		protocol.WrapUpCue(config.WrapUpBefore),
 	)
 }
