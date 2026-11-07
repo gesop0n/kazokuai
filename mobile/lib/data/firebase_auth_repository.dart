@@ -43,6 +43,29 @@ class FirebaseAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<void> createAccount({
+    required String email,
+    required String password,
+  }) async {
+    // 短いパスワードはエミュレーターへ送らず、画面の案内と同じ理由で断る
+    if (password.length < minPasswordLength) {
+      throw const CreateAccountException(CreateAccountError.weakPassword);
+    }
+    try {
+      await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw CreateAccountException(switch (e.code) {
+        'email-already-in-use' => CreateAccountError.emailInUse,
+        'weak-password' => CreateAccountError.weakPassword,
+        _ => CreateAccountError.other,
+      });
+    }
+  }
+
   void dispose() {
     _subscription.cancel();
     _signedIn.dispose();

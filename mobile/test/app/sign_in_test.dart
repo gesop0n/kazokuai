@@ -156,16 +156,7 @@ void main() {
   });
 
   group('まだない入口は「準備中です」と出る', () {
-    testWidgets('L1 の「はじめる」', (tester) async {
-      await pumpApp(tester, FakeAuthRepository());
-
-      await tapText(tester, 'はじめる');
-
-      expect(find.text('準備中です'), findsOneWidget);
-      expect(find.byType(WelcomeScreen), findsOneWidget);
-    });
-
-    for (final label in ['Googleでログイン', 'パスワードを忘れた場合', '新規登録へ']) {
+    for (final label in ['Googleでログイン', 'パスワードを忘れた場合']) {
       testWidgets('L2 の「$label」', (tester) async {
         await pumpApp(tester, FakeAuthRepository());
         await openLogin(tester);

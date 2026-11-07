@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
@@ -65,12 +64,11 @@ class WelcomeScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: 4,
                 children: [
-                  // 新規登録は次に作る
                   AppButton(
                     label: 'はじめる',
                     variant: AppButtonVariant.primary,
                     size: AppButtonSize.l,
-                    onTap: () => showComingSoon(context),
+                    onTap: () => context.pushNamed(AppRoutes.register),
                   ),
                   AppButton(
                     label: 'アカウントをお持ちの方はログイン',
