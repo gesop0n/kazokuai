@@ -3,3 +3,7 @@
 [hooks]
 	postCreate = mise trust
 	postCreate = codegraph init
+
+# git gtr new で、メインのリポジトリの .env を新しいワークツリーに写す
+[copy]
+	include = .env
