@@ -47,16 +47,24 @@ class FirebaseWatchedPersonRepository implements WatchedPersonRepository {
               _status.value = WatchedPersonStatus.none;
             }
           },
-          onError: (Object error, StackTrace stack) => FlutterError.reportError(
-            FlutterErrorDetails(
-              exception: error,
-              stack: stack,
-              library: 'kazokuai data',
-              context: ErrorDescription('見守る方を Firestore から読んでいるとき'),
-            ),
-          ),
+          onError: (Object error, StackTrace stack) {
+            FlutterError.reportError(
+              FlutterErrorDetails(
+                exception: error,
+                stack: stack,
+                library: 'kazokuai data',
+                context: ErrorDescription('見守る方を Firestore から読んでいるとき'),
+              ),
+            );
+            // すでにいるか分かっているときは、読み込み中の画面へ戻さない
+            if (_status.value != WatchedPersonStatus.unknown) return;
+            _status.value = WatchedPersonStatus.unreadable;
+          },
         );
   }
+
+  @override
+  void reload() => _watch(_auth.currentUser);
 
   @override
   Future<void> register({

@@ -18,6 +18,15 @@ class FakeWatchedPersonRepository implements WatchedPersonRepository {
 
   final registrations = <({String name, String callName})>[];
 
+  // 画面が読み直しを頼んだ回数
+  int reloads = 0;
+
+  @override
+  void reload() {
+    reloads++;
+    status.value = WatchedPersonStatus.unknown;
+  }
+
   @override
   Future<void> register({
     required String name,
