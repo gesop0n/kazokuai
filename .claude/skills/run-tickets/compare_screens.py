@@ -5,6 +5,7 @@ uv run --with playwright --with pillow python3 compare_screens.py <mock.html> <s
 For each screen id (as the mock labels it, such as L2c or 07b), this saves
 <shots-dir>/<id>-mock.png. When <shots-dir>/<id>-app.png exists, it also saves
 <shots-dir>/<id>.png with the app on the left and the mock on the right.
+It prints each id with its title in the mock, so that a wrong id shows.
 """
 
 import pathlib
@@ -17,8 +18,8 @@ SCALE = 3
 GAP = 48
 
 
-def capture_mock(mock: pathlib.Path, out: pathlib.Path, ids: list[str]) -> list[str]:
-    missing = []
+def capture_mock(mock: pathlib.Path, out: pathlib.Path, ids: list[str]) -> dict[str, str]:
+    titles = {}
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": 1600, "height": 1000}, device_scale_factor=SCALE)
@@ -31,11 +32,11 @@ def capture_mock(mock: pathlib.Path, out: pathlib.Path, ids: list[str]) -> list[
             )
             exact = [c for c in cell.all() if c.locator(".cell-title span").first.inner_text() == screen_id]
             if not exact:
-                missing.append(screen_id)
                 continue
+            titles[screen_id] = exact[0].locator(".cell-title span").nth(1).inner_text()
             exact[0].locator(".screen").first.screenshot(path=out / f"{screen_id}-mock.png")
         browser.close()
-    return missing
+    return titles
 
 
 def pair(out: pathlib.Path, screen_id: str) -> bool:
@@ -57,14 +58,16 @@ def pair(out: pathlib.Path, screen_id: str) -> bool:
 def main() -> None:
     mock, out, ids = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3:]
     out.mkdir(parents=True, exist_ok=True)
-    missing = capture_mock(mock, out, ids)
+    titles = capture_mock(mock, out, ids)
     for screen_id in ids:
-        if screen_id in missing:
+        if screen_id not in titles:
             print(f"{screen_id}: not in the mock")
-        elif pair(out, screen_id):
-            print(f"{screen_id}: {out / f'{screen_id}.png'}")
+            continue
+        label = f"{screen_id} ({titles[screen_id]})"
+        if pair(out, screen_id):
+            print(f"{label}: {out / f'{screen_id}.png'}")
         else:
-            print(f"{screen_id}: mock only, {out / f'{screen_id}-mock.png'}")
+            print(f"{label}: mock only, {out / f'{screen_id}-mock.png'}")
 
 
 if __name__ == "__main__":
