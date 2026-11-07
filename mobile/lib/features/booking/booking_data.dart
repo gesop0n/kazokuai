@@ -52,22 +52,44 @@ class RetryRule {
   const RetryRule({required this.interval, required this.attempts});
 
   static const intervalChoices = [
+    Duration(minutes: 5),
     Duration(minutes: 10),
-    Duration(minutes: 15),
     Duration(minutes: 30),
-    Duration(hours: 1),
   ];
-  static const attemptChoices = [1, 2, 3, 5];
+  static const attemptChoices = [1, 2, 3];
+
+  // 「入力」で入れられる範囲。電話機が従うルールはここまで
+  static const minimumMinutes = 1;
+  static const maximumMinutes = 60;
+  static const minimumAttempts = 1;
+  static const maximumAttempts = 5;
 
   final Duration interval;
 
   // 最初の 1 回をふくむ
   final int attempts;
 
-  // 15分。1時間
+  // 45分。60分は1時間
   static String intervalLabel(Duration interval) => interval.inMinutes < 60
       ? '${interval.inMinutes}分'
       : '${interval.inHours}時間';
+
+  // 空、整数でない、範囲の外は null
+  static int? minutesInRange(String text) =>
+      _inRange(text, minimum: minimumMinutes, maximum: maximumMinutes);
+
+  static int? attemptsInRange(String text) =>
+      _inRange(text, minimum: minimumAttempts, maximum: maximumAttempts);
+
+  static int? _inRange(
+    String text, {
+    required int minimum,
+    required int maximum,
+  }) {
+    final value = int.tryParse(text.trim());
+    if (value == null || value < minimum || value > maximum) return null;
+    return value;
+  }
 
   // 1 回だけのときは間隔がないので書かない
   String get summary => attempts == 1
@@ -92,7 +114,7 @@ final retryRuleProvider = NotifierProvider<RetryRuleNotifier, RetryRule>(
 class RetryRuleNotifier extends Notifier<RetryRule> {
   @override
   RetryRule build() =>
-      const RetryRule(interval: Duration(minutes: 15), attempts: 3);
+      const RetryRule(interval: Duration(minutes: 10), attempts: 3);
 
   void save(RetryRule rule) => state = rule;
 }

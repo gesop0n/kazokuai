@@ -5,10 +5,10 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 
 void main() {
   group('RetryRule.summary', () {
-    test('モックの初期値は「15分おきに3回かけて、家族に通知」', () {
-      const rule = RetryRule(interval: Duration(minutes: 15), attempts: 3);
+    test('既定は「10分おきに3回かけて、家族に通知」', () {
+      const rule = RetryRule(interval: Duration(minutes: 10), attempts: 3);
 
-      expect(rule.summary, '15分おきに3回かけて、家族に通知');
+      expect(rule.summary, '10分おきに3回かけて、家族に通知');
     });
 
     test('間隔と回数が文に入る', () {
@@ -24,14 +24,17 @@ void main() {
     });
   });
 
-  group('RetryRule.intervalLabel', () {
-    test('選択肢の文字はモックのとおり', () {
+  group('RetryRule の選択肢', () {
+    test('間隔は 5分、10分、30分', () {
       expect(RetryRule.intervalChoices.map(RetryRule.intervalLabel), [
+        '5分',
         '10分',
-        '15分',
         '30分',
-        '1時間',
       ]);
+    });
+
+    test('回数は最初の 1 回をふくめて 1回、2回、3回', () {
+      expect(RetryRule.attemptChoices, [1, 2, 3]);
     });
   });
 
@@ -120,11 +123,12 @@ void main() {
       expect(calls.last.detail, '1回だけ');
     });
 
-    test('ルールの初期値は 15 分おきに 3 回', () {
+    test('ルールの初期値は 10 分おきに 3 回', () {
       final rule = container.read(retryRuleProvider);
 
-      expect(rule.interval, const Duration(minutes: 15));
+      expect(rule.interval, const Duration(minutes: 10));
       expect(rule.attempts, 3);
+      expect(rule.summary, '10分おきに3回かけて、家族に通知');
     });
 
     test('save でルールが変わる', () {

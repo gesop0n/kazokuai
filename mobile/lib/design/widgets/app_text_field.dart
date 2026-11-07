@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
@@ -21,6 +22,7 @@ class AppTextField extends StatefulWidget {
     this.obscureText = false,
     this.keyboardType,
     this.textInputAction,
+    this.inputFormatters,
     this.autofillHints,
     this.onChanged,
     this.onSubmitted,
@@ -39,6 +41,7 @@ class AppTextField extends StatefulWidget {
   final bool obscureText;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final List<TextInputFormatter>? inputFormatters;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -117,6 +120,7 @@ class _AppTextFieldState extends State<AppTextField> {
                   obscureText: widget.obscureText,
                   keyboardType: widget.keyboardType,
                   textInputAction: widget.textInputAction,
+                  inputFormatters: widget.inputFormatters,
                   autofillHints: widget.autofillHints,
                   onChanged: widget.onChanged,
                   onSubmitted: widget.onSubmitted,

@@ -38,7 +38,7 @@ Future<void> _pumpRule(
   WidgetTester tester,
   LayoutCase layout, {
   RetryRule rule = const RetryRule(
-    interval: Duration(minutes: 15),
+    interval: Duration(minutes: 10),
     attempts: 3,
   ),
 }) => pumpScreenInLayout(
@@ -187,6 +187,28 @@ void main() {
         });
       }
     }
+
+    testWidgets('60分おきに5回の時刻と回は 1 行に入る', (tester) async {
+      const rule = RetryRule(interval: Duration(minutes: 60), attempts: 5);
+      await _pumpRule(tester, _narrowLargeLayout, rule: rule);
+
+      for (final time in rule.attemptTimes(DateTime(2026, 11, 5, 9))) {
+        final label = '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+        for (final element in find.text(label).evaluate()) {
+          expect(
+            (element.renderObject! as RenderBox).size.height,
+            _isOneLineOf(16, _narrowLargeLayout),
+            reason: label,
+          );
+        }
+      }
+      for (var i = 1; i <= rule.attempts; i++) {
+        expect(
+          tester.getSize(find.text('$i回目')).height,
+          _isOneLineOf(16, _narrowLargeLayout),
+        );
+      }
+    });
 
     testWidgets('通知の文字は「家族に」と「通知」の間で折り返す', (tester) async {
       await _pumpRule(tester, _narrowLargeLayout);

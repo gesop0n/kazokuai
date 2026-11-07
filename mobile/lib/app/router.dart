@@ -36,7 +36,7 @@ abstract final class AppRoutes {
 
 // ログインする前に開ける画面は、すべてこの下に置く
 const _signedOutPath = '/welcome';
-// ログインした家族に見守る方がいるかを読み終えるまで開く
+// ログインした家族に見守る方がいるかを読み終えるまでと、読めなかったときに開く
 const _loadingPath = '/loading';
 const _watchedPersonNamePath = '/setup/name';
 
@@ -58,9 +58,10 @@ GoRouter createAppRouter({
         // この分岐が先なので、読み込み中の画面には進まない
         return location.startsWith(_signedOutPath) ? null : _signedOutPath;
       }
-      // 見守る方がいるかを読み終えるまでと、見守る方がいない間は、ホームに進ませない
+      // 見守る方がいるかを読み終えるまで、読めなかったとき、見守る方がいない間は、ホームに進ませない
       final waitingAt = switch (watchedPerson.status.value) {
-        WatchedPersonStatus.unknown => _loadingPath,
+        WatchedPersonStatus.unknown ||
+        WatchedPersonStatus.unreadable => _loadingPath,
         WatchedPersonStatus.none => _watchedPersonNamePath,
         WatchedPersonStatus.registered => null,
       };

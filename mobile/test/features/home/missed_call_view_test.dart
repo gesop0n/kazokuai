@@ -83,7 +83,7 @@ void main() {
 
       expect(find.text('確認をお願いします'), findsOneWidget);
       expect(find.text('朝の電話に出ていません'), findsOneWidget);
-      expect(find.text('9:00、9:15、9:30にかけましたが、応答がありません。'), findsOneWidget);
+      expect(find.text('9:00、9:10、9:20にかけましたが、応答がありません。'), findsOneWidget);
       expect(find.textContaining('外出中の可能性もあります'), findsNothing);
       expect(
         tester.widget<AppIcon>(find.byType(AppIcon).first).icon,
