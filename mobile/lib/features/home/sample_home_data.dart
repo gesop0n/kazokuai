@@ -53,12 +53,12 @@ final _week = WeekCallRecords([
   DayCallRecord(date: DateTime(2026, 11, 5), talkedMinutes: 6),
 ]);
 
-// モックの 07b と同じ内容
+// かけなおしの既定は 10 分。モックの 07b はまだ 15 分の時刻のまま
 final _missedCall = MissedCall(
   attemptedAt: [
     DateTime(2026, 11, 5, 9, 0),
-    DateTime(2026, 11, 5, 9, 15),
-    DateTime(2026, 11, 5, 9, 30),
+    DateTime(2026, 11, 5, 9, 10),
+    DateTime(2026, 11, 5, 9, 20),
   ],
   lastTalk: LastTalk(
     startedAt: DateTime(2026, 11, 4, 19, 0),
