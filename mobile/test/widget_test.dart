@@ -8,6 +8,7 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import 'support/fake_auth_repository.dart';
+import 'support/fake_home_repository.dart';
 import 'support/fake_watched_person_repository.dart';
 
 void main() {
@@ -16,7 +17,7 @@ void main() {
   testWidgets('アプリが起動してロケールが ja になる', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [signedInAuth(), registeredWatchedPerson()],
+        overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
         child: const KazokuAiApp(),
       ),
     );
@@ -32,7 +33,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [signedInAuth(), registeredWatchedPerson()],
+        overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
         child: const KazokuAiApp(),
       ),
     );

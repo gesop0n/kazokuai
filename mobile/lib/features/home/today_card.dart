@@ -11,20 +11,32 @@ import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/home_format.dart';
 
 class TodayCard extends StatelessWidget {
-  const TodayCard({super.key, required this.call});
+  const TodayCard({Key? key, required Call call}) : this._(call, key: key);
 
-  final Call call;
+  // 今日の電話がないとき。3 項目とも話していない
+  const TodayCard.undisclosed({Key? key}) : this._(null, key: key);
+
+  const TodayCard._(this._call, {super.key});
+
+  final Call? _call;
+
+  static const _undisclosed = [
+    Condition(kind: ConditionKind.meal, value: '話していない', quote: ''),
+    Condition(kind: ConditionKind.sleep, value: '話していない', quote: ''),
+    Condition(kind: ConditionKind.health, value: '話していない', quote: ''),
+  ];
 
   @override
   Widget build(BuildContext context) {
+    final call = _call;
     return AppCard(
       variant: AppCardVariant.paper,
       children: [
         HomeCardHeading(
           title: '今日の様子',
-          label: '${formatTime(call.startedAt)}の会話より',
+          label: call == null ? null : '${formatTime(call.startedAt)}の会話より',
         ),
-        for (final condition in call.summary.conditions)
+        for (final condition in call?.summary.conditions ?? _undisclosed)
           _ConditionRow(condition),
       ],
     );
@@ -78,12 +90,13 @@ class _ConditionRow extends StatelessWidget {
                   ],
                 ),
                 Text(condition.value, style: AppTextStyles.labelL),
-                Text(
-                  condition.quote,
-                  style: AppTextStyles.capS.copyWith(
-                    color: AppColors.inkSecondary,
+                if (condition.quote.isNotEmpty)
+                  Text(
+                    condition.quote,
+                    style: AppTextStyles.capS.copyWith(
+                      color: AppColors.inkSecondary,
+                    ),
                   ),
-                ),
               ],
             ),
           ),

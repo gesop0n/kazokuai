@@ -77,7 +77,7 @@ void main() {
       await pumpScreenInLayout(
         tester,
         layout,
-        const Scaffold(body: HomeScreen()),
+        Scaffold(body: HomeScreen(data: sampleHomeData)),
       );
 
       expect(find.byType(HomeHeader), findsOneWidget);
@@ -159,6 +159,7 @@ void main() {
       expect(find.text('Geminiのまとめ'), findsNothing);
       expect(find.text(summary.headline), findsOneWidget);
       expect(find.text(summary.quote.text), findsOneWidget);
+      expect(find.text('9:03'), findsOneWidget);
       expect(find.textContaining('の言葉'), findsNothing);
       expect(find.text('会話を見る'), findsOneWidget);
     });
@@ -206,11 +207,13 @@ void main() {
       final summary = sampleHomeData.latestCall.summary;
       final title = tester.getRect(find.text('直近の電話'));
       final headline = tester.getRect(find.text(summary.headline));
+      final time = tester.getRect(find.text('9:03'));
       final quote = tester.getRect(find.text(summary.quote.text));
       final button = tester.getRect(find.byType(AppButton));
 
       expect(headline.top - title.bottom, 12);
-      expect(quote.top - headline.bottom, 12);
+      expect(time.top - headline.bottom, 12);
+      expect(quote.top - time.bottom, 2);
       expect(button.top - quote.bottom, 16);
     });
 
@@ -314,7 +317,7 @@ void main() {
     await pumpScreenInLayout(
       tester,
       layout,
-      const Scaffold(body: HomeScreen()),
+      Scaffold(body: HomeScreen(data: sampleHomeData)),
     );
 
     final finders = [

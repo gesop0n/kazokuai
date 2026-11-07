@@ -159,7 +159,12 @@ class _WeekChart extends StatelessWidget {
     for (final day in days) {
       final monthPart = day.date.month == month ? '' : '${day.date.month}月';
       final minutes = day.talkedMinutes;
-      final talked = minutes == null ? 'は不在' : '$minutes分';
+      // 電話がなかった日は、出なかった電話と取り違えない
+      final talked = day.quiet
+          ? 'は電話がない'
+          : minutes == null
+          ? 'は不在'
+          : '$minutes分';
       parts.add('$monthPart${day.date.day}日$talked');
       month = day.date.month;
     }
@@ -184,6 +189,7 @@ class _DayBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final minutes = day.talkedMinutes;
+    if (day.quiet) return const SizedBox.shrink();
     if (minutes == null) return const _AbsentMark();
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -18,6 +18,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
@@ -62,6 +63,7 @@ Future<void> _pumpAppAndOpenAsk(
         ..._startingAt(status),
         signedInAuth(),
         registeredWatchedPerson(),
+        sampleHome(),
       ],
       child: const KazokuAiApp(),
     ),

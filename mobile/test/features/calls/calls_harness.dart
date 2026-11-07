@@ -9,6 +9,7 @@ import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
@@ -25,7 +26,7 @@ Future<void> pumpCallsTab(WidgetTester tester) async {
   useMockScreen(tester);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [signedInAuth(), registeredWatchedPerson()],
+      overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
       child: const KazokuAiApp(),
     ),
   );
