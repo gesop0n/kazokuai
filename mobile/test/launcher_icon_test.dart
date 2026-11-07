@@ -1,0 +1,185 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
+
+void main() {
+  test('元の画像はリポジトリにあり、アプリには入らない', () {
+    final pubspec = File('pubspec.yaml').readAsStringSync();
+    final assets = RegExp(
+      r'^  assets:\n(?:    - .+\n)+',
+      multiLine: true,
+    ).firstMatch(pubspec);
+    expect(assets, isNotNull);
+    expect(assets!.group(0)!, isNot(contains('app_icon')));
+
+    final file = File('assets/app_icon/icon_1024.png');
+    final bytes = file.readAsBytesSync();
+    expect(_pngColorType(bytes), 2);
+    expect(_hasTransparencyChunk(bytes), isFalse);
+    final icon = img.decodePng(bytes)!;
+    expect(icon.width, 1024);
+    expect(icon.height, 1024);
+    _expectCream(icon.getPixel(0, 0));
+  });
+
+  test('iOS のアイコンは、並んでいるすべての大きさで、透明な部分がない', () {
+    final contents = jsonDecode(
+      File('ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json')
+          .readAsStringSync(),
+    );
+    final images = contents['images'] as List<dynamic>;
+    expect(images, isNotEmpty);
+
+    for (final image in images) {
+      final entry = image as Map<String, dynamic>;
+      final filename = entry['filename'] as String;
+      final pixels = _pixelSize(
+        entry['size'] as String,
+        entry['scale'] as String,
+      );
+      final file = File(
+        'ios/Runner/Assets.xcassets/AppIcon.appiconset/$filename',
+      );
+      final bytes = file.readAsBytesSync();
+      expect(_pngColorType(bytes), 2, reason: filename);
+      expect(_hasTransparencyChunk(bytes), isFalse, reason: filename);
+      final icon = img.decodePng(bytes)!;
+      expect(icon.width, pixels, reason: filename);
+      expect(icon.height, pixels, reason: filename);
+      // 割り切れない大きさでは、縮小でクリーム色が 1 階調ずれる。
+      _expectNearCream(icon.getPixel(0, 0));
+      if (pixels == 1024) {
+        expect(_hasDrawing(icon), isTrue, reason: filename);
+      }
+    }
+  });
+
+  test('Android のアダプティブアイコンは背景がクリーム色で、丸く切り抜いても絵が収まる', () {
+    final colors = File('android/app/src/main/res/values/colors.xml')
+        .readAsStringSync();
+    expect(colors, contains('name="ic_launcher_background"'));
+    expect(colors.toUpperCase(), contains('#FFF5D3'));
+
+    final xml = File(
+      'android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml',
+    ).readAsStringSync();
+    expect(xml, contains('@color/ic_launcher_background'));
+    expect(xml, contains('@drawable/ic_launcher_foreground'));
+    expect(xml, contains('android:inset="0%"'));
+
+    final foregrounds = Directory('android/app/src/main/res')
+        .listSync()
+        .whereType<Directory>()
+        .map((dir) => File('${dir.path}/ic_launcher_foreground.png'))
+        .where((file) => file.existsSync())
+        .toList();
+    expect(foregrounds, isNotEmpty);
+
+    for (final file in foregrounds) {
+      final icon = img.decodePng(file.readAsBytesSync())!;
+      expect(icon.getPixel(0, 0).a.toInt(), 0, reason: file.path);
+      expect(_outsideSafeCircle(icon), 0, reason: file.path);
+      expect(_hasDrawing(icon), isTrue, reason: file.path);
+    }
+  });
+
+  test('古い Android 向けのアイコンもある', () {
+    const sizes = {
+      'mipmap-mdpi': 48,
+      'mipmap-hdpi': 72,
+      'mipmap-xhdpi': 96,
+      'mipmap-xxhdpi': 144,
+      'mipmap-xxxhdpi': 192,
+    };
+    for (final entry in sizes.entries) {
+      final file = File(
+        'android/app/src/main/res/${entry.key}/ic_launcher.png',
+      );
+      final bytes = file.readAsBytesSync();
+      expect(_pngColorType(bytes), 2, reason: entry.key);
+      expect(_hasTransparencyChunk(bytes), isFalse, reason: entry.key);
+      final icon = img.decodePng(bytes)!;
+      expect(icon.width, entry.value, reason: entry.key);
+      expect(icon.height, entry.value, reason: entry.key);
+      // 割り切れない大きさでは、縮小でクリーム色が 1 階調ずれる。
+      _expectNearCream(icon.getPixel(0, 0));
+    }
+  });
+}
+
+int _pixelSize(String size, String scale) {
+  final points = double.parse(size.split('x').first);
+  final factor = int.parse(scale.replaceAll('x', ''));
+  return (points * factor).round();
+}
+
+/// 108 dp の層の真ん中、直径 66 dp の円の外にある絵の画素の数。
+int _outsideSafeCircle(img.Image icon) {
+  final radius = 33 / 108 * icon.width;
+  final limit = radius * radius;
+  var outside = 0;
+  for (final pixel in icon) {
+    if (pixel.a < 16) {
+      continue;
+    }
+    final dx = (pixel.x + 0.5) - icon.width / 2;
+    final dy = (pixel.y + 0.5) - icon.height / 2;
+    if (dx * dx + dy * dy > limit) {
+      outside++;
+    }
+  }
+  return outside;
+}
+
+bool _hasDrawing(img.Image icon) {
+  for (final pixel in icon) {
+    final opaque = pixel.a >= 16;
+    final cream = pixel.r == 255 && pixel.g == 245 && pixel.b == 211;
+    if (opaque && !cream) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void _expectCream(img.Pixel pixel) {
+  expect(pixel.r.toInt(), 255);
+  expect(pixel.g.toInt(), 245);
+  expect(pixel.b.toInt(), 211);
+}
+
+void _expectNearCream(img.Pixel pixel) {
+  expect((pixel.r.toInt() - 255).abs(), lessThanOrEqualTo(1));
+  expect((pixel.g.toInt() - 245).abs(), lessThanOrEqualTo(1));
+  expect((pixel.b.toInt() - 211).abs(), lessThanOrEqualTo(1));
+}
+
+int _pngColorType(List<int> bytes) {
+  expect(String.fromCharCodes(bytes.sublist(12, 16)), 'IHDR');
+  return bytes[25];
+}
+
+bool _hasTransparencyChunk(List<int> bytes) {
+  var offset = 8;
+  while (offset + 8 <= bytes.length) {
+    final length = _uint32(bytes, offset);
+    final type = String.fromCharCodes(bytes.sublist(offset + 4, offset + 8));
+    if (type == 'tRNS') {
+      return true;
+    }
+    if (type == 'IEND') {
+      return false;
+    }
+    offset += 12 + length;
+  }
+  return false;
+}
+
+int _uint32(List<int> bytes, int offset) {
+  return bytes[offset] << 24 |
+      bytes[offset + 1] << 16 |
+      bytes[offset + 2] << 8 |
+      bytes[offset + 3];
+}
