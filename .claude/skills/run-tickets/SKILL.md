@@ -1,12 +1,12 @@
 ---
 name: run-tickets
-description: Hand the ready tickets of a spec to implementers and reviewers in herdr panes, and open one PR per ticket.
+description: Hand the ready tickets of a spec to implementers and a reviewer in herdr panes, and open one PR per ticket.
 disable-model-invocation: true
 ---
 
 # Run tickets
 
-You are the **conductor** of ADR 0004 (`docs/adr/20261107_development_process.md`). You hand ready tickets to implementer agents, have other agents review the work, and open one PR per ticket. The person merges every PR; you never merge.
+You are the **conductor** of ADR 0004 (`docs/adr/20261107_development_process.md`). You hand ready tickets to implementer agents, have Codex review the work, and open one PR per ticket. The person merges every PR; you never merge.
 
 The argument is the spec's issue number. Read `docs/agents/issue-tracker.md` for every `gh` operation.
 
@@ -15,6 +15,7 @@ Each ticket `<N>` gets a **work folder**, `${XDG_CACHE_HOME:-$HOME/.cache}/kazok
 ## Guardrails
 
 - Never answer an approval, trust, or question dialog for another agent. Notify the person and wait until the agent is idle again.
+- Only the person's messages to you are their answers. The input box of an idle Claude Code may show a predicted reply in grey: leave it unsent.
 - Keep the person's focus where it is: pass `--no-focus` to every `herdr` command that accepts it.
 - Close only the workspaces this skill opened. They carry the label `#<N>`.
 - After a wait times out or stalls, inspect the agent with `herdr agent get` and `herdr agent read --source recent-unwrapped --lines 120` before you send anything. Never resend a prompt blindly.
@@ -26,7 +27,7 @@ Each ticket `<N>` gets a **work folder**, `${XDG_CACHE_HOME:-$HOME/.cache}/kazok
 - plamo-translate answers: `curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:30000/mcp` prints anything but `000`. Otherwise stop and tell the person.
 - You are in the main checkout (`git gtr go 1`) on `main`, and `git pull` is done.
 
-Done when all three hold.
+Done when all three hold. If the main checkout has no `.env` with `GEMINI_API_KEY`, also tell the person: the voice tests need it, and `git gtr new` copies it into each worktree.
 
 ## 2. Clean up
 
@@ -60,9 +61,9 @@ For each picked ticket, in parallel:
 2. Create and open the worktree:
 
    ```bash
-   git gtr new ticket/<N>-<kind> --yes        # the hooks run mise trust and codegraph init
-   path=$(git gtr go ticket/<N>-<kind>)
-   herdr worktree open --path "$path" --no-focus --label "#<N>"
+   git gtr new ticket/<N>-<kind> --yes        # the hooks run mise trust and codegraph init, and .env is copied
+   wt=$(git gtr go ticket/<N>-<kind>)          # not "path": in zsh, path is PATH
+   herdr worktree open --path "$wt" --no-focus --label "#<N>"
    ```
 
    The pane is `.result.root_pane.pane_id`, and the workspace is `.result.workspace.workspace_id`.
@@ -80,41 +81,40 @@ For each picked ticket, in parallel:
 
 5. `herdr agent wait t<N>-impl`. On `blocked`, or when it asks for a voice test, notify the person and wait again.
 
-Done when the implementer is done, `git -C "$path" log main..HEAD` lists commits, `git -C "$path" status --short` is empty, and `mise run check` passes in `$path`. When any of these fails, send the failure to the implementer and wait again. After two failed rounds, notify the person.
+Done when the implementer is done, `git -C "$wt" log main..HEAD` lists commits, `git -C "$wt" status --short` is empty, and `mise run check` passes in `$wt`. When any of these fails, send the failure to the implementer and wait again. After two failed rounds, notify the person.
 
 ## 5. Review
 
-The reviewers are Codex for every ticket, plus Grok when Claude Code implemented it. For each reviewer, split a pane off the implementer's pane, start the reviewer there, and prompt it:
+Codex is the only reviewer (ADR 0006, `docs/adr/20261107_single_reviewer.md`). It reviews every ticket, whoever implemented it, on both axes of the code-review skill. Split a pane off the implementer's pane, start Codex there, and prompt it:
 
 ```bash
-herdr pane split <pane> --direction down --cwd "$path" --no-focus   # new pane: .result.pane.pane_id
+herdr pane split <pane> --direction down --cwd "$wt" --no-focus   # new pane: .result.pane.pane_id
 herdr agent start t<N>-codex --kind codex --pane <new-pane>
-herdr agent start t<N>-grok --kind grok --pane <new-pane> -- --deny "Bash(git push*)" --deny "Bash(gh *)"
 ```
 
-> Use the code-review skill. The fixed point is `main`. The spec is `<work>/ticket.md`, and its parent spec is `<work>/spec.md`. Do not edit any file in the repository. Write your findings as Markdown to `<work>/review-<reviewer>-1.md`, then reply with only that path.
+> Use the code-review skill (`$code-review`). The fixed point is `main`. The spec is `<work>/ticket.md`, and its parent spec is `<work>/spec.md`, comments included. Do not edit any file in the repository. Write your findings as Markdown to `<work>/review-codex-1.md`, then reply with only that path.
 
-Done when every reviewer has written its file.
+Done when Codex has written its file.
 
 ## 6. Fix once
 
-When the reviews hold findings:
+When the review holds findings:
 
-1. Prompt the implementer: "Address every finding in `<files>`. Fix it, or write one line in `<work>/replies.md` saying why not. Commit. Do not push."
-2. When it is done and the step 4 checks pass again, ask each reviewer to review again against `main`, read `<work>/replies.md`, and write what remains to `<work>/review-<reviewer>-2.md`.
+1. Prompt the implementer: "Address every finding in `<work>/review-codex-1.md`. Fix it, or write one line in `<work>/replies.md` saying why not. Commit. Do not push." Include answers you already hold, such as the person's decisions.
+2. When it is done and the step 4 checks pass again, ask Codex to review again against `main`, read `<work>/replies.md`, and write what remains to `<work>/review-codex-2.md`.
 
 The remaining findings go into the PR body for the person to judge. There is no third round.
 
-Done when every reviewer has written its second file, or the first reviews held no findings.
+Done when Codex has written its second file, or the first review held no findings.
 
 ## 7. Open the PR
 
-1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewers, and a section listing the remaining findings.
+1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewer, and a section listing the remaining findings.
 2. Turn it into Japanese as `AGENTS.md` says for PR bodies: `mise run translate`, mistranslations fixed against the English, then the `yomiyasu` skill.
 3. Push and open the PR. The title is the ticket's title.
 
    ```bash
-   git -C "$path" push -u origin ticket/<N>-<kind>
+   git -C "$wt" push -u origin ticket/<N>-<kind>
    gh pr create --base main --head ticket/<N>-<kind> --title "<ticket title>" --body-file <work>/pr_ja.md
    gh pr checks <pr> --watch
    ```
