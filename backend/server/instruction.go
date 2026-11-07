@@ -39,9 +39,13 @@ func systemInstruction(config Config, now time.Time) string {
 
 # 電話の始まり
 「%s」を受け取ったら、電話がつながったところです。相手を「%s」と呼んで挨拶し、ご家族に頼まれて電話をかけたかぞくAIだと名乗ってください。
+
+# 電話の終わり
+「%s」を受け取ったら、話をまとめて、別れの挨拶をしてください。
 `,
 		config.Name, config.CallName,
 		now.Year(), now.Month(), now.Day(), weekdays[now.Weekday()], now.Hour(), now.Minute(),
 		protocol.StartCue, config.CallName,
+		protocol.WrapUpCue(config.WrapUpBefore),
 	)
 }

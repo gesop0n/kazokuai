@@ -3,10 +3,12 @@ package phone
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -21,10 +23,15 @@ type Device struct {
 	Phone   Phone
 	// Out は、開発者が見るターミナルである。両方の文字起こしを 1 行ずつ書く。
 	Out io.Writer
+	// Clock は、呼び出しの上限と電話の長さを測る。
+	Clock Clock
 }
 
-// Call は 1 回の電話をする。呼び出しを始め、受話器が置かれたら nil を返す。
-// ほかの理由で電話が終わったときは、その理由をエラーで返す。
+// errNoAnswer は、呼び出しの上限を過ぎても受話器が上がらなかったときである。
+var errNoAnswer = errors.New("見守る方が出ませんでした")
+
+// Call は 1 回の電話をする。呼び出しを始め、受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
+// 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
 func (d *Device) Call(ctx context.Context) error {
 	token, err := d.fetchToken(ctx)
 	if err != nil {
@@ -38,10 +45,14 @@ func (d *Device) Call(ctx context.Context) error {
 	done := make(chan struct{})
 	defer close(done)
 	received, lost := receive(session, done)
-	outgoing, unsent := send(session, done)
+	outgoing, turns, unsent := send(session, done)
 
 	d.Phone.Lamp.On()
 	defer d.Phone.Lamp.Off()
+	// 呼び出し音を出す前に測り始める。テストは音が鳴ったのを見てから時計を進める。
+	ringTimer := d.Clock.NewTimer(token.Times.RingTimeout)
+	defer ringTimer.Stop()
+	ringC := ringTimer.Chan()
 	d.Phone.Ringer.Ring()
 	ringing := true
 	defer func() {
@@ -49,6 +60,16 @@ func (d *Device) Call(ctx context.Context) error {
 			d.Phone.Ringer.Stop()
 		}
 	}()
+	var wrapUpTimer, limitTimer Timer
+	defer func() {
+		if wrapUpTimer != nil {
+			wrapUpTimer.Stop()
+		}
+		if limitTimer != nil {
+			limitTimer.Stop()
+		}
+	}()
+	var wrapUpC, limitC <-chan time.Time
 
 	micCtx, closeMic := context.WithCancel(ctx)
 	defer closeMic()
@@ -62,16 +83,38 @@ func (d *Device) Call(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 
+		case <-ringC:
+			return errNoAnswer
+
+		case <-wrapUpC:
+			wrapUpC = nil
+			cue := clientText(protocol.WrapUpCue(token.Times.WrapUpBefore))
+			// 文字の発話用の口は空いているので、ここで待つことはない
+			turns <- func(s Session) error { return s.SendClientContent(cue) }
+
+		case <-limitC:
+			return nil
+
 		case event := <-d.Phone.Hook.Events():
 			switch {
 			case event == PickedUp && ringing:
 				ringing = false
 				d.Phone.Ringer.Stop()
+				ringTimer.Stop()
+				ringC = nil
+				untilCue := token.Times.MaxCall - token.Times.WrapUpBefore
+				if untilCue < 0 {
+					untilCue = 0
+				}
+				wrapUpTimer = d.Clock.NewTimer(untilCue)
+				limitTimer = d.Clock.NewTimer(token.Times.MaxCall)
+				wrapUpC = wrapUpTimer.Chan()
+				limitC = limitTimer.Chan()
 				if mic, err = d.Phone.Handset.Listen(micCtx); err != nil {
 					return fmt.Errorf("マイクを開けなかった: %w", err)
 				}
-				// 受話器が上がるまでは何も送らないので、outgoing は空で、ここで待つことはない
-				outgoing <- func(s Session) error { return s.SendClientContent(startCue) }
+				// 受話器が上がるまでは何も送らないので、turns は空で、ここで待つことはない
+				turns <- func(s Session) error { return s.SendClientContent(startCue) }
 			case event == PutDown && !ringing:
 				return nil
 			}
@@ -160,26 +203,36 @@ func receive(session Session, done <-chan struct{}) (received <-chan *genai.Live
 	return messages, errs
 }
 
-// send は、outgoing に入れた書き込みを順に Live のセッションで行う。書き込みは回線が止まると戻らないので、
-// 電話の処理とは別の goroutine で行い、そのあいだも受話器を置けるようにする。電話が終わってセッションを閉じると、
-// 止まっている書き込みも戻る。書き込めなかったら、その理由を unsent に送って終わる。
-func send(session Session, done <-chan struct{}) (outgoing chan<- func(Session) error, unsent <-chan error) {
-	writes := make(chan func(Session) error, 64)
+// send は、outgoing に入れた音声と、turns に入れた文字の発話を、Live のセッションで送る。
+// 文字の発話は音声より先に送る。締めの合図が、溜まった音声の後ろで遅れないようにするためである。
+// 書き込みは回線が止まると戻らないので、電話の処理とは別の goroutine で行い、そのあいだも受話器を置けるようにする。
+// 電話が終わってセッションを閉じると、止まっている書き込みも戻る。書き込めなかったら、その理由を unsent に送って終わる。
+func send(session Session, done <-chan struct{}) (outgoing, turns chan<- func(Session) error, unsent <-chan error) {
+	audio := make(chan func(Session) error, 64)
+	text := make(chan func(Session) error, 2)
 	errs := make(chan error, 1)
 	go func() {
 		for {
+			var write func(Session) error
 			select {
-			case write := <-writes:
-				if err := write(session); err != nil {
-					errs <- err
-					return
-				}
 			case <-done:
+				return
+			case write = <-text:
+			default:
+				select {
+				case <-done:
+					return
+				case write = <-text:
+				case write = <-audio:
+				}
+			}
+			if err := write(session); err != nil {
+				errs <- err
 				return
 			}
 		}
 	}()
-	return writes, errs
+	return audio, text, errs
 }
 
 // transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
@@ -207,11 +260,16 @@ func (t *transcript) print(speaker string, text *strings.Builder) {
 // micMIMEType は、Live API に送るマイクの音の形式である。
 var micMIMEType = fmt.Sprintf("audio/pcm;rate=%d", MicSampleRate)
 
-// startCue は、受話器が上がったときに見守る方の発話として送る始まりの合図である。
-var startCue = genai.LiveClientContentInput{
-	Turns:        []*genai.Content{genai.NewContentFromText(protocol.StartCue, genai.RoleUser)},
-	TurnComplete: genai.Ptr(true),
+// clientText は、見守る方の発話として送る文字である。発話を終えてあるので、AI がそれに答えられる。
+func clientText(text string) genai.LiveClientContentInput {
+	return genai.LiveClientContentInput{
+		Turns:        []*genai.Content{genai.NewContentFromText(text, genai.RoleUser)},
+		TurnComplete: genai.Ptr(true),
+	}
 }
+
+// startCue は、受話器が上がったときに送る始まりの合図である。
+var startCue = clientText(protocol.StartCue)
 
 // fetchToken は、バックエンドからこの電話の短命トークンをもらう。
 func (d *Device) fetchToken(ctx context.Context) (*protocol.TokenResponse, error) {

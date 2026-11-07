@@ -1,0 +1,94 @@
+package main
+
+import (
+	"flag"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gesop0n/kazokuai/backend/server"
+)
+
+func TestTimeFlags(t *testing.T) {
+	t.Run("既定値は、呼び出しの上限 1 分、電話の長さの上限 5 分、締めの合図 1 分、トークンの余裕 5 分", func(t *testing.T) {
+		config := parseConfig(t)
+
+		if config.RingTimeout != time.Minute {
+			t.Errorf("呼び出しの上限 = %s, want 1 分", config.RingTimeout)
+		}
+		if config.MaxCall != 5*time.Minute {
+			t.Errorf("電話の長さの上限 = %s, want 5 分", config.MaxCall)
+		}
+		if config.WrapUpBefore != time.Minute {
+			t.Errorf("締めの合図を送る時間 = %s, want 1 分", config.WrapUpBefore)
+		}
+		if config.TokenMargin != 5*time.Minute {
+			t.Errorf("トークンの有効期限の余裕 = %s, want 5 分", config.TokenMargin)
+		}
+	})
+
+	t.Run("フラグで 4 つの時間を変えられる", func(t *testing.T) {
+		config := parseConfig(t,
+			"--ring-timeout=2m",
+			"--max-call=3m",
+			"--wrap-up-before=30s",
+			"--token-margin=4m",
+		)
+
+		if config.RingTimeout != 2*time.Minute {
+			t.Errorf("呼び出しの上限 = %s, want 2 分", config.RingTimeout)
+		}
+		if config.MaxCall != 3*time.Minute {
+			t.Errorf("電話の長さの上限 = %s, want 3 分", config.MaxCall)
+		}
+		if config.WrapUpBefore != 30*time.Second {
+			t.Errorf("締めの合図を送る時間 = %s, want 30 秒", config.WrapUpBefore)
+		}
+		if config.TokenMargin != 4*time.Minute {
+			t.Errorf("トークンの有効期限の余裕 = %s, want 4 分", config.TokenMargin)
+		}
+	})
+}
+
+func TestRunRefusesWhenTheCallOutlastsTheConnection(t *testing.T) {
+	hanako := server.Config{Name: "山田花子", CallName: "ハナさん"}
+
+	t.Run("呼び出しの上限と電話の長さの上限の合計が 10 分を超えると、起動を断る", func(t *testing.T) {
+		config := hanako
+		config.RingTimeout = 6 * time.Minute
+		config.MaxCall = 5 * time.Minute
+
+		err := run(config)
+		if err == nil {
+			t.Fatal("起動してしまった")
+		}
+		for _, want := range []string{"--ring-timeout", "--max-call", "6 分", "5 分", "10 分", "起動できません"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("起動を断るメッセージ %q に %q がない", err.Error(), want)
+			}
+		}
+	})
+
+	t.Run("合計がちょうど 10 分なら、時間を理由に起動を断らない", func(t *testing.T) {
+		t.Setenv("GEMINI_API_KEY", "")
+		config := hanako
+		config.RingTimeout = 6 * time.Minute
+		config.MaxCall = 4 * time.Minute
+
+		err := run(config)
+		if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY") {
+			t.Fatalf("ちょうど 10 分なら時間では断らず、API キーの確認まで進む。got %v", err)
+		}
+	})
+}
+
+func parseConfig(t *testing.T, args ...string) server.Config {
+	t.Helper()
+	fs := flag.NewFlagSet("backend", flag.ContinueOnError)
+	var config server.Config
+	defineFlags(fs, &config)
+	if err := fs.Parse(args); err != nil {
+		t.Fatal(err)
+	}
+	return config
+}

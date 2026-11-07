@@ -6,6 +6,7 @@ package phone
 
 import (
 	"context"
+	"time"
 
 	"google.golang.org/genai"
 )
@@ -61,6 +62,20 @@ type Phone struct {
 	Hook    Hook
 	Ringer  Ringer
 	Lamp    Lamp
+}
+
+// Clock は、呼び出しの上限と電話の長さを測る時計である。
+// テストは偽の時計を渡し、待たずに時刻を進める。
+type Clock interface {
+	// NewTimer は、d が経ったことを知らせるタイマーを返す。d が 0 以下なら、すぐ知らせる。
+	NewTimer(d time.Duration) Timer
+}
+
+// Timer は、時間が経ったことを Chan で 1 回知らせる。
+type Timer interface {
+	Chan() <-chan time.Time
+	// Stop は、まだ知らせていなければ、知らせないようにする。
+	Stop()
 }
 
 // Gemini は、短命トークンで Live API のセッションを開く。
