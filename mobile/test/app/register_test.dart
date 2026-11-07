@@ -138,6 +138,18 @@ void main() {
     expect(button(tester, '読みました').onTap, isNotNull);
   });
 
+  testWidgets('プライバシーポリシーも、モックの見本の文を出す', (tester) async {
+    await pumpApp(tester, FakeAuthRepository());
+    await openRegister(tester);
+
+    await openDocument(tester, 'プライバシーポリシー');
+
+    expect(find.text('プライバシーポリシー'), findsOneWidget);
+    expect(find.text('モック用の見本です。実際の規約ではありません。'), findsOneWidget);
+    expect(find.text('第1条 サービスの内容'), findsOneWidget);
+    expect(find.text('サービスの内容は、事前にお知らせしたうえで変更または停止することがあります。'), findsOneWidget);
+  });
+
   testWidgets('「読みました」を押すと、その文書だけ読んだことになる', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
     await openRegister(tester);
