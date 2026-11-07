@@ -13,10 +13,14 @@ import (
 )
 
 var hanako = server.Config{
-	Name:     "山田花子",
-	CallName: "ハナさん",
-	Model:    "gemini-3.8-live",
-	Voice:    "Kore",
+	Name:         "山田花子",
+	CallName:     "ハナさん",
+	Model:        "gemini-3.8-live",
+	Voice:        "Kore",
+	RingTimeout:  time.Minute,
+	MaxCall:      5 * time.Minute,
+	WrapUpBefore: time.Minute,
+	TokenMargin:  5 * time.Minute,
 }
 
 // 日本時間では 2026 年 11 月 7 日(土)の 14 時 30 分である。
@@ -232,8 +236,9 @@ func TestConnectionLost(t *testing.T) {
 
 		session.reply(&genai.LiveServerMessage{GoAway: &genai.LiveServerGoAway{TimeLeft: 10 * time.Second}})
 
-		if err := c.result(t); err == nil || !strings.Contains(err.Error(), "GoAway") {
-			t.Errorf("電話が終わった理由 = %v, want GoAway を受けたこと", err)
+		err := c.result(t)
+		if err == nil || !strings.Contains(err.Error(), "GoAway") || !strings.Contains(err.Error(), "10s") {
+			t.Errorf("電話が終わった理由 = %v, want GoAway と残り時間", err)
 		}
 		if !session.isClosed() {
 			t.Error("電話が終わっても Live API との接続を閉じていない")
@@ -298,6 +303,23 @@ func TestToken(t *testing.T) {
 		}
 	})
 
+	t.Run("システム指示は、締めの合図を受けたら話をまとめて別れの挨拶をするよう伝える", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		s.gemini.waitForSession(t, 1)
+
+		instruction := systemInstruction(t, s.gemini.tokenConfigs()[0])
+		for _, want := range []string{
+			"[あと 1 分で電話を終えます]",
+			"話をまとめ",
+			"別れの挨拶",
+		} {
+			if !strings.Contains(instruction, want) {
+				t.Errorf("システム指示に %q がない:\n%s", want, instruction)
+			}
+		}
+	})
+
 	t.Run("システム指示に、見守る方の名前と呼び方、日本時間の今の日時、AI であること、始まりの合図を書く", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		s.startCall(t)
@@ -334,6 +356,223 @@ func TestToken(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestTokenExpireTime(t *testing.T) {
+	t.Run("有効期限は、呼び出しの上限と電話の長さの上限とトークンの余裕の合計で、既定では 11 分である", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		s.gemini.waitForSession(t, 1)
+
+		got := s.gemini.tokenConfigs()[0].ExpireTime
+		want := saturdayAfternoon.Add(11 * time.Minute)
+		if !got.Equal(want) {
+			t.Errorf("有効期限 = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("時間のフラグを変えると、有効期限が変わる", func(t *testing.T) {
+		config := hanako
+		config.RingTimeout = 30 * time.Second
+		config.MaxCall = 2 * time.Minute
+		config.TokenMargin = time.Minute
+		s := newSystem(t, config, saturdayAfternoon)
+		s.startCall(t)
+		s.gemini.waitForSession(t, 1)
+
+		got := s.gemini.tokenConfigs()[0].ExpireTime
+		want := saturdayAfternoon.Add(3*time.Minute + 30*time.Second)
+		if !got.Equal(want) {
+			t.Errorf("有効期限 = %s, want %s", got, want)
+		}
+	})
+}
+
+func TestRingTimeout(t *testing.T) {
+	t.Run("呼び出しの上限を過ぎても受話器が上がらなければ、呼び出しを止め、接続を閉じ、見守る方が出なかったことを出す", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+
+		s.advance(t, c, 30*time.Second)
+		if c.hasEnded() {
+			t.Fatalf("上限は 1 分なのに、30 秒で電話が終わった: %v", c.err)
+		}
+
+		s.clock.advance(30 * time.Second)
+
+		err := c.result(t)
+		if err == nil || !strings.Contains(err.Error(), "見守る方が出ませんでした") {
+			t.Errorf("電話が終わった理由 = %v, want 見守る方が出なかったこと", err)
+		}
+		if s.phone.isRinging() {
+			t.Error("呼び出しの上限を過ぎても呼び出し音が鳴っている")
+		}
+		if !session.isClosed() {
+			t.Error("見守る方が出なくても Live API との接続を閉じていない")
+		}
+		if s.phone.isLit() {
+			t.Error("電話が終わってもランプが点いている")
+		}
+		if sent := session.sent(); len(sent) != 0 {
+			t.Errorf("出なかった電話で Gemini に %d 個のメッセージを送った: %+v", len(sent), sent)
+		}
+	})
+
+	t.Run("呼び出しの上限を変えると、見守る方が出なかったと出る時刻が変わる", func(t *testing.T) {
+		config := hanako
+		config.RingTimeout = 30 * time.Second
+		s := newSystem(t, config, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+
+		s.clock.advance(30 * time.Second)
+
+		err := c.result(t)
+		if err == nil || !strings.Contains(err.Error(), "見守る方が出ませんでした") {
+			t.Errorf("電話が終わった理由 = %v, want 見守る方が出なかったこと", err)
+		}
+		if !session.isClosed() {
+			t.Error("見守る方が出なくても Live API との接続を閉じていない")
+		}
+	})
+
+	t.Run("受話器を上げたあとに呼び出しの上限が来ても、出なかったことにはしない", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+
+		s.advance(t, c, time.Minute)
+
+		if c.hasEnded() {
+			t.Fatalf("通話中なのに、呼び出しの上限で電話が終わった: %v", c.err)
+		}
+		if s.phone.isRinging() {
+			t.Error("受話器が上がっても呼び出し音が鳴っている")
+		}
+	})
+}
+
+func TestWrapUpAndTimeLimit(t *testing.T) {
+	t.Run("上限の 1 分前に締めの合図を送り、上限で電話を終える", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+
+		s.advance(t, c, 3*time.Minute)
+		if c.hasEnded() {
+			t.Fatalf("締めの合図より前に電話が終わった: %v", c.err)
+		}
+		if hasText(session, "[あと 1 分で電話を終えます]") {
+			t.Fatal("締めの合図が早い")
+		}
+
+		s.clock.advance(time.Minute)
+		cue := waitForText(t, session, "[あと 1 分で電話を終えます]")
+		if c.hasEnded() {
+			t.Fatal("締めの合図のときに電話が終わった")
+		}
+		if len(cue.Turns) != 1 || cue.Turns[0].Role != genai.RoleUser {
+			t.Errorf("締めの合図 = %s, want 見守る方の発話", turnsString(cue.Turns))
+		}
+		if cue.TurnComplete == nil || !*cue.TurnComplete {
+			t.Error("締めの合図で発話を終えていないので、AI が別れの挨拶をしない")
+		}
+
+		s.clock.advance(time.Minute)
+		if err := c.result(t); err != nil {
+			t.Errorf("上限で電話が %v で終わった", err)
+		}
+		if !session.isClosed() {
+			t.Error("上限で電話が終わっても Live API との接続を閉じていない")
+		}
+		if s.phone.isLit() {
+			t.Error("電話が終わってもランプが点いている")
+		}
+	})
+
+	t.Run("時間のフラグを変えると、締めの合図と電話の終わりが変わる", func(t *testing.T) {
+		config := hanako
+		config.RingTimeout = 3 * time.Minute
+		config.MaxCall = 2 * time.Minute
+		config.WrapUpBefore = 30 * time.Second
+		config.TokenMargin = time.Minute
+		s := newSystem(t, config, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+
+		instruction := systemInstruction(t, s.gemini.tokenConfigs()[0])
+		if !strings.Contains(instruction, "[あと 30 秒で電話を終えます]") {
+			t.Errorf("システム指示の締めの合図が --wrap-up-before と違う:\n%s", instruction)
+		}
+
+		// 呼び出しに 1 分使う。締めの合図は受話器が上がってから測るので、まだ送らない。
+		s.advance(t, c, time.Minute)
+		if c.hasEnded() {
+			t.Fatalf("呼び出しの上限は 3 分なのに、1 分で電話が終わった: %v", c.err)
+		}
+
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+
+		// 通話 30 秒。合図は通話が 1 分 30 秒になってからなので、まだ送らない。
+		s.advance(t, c, 30*time.Second)
+		if hasText(session, "[あと 30 秒で電話を終えます]") {
+			t.Fatal("受話器を上げて 30 秒で締めの合図を送った")
+		}
+
+		s.clock.advance(time.Minute)
+		waitForText(t, session, "[あと 30 秒で電話を終えます]")
+		if c.hasEnded() {
+			t.Fatal("締めの合図のときに電話が終わった")
+		}
+
+		s.clock.advance(30 * time.Second)
+		if err := c.result(t); err != nil {
+			t.Errorf("上限で電話が %v で終わった", err)
+		}
+		if !session.isClosed() {
+			t.Error("上限で電話が終わっても Live API との接続を閉じていない")
+		}
+	})
+}
+
+func waitForText(t *testing.T, session *fakeSession, text string) genai.LiveClientContentInput {
+	t.Helper()
+	var found genai.LiveClientContentInput
+	waitUntil(t, fmt.Sprintf("Gemini に %q を送らなかった", text), func() bool {
+		in, ok := sentText(session, text)
+		if ok {
+			found = in
+		}
+		return ok
+	})
+	return found
+}
+
+func hasText(session *fakeSession, text string) bool {
+	_, ok := sentText(session, text)
+	return ok
+}
+
+func sentText(session *fakeSession, text string) (genai.LiveClientContentInput, bool) {
+	for _, msg := range session.sent() {
+		in, ok := msg.(genai.LiveClientContentInput)
+		if !ok || len(in.Turns) != 1 || len(in.Turns[0].Parts) != 1 {
+			continue
+		}
+		if in.Turns[0].Parts[0].Text == text {
+			return in, true
+		}
+	}
+	return genai.LiveClientContentInput{}, false
 }
 
 func voiceName(config *genai.LiveConnectConfig) string {

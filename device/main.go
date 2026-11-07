@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"google.golang.org/genai"
 
@@ -48,7 +49,8 @@ func run() error {
 			Ringer:  mac.Ringer{Out: os.Stdout},
 			Lamp:    mac.Lamp{Out: os.Stdout},
 		},
-		Out: os.Stdout,
+		Out:   os.Stdout,
+		Clock: realClock{},
 	}
 	if err := device.Call(ctx); err != nil {
 		return fmt.Errorf("電話が終わりました: %w", err)
@@ -56,6 +58,18 @@ func run() error {
 	fmt.Println("電話が終わりました。")
 	return nil
 }
+
+// realClock は、そのマシンの時計である。
+type realClock struct{}
+
+func (realClock) NewTimer(d time.Duration) phone.Timer {
+	return realTimer{time.NewTimer(d)}
+}
+
+type realTimer struct{ timer *time.Timer }
+
+func (t realTimer) Chan() <-chan time.Time { return t.timer.C }
+func (t realTimer) Stop()                  { t.timer.Stop() }
 
 // liveAPI は、短命トークンで Gemini の Live API につなぐ。
 type liveAPI struct{}

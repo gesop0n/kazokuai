@@ -24,6 +24,15 @@ type Config struct {
 	Model string
 	// Voice は AI の声の名前である。
 	Voice string
+	// RingTimeout は呼び出しの上限である。
+	RingTimeout time.Duration
+	// MaxCall は電話の長さの上限である。受話器が上がってから測る。
+	MaxCall time.Duration
+	// WrapUpBefore は、締めの合図を電話の長さの上限のどれだけ前に送るかである。
+	WrapUpBefore time.Duration
+	// TokenMargin は、トークンの有効期限を、呼び出しの上限と電話の長さの上限よりどれだけ先にするかである。
+	// 有効期限が切れると、開いている接続も使えなくなる。
+	TokenMargin time.Duration
 }
 
 // Tokens は、制約を固定した短命トークンを作る。genai.Client の AuthTokens がこれを満たす。
@@ -40,14 +49,23 @@ type Clock interface {
 func New(config Config, tokens Tokens, clock Clock) http.Handler {
 	router := chi.NewRouter()
 	router.Post(protocol.TokenPath, func(w http.ResponseWriter, r *http.Request) {
-		token, err := tokens.Create(r.Context(), tokenConfig(config, clock.Now()))
+		now := clock.Now()
+		token, err := tokens.Create(r.Context(), tokenConfig(config, now))
 		if err != nil {
 			log.Printf("短命トークンを作れなかった: %v", err)
 			http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(protocol.TokenResponse{Token: token.Name, Model: config.Model})
+		json.NewEncoder(w).Encode(protocol.TokenResponse{
+			Token: token.Name,
+			Model: config.Model,
+			Times: protocol.CallTimes{
+				RingTimeout:  config.RingTimeout,
+				MaxCall:      config.MaxCall,
+				WrapUpBefore: config.WrapUpBefore,
+			},
+		})
 	})
 	return router
 }
@@ -57,7 +75,10 @@ func New(config Config, tokens Tokens, clock Clock) http.Handler {
 // デバイスはどれも変えられない。
 func tokenConfig(config Config, now time.Time) *genai.CreateAuthTokenConfig {
 	return &genai.CreateAuthTokenConfig{
-		Uses: genai.Ptr[int32](1),
+		// 有効期限が切れると開いている接続も切れるので、呼び出しと電話の全体を覆う。
+		// 新しいセッションを始められる期限は、SDK の既定の 60 秒のままにする。
+		ExpireTime: now.Add(config.RingTimeout + config.MaxCall + config.TokenMargin),
+		Uses:       genai.Ptr[int32](1),
 		LiveConnectConstraints: &genai.LiveConnectConstraints{
 			Model: config.Model,
 			Config: &genai.LiveConnectConfig{

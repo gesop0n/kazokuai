@@ -39,12 +39,14 @@ type system struct {
 	gemini   *fakeGemini
 	terminal *terminal
 	device   *phone.Device
+	clock    *fakeClock
 }
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
-	backend := httptest.NewServer(server.New(config, gemini, fakeClock{now}))
+	clock := &fakeClock{now: now}
+	backend := httptest.NewServer(server.New(config, gemini, clock))
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}
@@ -52,11 +54,13 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 		phone:    p,
 		gemini:   gemini,
 		terminal: term,
+		clock:    clock,
 		device: &phone.Device{
 			Backend: backend.URL,
 			Gemini:  gemini,
 			Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
 			Out:     term,
+			Clock:   clock,
 		},
 	}
 }
@@ -107,10 +111,84 @@ func (c *call) hasEnded() bool {
 	}
 }
 
-// fakeClock は、決まった時刻を返す偽の時計である。
-type fakeClock struct{ now time.Time }
+// advance は時計を d 進める。期限が来ていたら、デバイスがそれを扱うのを少し待つ。
+// 期限が来ていなければ待たない。その時刻には、デバイスに知らせるものがない。
+func (s *system) advance(t *testing.T, c *call, d time.Duration) {
+	t.Helper()
+	if s.clock.advance(d) == 0 {
+		return
+	}
+	select {
+	case <-c.ended:
+	case <-time.After(200 * time.Millisecond):
+	}
+}
 
-func (c fakeClock) Now() time.Time { return c.now }
+// fakeClock は偽の時計である。advance で、待たずに時刻を進める。
+type fakeClock struct {
+	mu      sync.Mutex
+	now     time.Time
+	waiters []*fakeTimer
+}
+
+func (c *fakeClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *fakeClock) NewTimer(d time.Duration) phone.Timer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	timer := &fakeTimer{
+		clock:    c,
+		deadline: c.now.Add(d),
+		ch:       make(chan time.Time, 1),
+	}
+	if d <= 0 {
+		timer.ch <- c.now
+		return timer
+	}
+	c.waiters = append(c.waiters, timer)
+	return timer
+}
+
+// advance は、時計を d 進め、その時刻までに期限が来たタイマーへ知らせる。知らせた数を返す。
+func (c *fakeClock) advance(d time.Duration) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+	fired := 0
+	pending := make([]*fakeTimer, 0, len(c.waiters))
+	for _, timer := range c.waiters {
+		if timer.stopped {
+			continue
+		}
+		if !timer.deadline.After(c.now) {
+			timer.ch <- c.now
+			fired++
+			continue
+		}
+		pending = append(pending, timer)
+	}
+	c.waiters = pending
+	return fired
+}
+
+type fakeTimer struct {
+	clock    *fakeClock
+	deadline time.Time
+	ch       chan time.Time
+	stopped  bool
+}
+
+func (t *fakeTimer) Chan() <-chan time.Time { return t.ch }
+
+func (t *fakeTimer) Stop() {
+	t.clock.mu.Lock()
+	defer t.clock.mu.Unlock()
+	t.stopped = true
+}
 
 // fakePhone は偽の電話機である。受話器の音声、フック、呼び出し音、ランプを持つ。
 type fakePhone struct {
