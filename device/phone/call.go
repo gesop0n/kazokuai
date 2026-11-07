@@ -72,7 +72,7 @@ func (d *Device) Call(ctx context.Context) error {
 	outgoing, turns, unsent := send(session, done)
 
 	d.Phone.Lamp.On()
-	defer d.Phone.Lamp.Off()
+	// ランプを消すのは、下の後始末で 1 回だけである。ここに defer を足すと、報告の前と後で 2 回消える。
 	// 呼び出し音を出す前に測り始める。テストは音が鳴ったのを見てから時計を進める。
 	ringTimer := d.Clock.NewTimer(token.Times.RingTimeout)
 	defer ringTimer.Stop()

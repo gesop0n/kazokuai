@@ -280,6 +280,7 @@ type fakePhone struct {
 	mic     chan []byte // マイクが開いている間だけある
 	played  []byte
 	hushes  int
+	offs    int
 }
 
 func (p *fakePhone) Listen(ctx context.Context) (<-chan []byte, error) {
@@ -314,7 +315,13 @@ func (p *fakePhone) Events() <-chan phone.HookEvent { return p.hook }
 func (p *fakePhone) Ring() { p.set(&p.ringing, true) }
 func (p *fakePhone) Stop() { p.set(&p.ringing, false) }
 func (p *fakePhone) On()   { p.set(&p.lit, true) }
-func (p *fakePhone) Off()  { p.set(&p.lit, false) }
+
+func (p *fakePhone) Off() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.lit = false
+	p.offs++
+}
 
 func (p *fakePhone) set(field *bool, v bool) {
 	p.mu.Lock()
@@ -330,6 +337,12 @@ func (p *fakePhone) get(field *bool) bool {
 
 func (p *fakePhone) isRinging() bool { return p.get(&p.ringing) }
 func (p *fakePhone) isLit() bool     { return p.get(&p.lit) }
+
+func (p *fakePhone) offCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.offs
+}
 
 func (p *fakePhone) micOpen() bool {
 	p.mu.Lock()

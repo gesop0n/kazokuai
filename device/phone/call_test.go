@@ -209,6 +209,9 @@ func TestPutDown(t *testing.T) {
 		if s.phone.isLit() {
 			t.Error("電話が終わってもランプが点いている")
 		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("ランプを消した回数 = %d, want 1", n)
+		}
 		s.terminal.waitForLines(t, "かぞくAI: ハナさん、こんにちは。")
 	})
 
@@ -235,6 +238,9 @@ func TestPutDown(t *testing.T) {
 		if s.phone.isLit() {
 			t.Error("報告の応答を待っているあいだ、ランプが点いている")
 		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("報告の応答を待っているあいだ、ランプを消した回数 = %d, want 1", n)
+		}
 		waitUntil(t, "報告の応答を待っているあいだ、マイクが開いている", func() bool { return !s.phone.micOpen() })
 		if s.phone.hushCount() == 0 {
 			t.Error("報告の応答を待っているあいだ、まだ流していない音を捨てていない")
@@ -243,6 +249,9 @@ func TestPutDown(t *testing.T) {
 		s.releaseReport()
 		if err := c.result(t); err != nil {
 			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
+		if n := s.phone.offCount(); n != 1 {
+			t.Errorf("報告が戻ったあとのランプを消した回数 = %d, want 1", n)
 		}
 	})
 
