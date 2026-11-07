@@ -41,12 +41,22 @@ class _DocumentScreenState extends State<DocumentScreen> {
 
   void _onScroll() {
     if (!mounted || !_scroll.hasClients) return;
-    final position = _scroll.position;
-    if (!position.hasContentDimensions) return;
-    final max = position.maxScrollExtent;
-    final progress = max <= 0 ? 1.0 : (position.pixels / max).clamp(0.0, 1.0);
-    if (max > 0 && position.pixels >= max - 1) _confirmedEnd = true;
-    // 文が画面に収まるときは、開いただけで最後まで読んだことになる
+    _applyMetrics(_scroll.position);
+  }
+
+  // スクロールしない寸法変更でも、割合と読了を更新する
+  bool _onMetrics(ScrollMetricsNotification notification) {
+    _applyMetrics(notification.metrics);
+    return false;
+  }
+
+  void _applyMetrics(ScrollMetrics metrics) {
+    if (!mounted || !metrics.hasContentDimensions) return;
+    final max = metrics.maxScrollExtent;
+    final progress = max <= 0 ? 1.0 : (metrics.pixels / max).clamp(0.0, 1.0);
+    if (max > 0 && metrics.pixels >= max - 1) _confirmedEnd = true;
+    // 文が画面に収まるときは、開いただけで最後まで読んだことになる。
+    // 再び収まらなくなったときは、最後まで届いていない限り押せなくする
     final reachedEnd = _confirmedEnd || max <= 0;
     if (progress == _progress && reachedEnd == _reachedEnd) return;
     setState(() {
@@ -71,44 +81,47 @@ class _DocumentScreenState extends State<DocumentScreen> {
             ),
             _ReadProgressBar(progress: _progress),
             Expanded(
-              child: SingleChildScrollView(
-                controller: _scroll,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: AppColors.paperSunken,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
+              child: NotificationListener<ScrollMetricsNotification>(
+                onNotification: _onMetrics,
+                child: SingleChildScrollView(
+                  controller: _scroll,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    spacing: 16,
+                    children: [
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.paperSunken,
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Text(
-                          document.notice,
-                          style: AppTextStyles.labelS,
-                        ),
-                      ),
-                    ),
-                    for (final article in document.articles)
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        spacing: 4,
-                        children: [
-                          Text(article.heading, style: AppTextStyles.labelL),
-                          Text(
-                            article.body,
-                            style: AppTextStyles.bodyM.copyWith(
-                              color: AppColors.inkSecondary,
-                            ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                        ],
+                          child: Text(
+                            document.notice,
+                            style: AppTextStyles.labelS,
+                          ),
+                        ),
                       ),
-                  ],
+                      for (final article in document.articles)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          spacing: 4,
+                          children: [
+                            Text(article.heading, style: AppTextStyles.labelL),
+                            Text(
+                              article.body,
+                              style: AppTextStyles.bodyM.copyWith(
+                                color: AppColors.inkSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

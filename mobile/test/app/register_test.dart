@@ -140,6 +140,38 @@ void main() {
     expect(button(tester, '読みました').onTap, isNotNull);
   });
 
+  testWidgets('画面の大きさが変わると、読んだ割合と「読みました」が更新される', (tester) async {
+    await pumpApp(tester, FakeAuthRepository());
+    tester.view.physicalSize = const Size(852, 393);
+    await tester.pumpAndSettle();
+    await openRegister(tester);
+    await openDocument(tester, '利用規約');
+
+    expect(
+      tester.state<ScrollableState>(documentScroll()).position.maxScrollExtent,
+      greaterThan(0),
+    );
+    expect(readProgress(tester), '0%');
+    expect(button(tester, '読みました').onTap, isNull);
+
+    tester.view.physicalSize = const Size(393, 852);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.state<ScrollableState>(documentScroll()).position.maxScrollExtent,
+      0,
+    );
+    expect(readProgress(tester), '100%');
+    expect(button(tester, '読みました').onTap, isNotNull);
+
+    // 収まっただけで読了を確定しない。再び収まらなければ、最後まで読まないと押せない
+    tester.view.physicalSize = const Size(852, 393);
+    await tester.pumpAndSettle();
+
+    expect(readProgress(tester), '0%');
+    expect(button(tester, '読みました').onTap, isNull);
+  });
+
   testWidgets('プライバシーポリシーも、モックの見本の文を出す', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
     await openRegister(tester);
