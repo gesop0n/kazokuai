@@ -111,10 +111,10 @@ Done when Codex has written its second file, or the first review held no finding
 
 ## 7. Compare screens
 
-When the ticket changes screens in `mobile/`, put each changed screen beside the same screen in the mock (ADR 0001). You alone run the simulator, because the tickets share one.
+When the ticket changes screens in `mobile/`, put each changed screen beside the same screen in the mock (ADR 0001). Use a simulator of your own, `kazokuai-shots`, so that the person's simulator stays as they left it.
 
 1. Name the changed screens by their ids in the mock (`L2c`, `05`, `07b`).
-2. Boot the iPhone simulator without its window: `xcrun simctl list devices available` gives `<udid>`, and `xcrun simctl boot <udid>` boots it.
+2. Boot `kazokuai-shots` without its window. `xcrun simctl list devices` gives its `<udid>`. When it is missing, create it with `xcrun simctl create kazokuai-shots "iPhone 17"`, which prints the `<udid>`. Then `xcrun simctl boot <udid>`.
 3. For each changed screen that a route opens, run the app at that route in the background, wait for `Flutter run key commands` in the log, save the screenshot, and stop the run. The first build in a new worktree takes several minutes.
 
    ```bash
@@ -124,14 +124,15 @@ When the ticket changes screens in `mobile/`, put each changed screen beside the
    pkill -f "run -d <udid> --route"
    ```
 
-   The simulator keeps the app signed in, and the app sends a signed-in person away from the screens before login. Take the screens after login first. When one shows L1 instead, notify the person to sign in on the simulator and wait for their answer. Then sign out with `xcrun simctl keychain <udid> reset` and take the screens before login. Tell the person that this signed them out.
+   The simulator keeps the app signed in, and the app sends a signed-in person away from the screens before login. Take the screens after login first. When one shows L1 instead, open the window with `open -g -a Simulator --args -CurrentDeviceUDID <udid>`, notify the person to sign in on `kazokuai-shots`, and wait for their answer. Then sign out with `xcrun simctl keychain <udid> reset` and take the screens before login.
 4. Capture the mock's screens and pair them with the app's:
 
    ```bash
    uv run --with playwright --with pillow python3 .claude/skills/run-tickets/compare_screens.py docs/mock/ui.html <work>/shots <id>...
    ```
 
-5. Look at every pair. Each difference the ticket does not explain goes into the PR body with the remaining findings.
+5. The script prints each id with its title in the mock. Check that the title names the screen you took: a screen that only a state of another screen shows, such as a form after both documents are read, has an id of its own and no route.
+6. Look at every pair. Each difference the ticket does not explain goes into the PR body with the remaining findings.
 
 Done when every changed screen has a pair in `<work>/shots/<id>.png`, or is listed as not captured because no route opens it.
 
