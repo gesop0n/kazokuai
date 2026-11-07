@@ -6,6 +6,8 @@ A phone-style device at an elderly parent's home talks with them by voice throug
 - `device/`: the Go program on the Raspberry Pi.
 - `backend/`: the Go API on Cloud Run.
 
+The architecture diagram is in `docs/architecture/`. When a change adds or removes a component, changes how components connect, or moves a responsibility between them, update the diagram in the same PR as `docs/architecture/README.md` says.
+
 ## Check
 
 `mise run check` must pass before you hand off a commit. CI runs the same task.
