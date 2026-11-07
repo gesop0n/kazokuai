@@ -39,7 +39,7 @@ Done when no worktree or `#<N>` workspace belongs to a closed ticket.
 
 ## 3. Pick the frontier
 
-The **frontier** is every open sub-issue of the spec labelled `ready-for-agent` with no open blockers and no `ticket/<N>-*` branch yet (`git gtr list`).
+The **frontier** is every open sub-issue of the spec labelled `ready-for-agent` with no open blockers and no `ticket/<N>` branch yet (`git gtr list`). A branch named in the older form `ticket/<N>-grok` or `ticket/<N>-claude` counts too.
 
 Pick up to two tickets from the frontier. Grok implements every ticket (ADR 0007, `docs/adr/20261107_grok_implementer.md`), with one Grok per ticket.
 
@@ -64,8 +64,8 @@ For each picked ticket, in parallel:
 2. Create and open the worktree:
 
    ```bash
-   git gtr new ticket/<N>-grok --yes        # the hooks run mise trust and codegraph init, and .env is copied
-   wt=$(git gtr go ticket/<N>-grok)          # not "path": in zsh, path is PATH
+   git gtr new ticket/<N> --yes     # the hooks run mise trust and codegraph init, and .env is copied
+   wt=$(git gtr go ticket/<N>)      # not "path": in zsh, path is PATH
    herdr worktree open --path "$wt" --no-focus --label "#<N>"
    ```
 
@@ -148,8 +148,8 @@ Done when every changed screen has a pair on `pr-images` with its image line, or
 3. Push and open the PR. The title is the ticket's title.
 
    ```bash
-   git -C "$wt" push -u origin ticket/<N>-grok
-   gh pr create --base main --head ticket/<N>-grok --title "<ticket title>" --body-file <work>/pr_ja.md
+   git -C "$wt" push -u origin ticket/<N>
+   gh pr create --base main --head ticket/<N> --title "<ticket title>" --body-file <work>/pr_ja.md
    gh pr checks <pr> --watch
    ```
 
