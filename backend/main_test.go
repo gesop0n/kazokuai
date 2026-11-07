@@ -69,6 +69,34 @@ func TestRunRefusesWhenTheCallOutlastsTheConnection(t *testing.T) {
 		}
 	})
 
+	t.Run("締めの合図を送る時間が電話の長さの上限より長いと、起動を断る", func(t *testing.T) {
+		config := hanako
+		config.MaxCall = 30 * time.Second
+		config.WrapUpBefore = time.Minute
+
+		err := run(config)
+		if err == nil {
+			t.Fatal("起動してしまった")
+		}
+		for _, want := range []string{"--wrap-up-before", "--max-call", "1 分", "30 秒", "起動できません"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("起動を断るメッセージ %q に %q がない", err.Error(), want)
+			}
+		}
+	})
+
+	t.Run("締めの合図を送る時間が電話の長さの上限と同じなら、その時間では起動を断らない", func(t *testing.T) {
+		t.Setenv("GEMINI_API_KEY", "")
+		config := hanako
+		config.MaxCall = time.Minute
+		config.WrapUpBefore = time.Minute
+
+		err := run(config)
+		if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY") {
+			t.Fatalf("合図と上限が同じなら、その時間では断らず API キーの確認まで進む。got %v", err)
+		}
+	})
+
 	t.Run("合計がちょうど 10 分なら、時間を理由に起動を断らない", func(t *testing.T) {
 		t.Setenv("GEMINI_API_KEY", "")
 		config := hanako

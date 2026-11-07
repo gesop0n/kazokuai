@@ -548,32 +548,31 @@ func waitForText(t *testing.T, session *fakeSession, text string) genai.LiveClie
 	t.Helper()
 	var found genai.LiveClientContentInput
 	waitUntil(t, fmt.Sprintf("Gemini に %q を送らなかった", text), func() bool {
-		for _, msg := range session.sent() {
-			in, ok := msg.(genai.LiveClientContentInput)
-			if !ok || len(in.Turns) != 1 || len(in.Turns[0].Parts) != 1 {
-				continue
-			}
-			if in.Turns[0].Parts[0].Text == text {
-				found = in
-				return true
-			}
+		in, ok := sentText(session, text)
+		if ok {
+			found = in
 		}
-		return false
+		return ok
 	})
 	return found
 }
 
 func hasText(session *fakeSession, text string) bool {
+	_, ok := sentText(session, text)
+	return ok
+}
+
+func sentText(session *fakeSession, text string) (genai.LiveClientContentInput, bool) {
 	for _, msg := range session.sent() {
 		in, ok := msg.(genai.LiveClientContentInput)
 		if !ok || len(in.Turns) != 1 || len(in.Turns[0].Parts) != 1 {
 			continue
 		}
 		if in.Turns[0].Parts[0].Text == text {
-			return true
+			return in, true
 		}
 	}
-	return false
+	return genai.LiveClientContentInput{}, false
 }
 
 func voiceName(config *genai.LiveConnectConfig) string {

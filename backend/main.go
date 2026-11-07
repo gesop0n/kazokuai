@@ -66,6 +66,11 @@ func run(config server.Config) error {
 			protocol.DurationWords(config.MaxCall),
 			limit, limit)
 	}
+	if config.WrapUpBefore > config.MaxCall {
+		return fmt.Errorf("締めの合図を送る時間（--wrap-up-before=%s）が電話の長さの上限（--max-call=%s）より長いので、起動できません。合図に書く残り時間が、実際に残っている時間と違ってしまいます",
+			protocol.DurationWords(config.WrapUpBefore),
+			protocol.DurationWords(config.MaxCall))
+	}
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return errors.New("環境変数 GEMINI_API_KEY に Gemini の API キーを入れてください")
