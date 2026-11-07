@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatalf("%v\n%s", err, firebasetest.Hint)
 	}
-	backend := httptest.NewServer(server.New(server.Config{}, emulators, nil, nil))
+	backend := httptest.NewServer(server.New(server.Config{}, emulators, nil, nil, nil))
 	hanako.WatchedPerson, err = firebasetest.RegisterWatchedPerson(ctx, backend.URL, "山田花子", "ハナさん")
 	backend.Close()
 	if err != nil {

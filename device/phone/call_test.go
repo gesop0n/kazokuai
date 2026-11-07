@@ -3,6 +3,7 @@ package phone_test
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -94,13 +95,11 @@ func TestTalking(t *testing.T) {
 		session.reply(
 			outputTranscription("ハナさん、"),
 			aiAudio(1, 2, 3, 4),
-			outputTranscription("こんにちは。"),
-			turnComplete(),
+			finished(outputTranscription("こんにちは。")),
 			inputTranscription("はい、"),
-			inputTranscription("元気です。"),
-			outputTranscription("よかったです。"),
+			finished(inputTranscription("元気です。")),
+			finished(outputTranscription("よかったです。")),
 			aiAudio(5, 6),
-			turnComplete(),
 		)
 
 		s.terminal.waitForLines(t,
@@ -114,9 +113,9 @@ func TestTalking(t *testing.T) {
 		}
 	})
 
-	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨て、AI がそこまで話したことを出す", func(t *testing.T) {
+	t.Run("見守る方が AI の話に割って入ると、まだ流していない AI の音声を捨てる。行は、電話が終わったときに、そこまで話した順で出す", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
-		s.startCall(t)
+		c := s.startCall(t)
 		session := s.gemini.waitForSession(t, 1)
 		s.phone.pickUp()
 
@@ -129,12 +128,42 @@ func TestTalking(t *testing.T) {
 			turnComplete(),
 		)
 
+		waitUntil(t, "AI の音声を捨てなかった", func() bool { return s.phone.hushCount() == 1 })
+		if text := s.terminal.text(); strings.Contains(text, "かぞくAI:") || strings.Contains(text, "見守る方:") {
+			t.Fatalf("割り込みと相手の文字起こしと TurnComplete では行を区切らない:\n%s", text)
+		}
+
+		s.phone.putDown()
+		if err := c.result(t); err != nil {
+			t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+		}
 		s.terminal.waitForLines(t,
 			"かぞくAI: 今日は",
 			"見守る方: あのね、聞いてほしいの。",
 		)
-		if s.phone.hushCount() != 1 {
-			t.Errorf("AI の音声を捨てた回数 = %d, want 1", s.phone.hushCount())
+	})
+
+	t.Run("2 人の文字起こしが入り交じって届いても、相手の文字起こしや TurnComplete では区切らず、1 つの発話は 1 行のままである", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+
+		session.reply(
+			outputTranscription("こんにちは、"),
+			inputTranscription("うん、"),
+			turnComplete(),
+			finished(outputTranscription("ハナさん。")),
+			finished(inputTranscription("元気です。")),
+		)
+
+		want := []string{
+			"かぞくAI: こんにちは、ハナさん。",
+			"見守る方: うん、元気です。",
+		}
+		s.terminal.waitForLines(t, want...)
+		if got := s.terminal.lines(); !reflect.DeepEqual(got, want) {
+			t.Errorf("ターミナル = %q, want %q", got, want)
 		}
 	})
 

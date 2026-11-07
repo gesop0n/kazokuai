@@ -62,6 +62,8 @@ func run() error {
 // realClock は、そのマシンの時計である。
 type realClock struct{}
 
+func (realClock) Now() time.Time { return time.Now() }
+
 func (realClock) NewTimer(d time.Duration) phone.Timer {
 	return realTimer{time.NewTimer(d)}
 }

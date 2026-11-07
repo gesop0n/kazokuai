@@ -1,4 +1,4 @@
-// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受けるバックエンドの HTTP サーバーである。
+// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
 package server
 
 import (
@@ -32,11 +32,24 @@ type Config struct {
 	// TokenMargin は、トークンの有効期限を、呼び出しの上限と電話の長さの上限よりどれだけ先にするかである。
 	// 有効期限が切れると、開いている接続も使えなくなる。
 	TokenMargin time.Duration
+	// SummaryModel は、まとめに使う Gemini のモデルである。空なら DefaultSummaryModel を使う。
+	SummaryModel string
+	// SummaryRetryWait は、まとめの generateContent が失敗してから、次を試すまでの時間である。
+	// 0 なら待たない。
+	SummaryRetryWait time.Duration
 }
+
+// DefaultSummaryModel は、まとめに使うモデルの既定値である。
+const DefaultSummaryModel = "gemini-3.6-flash"
 
 // Tokens は、制約を固定した短命トークンを作る。genai.Client の AuthTokens がこれを満たす。
 type Tokens interface {
 	Create(ctx context.Context, config *genai.CreateAuthTokenConfig) (*genai.AuthToken, error)
+}
+
+// Summarizer は、会話からまとめを 1 回の generateContent で作る。genai.Client の Models がこれを満たす。
+type Summarizer interface {
+	GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
 }
 
 // Clock は今の時刻を返す。
@@ -44,20 +57,23 @@ type Clock interface {
 	Now() time.Time
 }
 
-// New は、protocol.TokenPath でデバイスにトークンを渡し、watchedPersonsPath でアプリから見守る方の登録を受ける http.Handler を返す。
-func New(config Config, firebase Firebase, tokens Tokens, clock Clock) http.Handler {
-	s := &server{config: config, firebase: firebase, tokens: tokens, clock: clock}
+// New は、protocol.TokenPath でデバイスにトークンを渡し、watchedPersonsPath でアプリから見守る方の登録を受け、
+// protocol.CallReportPath でデバイスから電話の報告を受ける http.Handler を返す。
+func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clock Clock) http.Handler {
+	s := &server{config: config, firebase: firebase, tokens: tokens, summarizer: summarizer, clock: clock}
 	router := chi.NewRouter()
 	router.Post(protocol.TokenPath, s.token)
 	router.Post(watchedPersonsPath, s.registerWatchedPerson)
+	router.Post(protocol.CallReportPath, s.reportCall)
 	return router
 }
 
 type server struct {
-	config   Config
-	firebase Firebase
-	tokens   Tokens
-	clock    Clock
+	config     Config
+	firebase   Firebase
+	tokens     Tokens
+	summarizer Summarizer
+	clock      Clock
 }
 
 // token は、見守る方の名前と呼び方を Firestore から読み、それをシステム指示に書いたトークンを作る。

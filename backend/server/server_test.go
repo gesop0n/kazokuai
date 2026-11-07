@@ -138,7 +138,7 @@ func TestRegisterWatchedPerson(t *testing.T) {
 
 func newBackend(t *testing.T) string {
 	t.Helper()
-	backend := httptest.NewServer(server.New(server.Config{}, emulators, nil, nil))
+	backend := httptest.NewServer(server.New(server.Config{}, emulators, nil, nil, nil))
 	t.Cleanup(backend.Close)
 	return backend.URL
 }

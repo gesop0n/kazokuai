@@ -40,13 +40,14 @@ type system struct {
 	terminal *terminal
 	device   *phone.Device
 	clock    *fakeClock
+	backend  *httptest.Server
 }
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
-	backend := httptest.NewServer(server.New(config, emulators, gemini, clock))
+	backend := httptest.NewServer(server.New(config, emulators, gemini, gemini, clock))
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}
@@ -55,6 +56,7 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 		gemini:   gemini,
 		terminal: term,
 		clock:    clock,
+		backend:  backend,
 		device: &phone.Device{
 			Backend: backend.URL,
 			Gemini:  gemini,
@@ -286,12 +288,25 @@ func (p *fakePhone) hushCount() int {
 	return p.hushes
 }
 
+// summaryRequest は、まとめのために Gemini に届いた 1 回の generateContent である。
+type summaryRequest struct {
+	model    string
+	contents []*genai.Content
+	config   *genai.GenerateContentConfig
+}
+
 // fakeGemini は偽の Gemini である。トークンを作るときの制約を記録し、
-// Live のセッションとして fakeSession を開く。
+// Live のセッションとして fakeSession を開き、まとめの generateContent に決めた応答を返す。
 type fakeGemini struct {
 	mu       sync.Mutex
 	tokens   []*genai.CreateAuthTokenConfig
 	sessions []*fakeSession
+
+	summaries   []summaryRequest
+	summaryGate chan struct{}
+	summaryOnce sync.Once
+	summaryResp *genai.GenerateContentResponse
+	summaryErr  error
 }
 
 func (g *fakeGemini) Create(ctx context.Context, config *genai.CreateAuthTokenConfig) (*genai.AuthToken, error) {
@@ -313,6 +328,81 @@ func (g *fakeGemini) Connect(ctx context.Context, token, model string) (phone.Se
 	}
 	g.sessions = append(g.sessions, s)
 	return s, nil
+}
+
+// holdSummary は、generateContent が releaseSummary まで応答を返さないようにする。
+func (g *fakeGemini) holdSummary() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryGate = make(chan struct{})
+	g.summaryOnce = sync.Once{}
+}
+
+// releaseSummary は、止めていた generateContent の応答を返す。
+func (g *fakeGemini) releaseSummary() {
+	g.mu.Lock()
+	gate := g.summaryGate
+	g.mu.Unlock()
+	if gate == nil {
+		return
+	}
+	g.summaryOnce.Do(func() { close(gate) })
+}
+
+// setSummary は、generateContent が返すまとめを決める。
+func (g *fakeGemini) setSummary(resp *genai.GenerateContentResponse) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryResp = resp
+	g.summaryErr = nil
+}
+
+// failSummary は、generateContent を毎回失敗させる。
+func (g *fakeGemini) failSummary(err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.summaryErr = err
+	g.summaryResp = nil
+}
+
+func (g *fakeGemini) GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	g.mu.Lock()
+	g.summaries = append(g.summaries, summaryRequest{model: model, contents: contents, config: config})
+	gate := g.summaryGate
+	resp := g.summaryResp
+	err := g.summaryErr
+	g.mu.Unlock()
+	if gate != nil {
+		select {
+		case <-gate:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if resp == nil {
+		resp = summaryResponse(`{"headline":"","quote":{"text":"","offsetMs":0},"meal":{"status":"話していない","said":"","quote":"","concerning":false},"sleep":{"status":"話していない","said":"","quote":"","concerning":false},"health":{"status":"話していない","said":"","quote":"","concerning":false},"topic":"話し相手","points":[]}`)
+	}
+	return resp, nil
+}
+
+func (g *fakeGemini) summaryRequests() []summaryRequest {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]summaryRequest(nil), g.summaries...)
+}
+
+func summaryResponse(text string) *genai.GenerateContentResponse {
+	return &genai.GenerateContentResponse{
+		Candidates: []*genai.Candidate{{
+			Content: &genai.Content{
+				Role:  genai.RoleModel,
+				Parts: []*genai.Part{{Text: text}},
+			},
+		}},
+	}
 }
 
 func (g *fakeGemini) tokenConfigs() []*genai.CreateAuthTokenConfig {
@@ -496,10 +586,14 @@ func (w *terminal) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-func (w *terminal) lines() []string {
+func (w *terminal) text() string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	return strings.Split(strings.TrimSuffix(w.buf.String(), "\n"), "\n")
+	return w.buf.String()
+}
+
+func (w *terminal) lines() []string {
+	return strings.Split(strings.TrimSuffix(w.text(), "\n"), "\n")
 }
 
 // waitForLines は、ターミナルにこれらの行がこの順に出るのを待つ。

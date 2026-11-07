@@ -1,6 +1,7 @@
 package phone
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -75,8 +76,17 @@ func (d *Device) Call(ctx context.Context) error {
 	defer closeMic()
 	// 受話器が上がるまでは nil なので、マイクの音を待たない
 	var mic <-chan []byte
-	lines := &transcript{out: d.Out}
-	defer lines.flush()
+	lines := &transcript{out: d.Out, clock: d.Clock}
+	defer func() {
+		lines.flush()
+		if lines.pickedUp.IsZero() {
+			return
+		}
+		if err := d.sendReport(lines.report(d.Clock.Now())); err != nil {
+			// 送れなかった電話は、送り直さない。ターミナルに理由だけ出す。
+			fmt.Fprintf(d.Out, "電話の報告を送れなかった: %v\n", err)
+		}
+	}()
 
 	for {
 		select {
@@ -99,6 +109,7 @@ func (d *Device) Call(ctx context.Context) error {
 			switch {
 			case event == PickedUp && ringing:
 				ringing = false
+				lines.pickedUp = d.Clock.Now()
 				d.Phone.Ringer.Stop()
 				ringTimer.Stop()
 				ringC = nil
@@ -152,7 +163,7 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 		return
 	}
 	if in := content.InputTranscription; in != nil {
-		lines.input.WriteString(in.Text)
+		lines.addInput(in.Text)
 		if in.Finished {
 			lines.flushInput()
 		}
@@ -165,19 +176,13 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 		}
 	}
 	if out := content.OutputTranscription; out != nil {
-		// AI が話し始めたので、見守る方の話は終わっている
-		lines.flushInput()
-		lines.output.WriteString(out.Text)
+		lines.addOutput(out.Text)
 		if out.Finished {
 			lines.flushOutput()
 		}
 	}
 	if content.Interrupted {
 		d.Phone.Handset.Hush()
-		lines.flushOutput()
-	}
-	if content.TurnComplete {
-		lines.flush()
 	}
 }
 
@@ -236,25 +241,99 @@ func send(session Session, done <-chan struct{}) (outgoing, turns chan<- func(Se
 }
 
 // transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
+// 行を区切るのは、その人の文字起こしが終わったときと、電話が終わったときだけである。
+// 相手の文字起こしや TurnComplete では区切らない。入り交じって届いても、1 つの発話は 1 行のままになる。
 type transcript struct {
-	out io.Writer
+	out   io.Writer
+	clock Clock
+	// pickedUp は、受話器を上げた時刻である。ゼロなら、まだ上がっていない。
+	pickedUp time.Time
 	// input は見守る方の声の文字起こし、output は AI の声の文字起こしである。
-	input, output strings.Builder
+	input, output openLine
+	// seq は、開いている行が始まった順番を数える。電話の終わりに、先に始まった行から出す。
+	seq int
+	// utterances は、区切った発話を、区切った順に持つ。
+	utterances []protocol.Utterance
 }
 
-func (t *transcript) flushInput()  { t.print("見守る方", &t.input) }
-func (t *transcript) flushOutput() { t.print("かぞくAI", &t.output) }
-
-func (t *transcript) flush() {
-	t.flushInput()
-	t.flushOutput()
+// openLine は、まだ区切っていない 1 人の文字起こしである。
+type openLine struct {
+	text strings.Builder
+	// seq は、この行が始まった順番である。0 なら、この行は空である。
+	seq int
+	// at は、この行の最初の文字が届いた時刻である。
+	at time.Time
 }
 
-func (t *transcript) print(speaker string, text *strings.Builder) {
-	if line := strings.TrimSpace(text.String()); line != "" {
-		fmt.Fprintf(t.out, "%s: %s\n", speaker, line)
+func (t *transcript) addInput(chunk string)  { t.add(&t.input, chunk) }
+func (t *transcript) addOutput(chunk string) { t.add(&t.output, chunk) }
+
+func (t *transcript) add(line *openLine, chunk string) {
+	if line.text.Len() == 0 {
+		t.seq++
+		line.seq = t.seq
+		line.at = t.clock.Now()
 	}
-	text.Reset()
+	line.text.WriteString(chunk)
+}
+
+func (t *transcript) flushInput()  { t.close("見守る方", protocol.SpeakerWatched, &t.input) }
+func (t *transcript) flushOutput() { t.close("かぞくAI", protocol.SpeakerAI, &t.output) }
+
+// flush は、電話の終わりに、まだ区切っていない行を、始まった順に出す。
+func (t *transcript) flush() {
+	switch {
+	case t.input.text.Len() == 0:
+		t.flushOutput()
+	case t.output.text.Len() == 0:
+		t.flushInput()
+	case t.output.seq < t.input.seq:
+		t.flushOutput()
+		t.flushInput()
+	default:
+		t.flushInput()
+		t.flushOutput()
+	}
+}
+
+func (t *transcript) close(label, speaker string, line *openLine) {
+	text := strings.TrimSpace(line.text.String())
+	at := line.at
+	line.text.Reset()
+	line.seq = 0
+	if text == "" {
+		return
+	}
+	fmt.Fprintf(t.out, "%s: %s\n", label, text)
+	if t.pickedUp.IsZero() {
+		return
+	}
+	offset := at.Sub(t.pickedUp)
+	if offset < 0 {
+		offset = 0
+	}
+	t.utterances = append(t.utterances, protocol.Utterance{
+		Speaker:  speaker,
+		OffsetMs: offset.Milliseconds(),
+		Text:     text,
+	})
+}
+
+// report は、この電話の報告を作る。ended は、電話が終わった時刻である。
+func (t *transcript) report(ended time.Time) protocol.CallReport {
+	duration := ended.Sub(t.pickedUp)
+	if duration < 0 {
+		duration = 0
+	}
+	utterances := t.utterances
+	if utterances == nil {
+		utterances = []protocol.Utterance{}
+	}
+	return protocol.CallReport{
+		StartedAt:  t.pickedUp,
+		DurationMs: duration.Milliseconds(),
+		Utterances: utterances,
+	}
 }
 
 // micMIMEType は、Live API に送るマイクの音の形式である。
@@ -270,6 +349,34 @@ func clientText(text string) genai.LiveClientContentInput {
 
 // startCue は、受話器が上がったときに送る始まりの合図である。
 var startCue = clientText(protocol.StartCue)
+
+// reportTimeout は、電話の報告を送るときに待つ上限である。失敗しても送り直さない。
+const reportTimeout = 10 * time.Second
+
+// sendReport は、終わった電話の報告をバックエンドに 1 回送る。
+func (d *Device) sendReport(report protocol.CallReport) error {
+	body, err := json.Marshal(report)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), reportTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.CallReportPath, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted {
+		text, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("バックエンドが %s を返した: %s", resp.Status, text)
+	}
+	return nil
+}
 
 // fetchToken は、バックエンドからこの電話の短命トークンをもらう。
 func (d *Device) fetchToken(ctx context.Context) (*protocol.TokenResponse, error) {

@@ -7,6 +7,21 @@ service cloud.firestore {
     // 見守る方。familyUids は、その見守る方に結び付いた家族の uid の一覧である
     match /watchedPersons/{watchedPerson} {
       allow read: if request.auth != null && request.auth.uid in resource.data.familyUids;
+
+      // 電話と、その会話。家族かどうかは電話に写さず、見守る方のドキュメントを get() で確かめる
+      match /calls/{call} {
+        allow read: if isFamily(watchedPerson);
+
+        match /utterances/{utterance} {
+          allow read: if isFamily(watchedPerson);
+        }
+      }
+    }
+
+    // 家族かどうかは、見守る方のドキュメントにある familyUids で決める
+    function isFamily(watchedPerson) {
+      return request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/watchedPersons/$(watchedPerson)).data.familyUids;
     }
 
     match /{document=**} {
