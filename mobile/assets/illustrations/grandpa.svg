@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="190" viewBox="0 0 164 190"><defs><clipPath id="arch-g"><path d="M0 82A82 82 0 0 1 164 82V166a24 24 0 0 1-24 24H24a24 24 0 0 1-24-24Z"/></clipPath></defs><g clip-path="url(#arch-g)">
+ <rect width="164" height="190" fill="#F6E7C4"/>
+ <path d="M18 190C18 152 48 136 82 136S146 152 146 190Z" fill="#7E9B5C"/>
+ <path d="M66 137 82 160 98 137Z" fill="#FFFBF3"/><path d="M82 160V190" stroke="#5F7B43" stroke-width="2.5"/>
+ <rect x="70" y="112" width="24" height="30" rx="10" fill="#E9B58E"/>
+ <circle cx="44" cy="88" r="8" fill="#F2C9A5"/><circle cx="120" cy="88" r="8" fill="#F2C9A5"/>
+ <ellipse cx="82" cy="84" rx="38" ry="42" fill="#F2C9A5"/>
+ <path d="M44 84C38 66 46 56 56 54C52 64 50 74 50 86Z" fill="#F3EFE6"/><path d="M120 84C126 66 118 56 108 54C112 64 114 74 114 86Z" fill="#F3EFE6"/>
+ <path d="M58 70q9-6 18-1M88 69q9-5 18 1" fill="none" stroke="#E5DFD2" stroke-width="5" stroke-linecap="round"/>
+ <path d="M60 86Q67 77 74 86" fill="none" stroke="#2A2420" stroke-width="3" stroke-linecap="round"/><path d="M90 86Q97 77 104 86" fill="none" stroke="#2A2420" stroke-width="3" stroke-linecap="round"/>
+ <circle cx="67" cy="83" r="13" fill="none" stroke="#665A4D" stroke-width="2.5"/><circle cx="97" cy="83" r="13" fill="none" stroke="#665A4D" stroke-width="2.5"/><path d="M80 82h4" stroke="#665A4D" stroke-width="2.5"/>
+ <circle cx="55" cy="101" r="7" fill="#EE9F86" opacity=".55"/><circle cx="109" cy="101" r="7" fill="#EE9F86" opacity=".55"/>
+ <path d="M69 106Q82 124.2 95 106Z" fill="#8E2A12" stroke="#8E2A12" stroke-width="2" stroke-linejoin="round"/><path d="M73 107.5H91" stroke="#FFFBF3" stroke-width="3" stroke-linecap="round"/>
+ <path d="M64 104Q74 96 82 102Q90 96 100 104Q90 108 82 105Q74 108 64 104Z" fill="#F3EFE6" stroke="#E5DFD2"/>
+ <path d="M134 158Q146 134 133 118" fill="none" stroke="#7E9B5C" stroke-width="20" stroke-linecap="round"/>
+ <path d="M125 62Q141 88 127 114" fill="none" stroke="#2A2420" stroke-width="8" stroke-linecap="round"/>
+ <rect x="117" y="54" width="15" height="20" rx="6" fill="#2A2420" transform="rotate(-24 124 64)"/><rect x="119" y="104" width="15" height="20" rx="6" fill="#2A2420" transform="rotate(20 126 114)"/>
+ <circle cx="132" cy="108" r="10" fill="#F2C9A5"/></g></svg>

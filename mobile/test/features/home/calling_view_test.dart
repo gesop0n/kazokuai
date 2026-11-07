@@ -13,6 +13,7 @@ import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/calling_banner.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
+import '../../support/fake_auth_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -203,6 +204,7 @@ void main() {
           homeStatusProvider.overrideWithBuild(
             (ref, self) => HomeStatus.calling,
           ),
+          signedInAuth(),
         ],
         child: const KazokuAiApp(),
       ),

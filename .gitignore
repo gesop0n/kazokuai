@@ -6,3 +6,6 @@ __pycache__/
 
 # 環境変数。.env.example を写して作る。API キーが入るのでコミットしない
 .env
+
+# firebase/ でエミュレーターを起動すると firebase-tools が作る
+*-debug.log

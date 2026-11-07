@@ -17,6 +17,7 @@ import 'package:kazokuai/features/home/calling_banner.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
+import '../../support/fake_auth_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -55,7 +56,10 @@ Future<void> _pumpAppAndOpenAsk(
     ..physicalSize = const Size(393, 852);
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
-    ProviderScope(overrides: _startingAt(status), child: const KazokuAiApp()),
+    ProviderScope(
+      overrides: [..._startingAt(status), signedInAuth()],
+      child: const KazokuAiApp(),
+    ),
   );
   await tester.pumpAndSettle();
   await tester.tap(find.text('伝えたいことを入力'));

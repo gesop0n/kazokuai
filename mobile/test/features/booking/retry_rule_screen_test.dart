@@ -12,6 +12,7 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 
+import '../../support/fake_auth_repository.dart';
 import '../../support/layout_matrix.dart';
 
 const _standardLayout = LayoutCase(393, 1.0);
@@ -282,7 +283,9 @@ void main() {
 
   group('保存と戻る', () {
     Future<void> openRule(WidgetTester tester) async {
-      await tester.pumpWidget(const ProviderScope(child: KazokuAiApp()));
+      await tester.pumpWidget(
+        ProviderScope(overrides: [signedInAuth()], child: const KazokuAiApp()),
+      );
       await tester.pumpAndSettle();
       await tester.tap(
         find.descendant(
