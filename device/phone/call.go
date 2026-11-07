@@ -17,10 +17,8 @@ import (
 type Device struct {
 	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080
 	Backend string
-	// HTTPClient は、バックエンドを呼ぶクライアントである。nil なら http.DefaultClient を使う。
-	HTTPClient *http.Client
-	Gemini     Gemini
-	Phone      Phone
+	Gemini  Gemini
+	Phone   Phone
 	// Out は、開発者が見るターミナルである。両方の文字起こしを 1 行ずつ書く。
 	Out io.Writer
 }
@@ -40,6 +38,7 @@ func (d *Device) Call(ctx context.Context) error {
 	done := make(chan struct{})
 	defer close(done)
 	received, lost := receive(session, done)
+	outgoing, unsent := send(session, done)
 
 	d.Phone.Lamp.On()
 	defer d.Phone.Lamp.Off()
@@ -71,9 +70,8 @@ func (d *Device) Call(ctx context.Context) error {
 				if mic, err = d.Phone.Handset.Listen(micCtx); err != nil {
 					return fmt.Errorf("マイクを開けなかった: %w", err)
 				}
-				if err := session.SendClientContent(startCue); err != nil {
-					return fmt.Errorf("始まりの合図を送れなかった: %w", err)
-				}
+				// 受話器が上がるまでは何も送らないので、outgoing は空で、ここで待つことはない
+				outgoing <- func(s Session) error { return s.SendClientContent(startCue) }
 			case event == PutDown && !ringing:
 				return nil
 			}
@@ -83,11 +81,15 @@ func (d *Device) Call(ctx context.Context) error {
 				mic = nil
 				continue
 			}
-			if err := session.SendRealtimeInput(genai.LiveRealtimeInput{
-				Audio: &genai.Blob{MIMEType: micMIMEType, Data: pcm},
-			}); err != nil {
-				return fmt.Errorf("マイクの音を送れなかった: %w", err)
+			audio := genai.LiveRealtimeInput{Audio: &genai.Blob{MIMEType: micMIMEType, Data: pcm}}
+			select {
+			case outgoing <- func(s Session) error { return s.SendRealtimeInput(audio) }:
+			default:
+				// 回線が詰まっていて送るのが追いつかないので、遅れた音は捨てる
 			}
+
+		case err := <-unsent:
+			return fmt.Errorf("Live API に送れなかった: %w", err)
 
 		case msg := <-received:
 			if msg.GoAway != nil {
@@ -106,8 +108,11 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 	if content == nil {
 		return
 	}
-	if content.InputTranscription != nil {
-		lines.elder.WriteString(content.InputTranscription.Text)
+	if in := content.InputTranscription; in != nil {
+		lines.input.WriteString(in.Text)
+		if in.Finished {
+			lines.flushInput()
+		}
 	}
 	if content.ModelTurn != nil {
 		for _, part := range content.ModelTurn.Parts {
@@ -116,14 +121,17 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 			}
 		}
 	}
-	if content.OutputTranscription != nil {
+	if out := content.OutputTranscription; out != nil {
 		// AI が話し始めたので、見守る方の話は終わっている
-		lines.flushElder()
-		lines.ai.WriteString(content.OutputTranscription.Text)
+		lines.flushInput()
+		lines.output.WriteString(out.Text)
+		if out.Finished {
+			lines.flushOutput()
+		}
 	}
 	if content.Interrupted {
 		d.Phone.Handset.Hush()
-		lines.flushAI()
+		lines.flushOutput()
 	}
 	if content.TurnComplete {
 		lines.flush()
@@ -152,18 +160,41 @@ func receive(session Session, done <-chan struct{}) (received <-chan *genai.Live
 	return messages, errs
 }
 
-// transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
-type transcript struct {
-	out       io.Writer
-	elder, ai strings.Builder
+// send は、outgoing に入れた書き込みを順に Live のセッションで行う。書き込みは回線が止まると戻らないので、
+// 電話の処理とは別の goroutine で行い、そのあいだも受話器を置けるようにする。電話が終わってセッションを閉じると、
+// 止まっている書き込みも戻る。書き込めなかったら、その理由を unsent に送って終わる。
+func send(session Session, done <-chan struct{}) (outgoing chan<- func(Session) error, unsent <-chan error) {
+	writes := make(chan func(Session) error, 64)
+	errs := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case write := <-writes:
+				if err := write(session); err != nil {
+					errs <- err
+					return
+				}
+			case <-done:
+				return
+			}
+		}
+	}()
+	return writes, errs
 }
 
-func (t *transcript) flushElder() { t.print("見守る方", &t.elder) }
-func (t *transcript) flushAI()    { t.print("かぞくAI", &t.ai) }
+// transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
+type transcript struct {
+	out io.Writer
+	// input は見守る方の声の文字起こし、output は AI の声の文字起こしである。
+	input, output strings.Builder
+}
+
+func (t *transcript) flushInput()  { t.print("見守る方", &t.input) }
+func (t *transcript) flushOutput() { t.print("かぞくAI", &t.output) }
 
 func (t *transcript) flush() {
-	t.flushElder()
-	t.flushAI()
+	t.flushInput()
+	t.flushOutput()
 }
 
 func (t *transcript) print(speaker string, text *strings.Builder) {
@@ -174,7 +205,7 @@ func (t *transcript) print(speaker string, text *strings.Builder) {
 }
 
 // micMIMEType は、Live API に送るマイクの音の形式である。
-const micMIMEType = "audio/pcm;rate=16000"
+var micMIMEType = fmt.Sprintf("audio/pcm;rate=%d", MicSampleRate)
 
 // startCue は、受話器が上がったときに見守る方の発話として送る始まりの合図である。
 var startCue = genai.LiveClientContentInput{
@@ -188,11 +219,7 @@ func (d *Device) fetchToken(ctx context.Context) (*protocol.TokenResponse, error
 	if err != nil {
 		return nil, err
 	}
-	client := d.HTTPClient
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

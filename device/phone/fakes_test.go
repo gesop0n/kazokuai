@@ -269,6 +269,7 @@ type fakeSession struct {
 
 	mu         sync.Mutex
 	setupSent  bool
+	stalled    bool  // true なら、送ったものは接続が閉じるまで届かない
 	clientSent []any // genai.LiveClientContentInput か genai.LiveRealtimeInput
 }
 
@@ -281,6 +282,13 @@ func (s *fakeSession) SendRealtimeInput(input genai.LiveRealtimeInput) error {
 }
 
 func (s *fakeSession) record(input any) error {
+	s.mu.Lock()
+	stalled := s.stalled
+	s.mu.Unlock()
+	if stalled {
+		// 上りの回線が止まり、書き込みが接続を閉じるまで戻らない
+		<-s.closed
+	}
 	if s.isClosed() {
 		return errors.New("閉じたセッションに送った")
 	}
@@ -330,6 +338,13 @@ func (s *fakeSession) reply(msgs ...*genai.LiveServerMessage) {
 	}
 }
 
+// stall は、上りの回線を止める。そのあとに送ったものは、接続が閉じるまで書き込みから戻らない。
+func (s *fakeSession) stall() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stalled = true
+}
+
 // drop は、サーバーとの接続を切る。
 func (s *fakeSession) drop(err error) { s.lost <- err }
 
@@ -350,16 +365,29 @@ func (s *fakeSession) sentAudio() []*genai.Blob {
 	return audio
 }
 
-func aiSays(text string) *genai.LiveServerMessage {
+func outputTranscription(text string) *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{
 		OutputTranscription: &genai.Transcription{Text: text},
 	}}
 }
 
-func elderSays(text string) *genai.LiveServerMessage {
+func inputTranscription(text string) *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{
 		InputTranscription: &genai.Transcription{Text: text},
 	}}
+}
+
+// finished は、文字起こしに、その発話の終わりの印を付ける。
+func finished(msg *genai.LiveServerMessage) *genai.LiveServerMessage {
+	for _, transcription := range []*genai.Transcription{
+		msg.ServerContent.InputTranscription,
+		msg.ServerContent.OutputTranscription,
+	} {
+		if transcription != nil {
+			transcription.Finished = true
+		}
+	}
+	return msg
 }
 
 func aiAudio(pcm ...byte) *genai.LiveServerMessage {

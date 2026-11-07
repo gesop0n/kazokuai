@@ -88,13 +88,13 @@ func TestTalking(t *testing.T) {
 		s.phone.pickUp()
 
 		session.reply(
-			aiSays("ハナさん、"),
+			outputTranscription("ハナさん、"),
 			aiAudio(1, 2, 3, 4),
-			aiSays("こんにちは。"),
+			outputTranscription("こんにちは。"),
 			turnComplete(),
-			elderSays("はい、"),
-			elderSays("元気です。"),
-			aiSays("よかったです。"),
+			inputTranscription("はい、"),
+			inputTranscription("元気です。"),
+			outputTranscription("よかったです。"),
 			aiAudio(5, 6),
 			turnComplete(),
 		)
@@ -117,11 +117,11 @@ func TestTalking(t *testing.T) {
 		s.phone.pickUp()
 
 		session.reply(
-			aiSays("今日は"),
+			outputTranscription("今日は"),
 			aiAudio(1, 2),
-			elderSays("あのね、"),
+			inputTranscription("あのね、"),
 			interrupted(),
-			elderSays("聞いてほしいの。"),
+			inputTranscription("聞いてほしいの。"),
 			turnComplete(),
 		)
 
@@ -133,6 +133,26 @@ func TestTalking(t *testing.T) {
 			t.Errorf("AI の音声を捨てた回数 = %d, want 1", s.phone.hushCount())
 		}
 	})
+
+	t.Run("発話の終わりの印が付いた文字起こしは、次の発話を待たずにその行を出す", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+
+		// AI が答えない発話も、次の発話とつなげずに 1 行で出す
+		session.reply(
+			finished(outputTranscription("こんにちは。")),
+			finished(inputTranscription("はい。")),
+			finished(inputTranscription("いい天気ね。")),
+		)
+
+		s.terminal.waitForLines(t,
+			"かぞくAI: こんにちは。",
+			"見守る方: はい。",
+			"見守る方: いい天気ね。",
+		)
+	})
 }
 
 func TestPutDown(t *testing.T) {
@@ -141,7 +161,7 @@ func TestPutDown(t *testing.T) {
 		c := s.startCall(t)
 		session := s.gemini.waitForSession(t, 1)
 		s.phone.pickUp()
-		session.reply(aiSays("ハナさん、こんにちは。"), aiAudio(1, 2))
+		session.reply(outputTranscription("ハナさん、こんにちは。"), aiAudio(1, 2))
 		waitUntil(t, "AI の音声を流さなかった", func() bool { return len(s.phone.playedAudio()) == 2 })
 
 		s.phone.putDown()
@@ -156,6 +176,24 @@ func TestPutDown(t *testing.T) {
 			t.Error("電話が終わってもランプが点いている")
 		}
 		s.terminal.waitForLines(t, "かぞくAI: ハナさん、こんにちは。")
+	})
+
+	t.Run("Gemini への送信が詰まっていても、受話器を置くと電話が終わり、接続を閉じる", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		session.stall()
+		s.phone.pickUp()
+		s.phone.say(t, []byte("もしもし"))
+
+		s.phone.putDown()
+
+		if err := c.result(t); err != nil {
+			t.Errorf("受話器を置いたのに、電話が %v で終わった", err)
+		}
+		if !session.isClosed() {
+			t.Error("電話が終わっても Live API との接続を閉じていない")
+		}
 	})
 }
 

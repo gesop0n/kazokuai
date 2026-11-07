@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"google.golang.org/genai"
 
 	"github.com/gesop0n/kazokuai/internal/protocol"
@@ -37,8 +38,8 @@ type Clock interface {
 
 // New は、protocol.TokenPath でトークンを渡す http.Handler を返す。
 func New(config Config, tokens Tokens, clock Clock) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("POST "+protocol.TokenPath, func(w http.ResponseWriter, r *http.Request) {
+	router := chi.NewRouter()
+	router.Post(protocol.TokenPath, func(w http.ResponseWriter, r *http.Request) {
 		token, err := tokens.Create(r.Context(), tokenConfig(config, clock.Now()))
 		if err != nil {
 			log.Printf("短命トークンを作れなかった: %v", err)
@@ -48,7 +49,7 @@ func New(config Config, tokens Tokens, clock Clock) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(protocol.TokenResponse{Token: token.Name, Model: config.Model})
 	})
-	return mux
+	return router
 }
 
 // tokenConfig は、1 回の電話のための短命トークンの制約である。

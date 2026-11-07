@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/gen2brain/malgo v0.11.27
+	github.com/go-chi/chi/v5 v5.5.0
 	google.golang.org/genai v1.77.0
 )
 

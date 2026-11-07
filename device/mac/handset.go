@@ -10,20 +10,21 @@ import (
 	"sync"
 
 	"github.com/gen2brain/malgo"
+
+	"github.com/gesop0n/kazokuai/device/phone"
 )
 
-const (
-	micSampleRate     = 16000
-	speakerSampleRate = 24000
-	// micPeriod は、マイクの音を 1 回に送る長さ(ミリ秒)である。
-	micPeriod = 40
-)
+// micPeriod は、マイクの音を 1 回に送る長さ(ミリ秒)である。
+const micPeriod = 40
 
 // Handset は、malgo で既定のマイクとスピーカーを使う受話器の音声である。
-// マイクは 16 kHz、スピーカーは 24 kHz で別々に開き、Mac の機器の速さへの変換は malgo に任せる。
+// マイクは phone.MicSampleRate、スピーカーは phone.SpeakerSampleRate で別々に開き、
+// Mac の機器の速さへの変換は malgo に任せる。
 type Handset struct {
 	ctx     *malgo.AllocatedContext
 	speaker *malgo.Device
+	// mics は、開いているマイクである。音声を使い終える前に、すべて閉じるのを待つ。
+	mics sync.WaitGroup
 
 	mu sync.Mutex
 	// queue は、まだスピーカーで流していない音である。
@@ -41,7 +42,7 @@ func OpenHandset() (*Handset, error) {
 	config := malgo.DefaultDeviceConfig(malgo.Playback)
 	config.Playback.Format = malgo.FormatS16
 	config.Playback.Channels = 1
-	config.SampleRate = speakerSampleRate
+	config.SampleRate = phone.SpeakerSampleRate
 	h.speaker, err = malgo.InitDevice(ctx.Context, config, malgo.DeviceCallbacks{Data: h.fill})
 	if err == nil {
 		err = h.speaker.Start()
@@ -82,7 +83,7 @@ func (h *Handset) Listen(ctx context.Context) (<-chan []byte, error) {
 	config := malgo.DefaultDeviceConfig(malgo.Capture)
 	config.Capture.Format = malgo.FormatS16
 	config.Capture.Channels = 1
-	config.SampleRate = micSampleRate
+	config.SampleRate = phone.MicSampleRate
 	config.PeriodSizeInMilliseconds = micPeriod
 	mic, err := malgo.InitDevice(h.ctx.Context, config, malgo.DeviceCallbacks{
 		Data: func(_, in []byte, _ uint32) {
@@ -106,7 +107,9 @@ func (h *Handset) Listen(ctx context.Context) (<-chan []byte, error) {
 		mic.Uninit()
 		return nil, fmt.Errorf("マイクを開けなかった: %w", err)
 	}
+	h.mics.Add(1)
 	go func() {
+		defer h.mics.Done()
 		<-ctx.Done()
 		mic.Uninit()
 		mu.Lock()
@@ -117,8 +120,10 @@ func (h *Handset) Listen(ctx context.Context) (<-chan []byte, error) {
 	return frames, nil
 }
 
-// Close はスピーカーを閉じ、音声を使い終える。
+// Close はスピーカーを閉じ、音声を使い終える。開いているマイクがあれば、Listen に渡した ctx が終わって
+// マイクが閉じるのを待つ。malgo では、使っている機器が残っている間に音声を使い終えてはいけない。
 func (h *Handset) Close() {
+	h.mics.Wait()
 	if h.speaker != nil {
 		h.speaker.Uninit()
 	}

@@ -16,6 +16,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/gesop0n/kazokuai/backend/server"
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 // 既定値はここにまとめる。
@@ -48,10 +49,9 @@ func run(config server.Config) error {
 		return errors.New("環境変数 GEMINI_API_KEY に Gemini の API キーを入れてください")
 	}
 	client, err := genai.NewClient(context.Background(), &genai.ClientConfig{
-		APIKey:  apiKey,
-		Backend: genai.BackendGeminiAPI,
-		// Go の SDK では、短命トークンに API のバージョン v1alpha が要る
-		HTTPOptions: genai.HTTPOptions{APIVersion: "v1alpha"},
+		APIKey:      apiKey,
+		Backend:     genai.BackendGeminiAPI,
+		HTTPOptions: genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion},
 	})
 	if err != nil {
 		return err

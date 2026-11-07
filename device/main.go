@@ -16,6 +16,7 @@ import (
 
 	"github.com/gesop0n/kazokuai/device/mac"
 	"github.com/gesop0n/kazokuai/device/phone"
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 // backend は、トークンをもらうバックエンドの URL である。backend/main.go の addr と合わせる。
@@ -61,10 +62,9 @@ type liveAPI struct{}
 
 func (liveAPI) Connect(ctx context.Context, token, model string) (phone.Session, error) {
 	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  token,
-		Backend: genai.BackendGeminiAPI,
-		// Go の SDK では、短命トークンに API のバージョン v1alpha が要る
-		HTTPOptions: genai.HTTPOptions{APIVersion: "v1alpha"},
+		APIKey:      token,
+		Backend:     genai.BackendGeminiAPI,
+		HTTPOptions: genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion},
 	})
 	if err != nil {
 		return nil, err

@@ -10,12 +10,21 @@ import (
 	"google.golang.org/genai"
 )
 
+// 受話器の音声の速さ(Hz)である。どちらも 16 ビット、モノラル、リトルエンディアンの PCM で、
+// Live API が決めている。
+const (
+	// MicSampleRate は、Live API に送るマイクの音の速さである。
+	MicSampleRate = 16000
+	// SpeakerSampleRate は、Live API から届く AI の音声の速さである。
+	SpeakerSampleRate = 24000
+)
+
 // Handset は受話器の音声である。
 type Handset interface {
-	// Listen はマイクを開き、ctx が終わるまで、マイクの音を 16 kHz、16 ビット、モノラルの PCM で流す。
+	// Listen はマイクを開き、ctx が終わるまで、マイクの音を MicSampleRate の PCM で流す。
 	// ctx が終わると、マイクを閉じてチャネルを閉じる。
 	Listen(ctx context.Context) (<-chan []byte, error)
-	// Play は、24 kHz、16 ビット、モノラルの PCM を、受話器のスピーカーで流す順番に並べる。
+	// Play は、SpeakerSampleRate の PCM を、受話器のスピーカーで流す順番に並べる。
 	Play(pcm []byte)
 	// Hush は、まだ流していない音を捨てる。見守る方が AI の話に割って入ったときに使う。
 	Hush()
