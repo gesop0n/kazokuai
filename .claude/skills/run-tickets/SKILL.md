@@ -18,6 +18,7 @@ Each ticket `<N>` gets a **work folder**, `${XDG_CACHE_HOME:-$HOME/.cache}/kazok
 - Only the person's messages to you are their answers. The input box of an idle Claude Code may show a predicted reply in grey: leave it unsent.
 - Keep the person's focus where it is: pass `--no-focus` to every `herdr` command that accepts it.
 - Close only the workspaces this skill opened. They carry the label `#<N>`.
+- Send every prompt with `--wait --until working --until blocked --timeout 60000`. It returns once the agent has started, and `herdr agent wait <name>` then waits for the end. A bare `herdr agent wait` right after a prompt can return before the agent starts.
 - After a wait times out or stalls, inspect the agent with `herdr agent get` and `herdr agent read --source recent-unwrapped --lines 120` before you send anything. Never resend a prompt blindly.
 - To notify the person: `herdr notification show "<title>" --body "<what you need>" --sound request`.
 
@@ -57,7 +58,16 @@ Done when every picked ticket has an implementer kind, `claude` or `grok`.
 
 For each picked ticket, in parallel:
 
-1. Write the ticket to `<work>/ticket.md` and the spec to `<work>/spec.md`, each as its title, body, and comments from `gh issue view`. The implementers do not use `gh`.
+1. Write the ticket to `<work>/ticket.md` and the spec to `<work>/spec.md`, each as its title, body, and comments. The implementers do not use `gh`. Check that both files start with the right issue's title before going on.
+
+   ```bash
+   issue_md() {
+     gh issue view "$1" --json number,title,body,comments --jq \
+       '"# #\(.number) \(.title)\n\n\(.body)\n" + ([.comments[] | "\n## Comment by \(.author.login)\n\n\(.body)\n"] | join(""))'
+   }
+   issue_md "$N" > "$work/ticket.md"      # in zsh, write ${N} before a colon: "$N:t" is the :t modifier
+   issue_md "<spec>" > "$work/spec.md"
+   ```
 2. Create and open the worktree:
 
    ```bash
@@ -75,7 +85,7 @@ For each picked ticket, in parallel:
    ```
 
    `agent_not_ready` usually means a trust dialog: notify the person, then `herdr agent wait t<N>-impl`.
-4. Prompt it without `--wait`:
+4. Prompt it as the Guardrails say. When two tickets run, add one sentence naming the other ticket and asking it to stay within its own:
 
    > /implement `<work>/ticket.md`. The parent spec is `<work>/spec.md`. Skip the final code-review step: another agent reviews your work. Run `mise run check` before you finish, and commit to the current branch with a Japanese commit message. Do not push. If you need a test that talks through the Mac's microphone or speaker, stop and say so: the person runs those tests, one at a time.
 
