@@ -18,6 +18,7 @@ Each ticket `<N>` gets a **work folder**, `${XDG_CACHE_HOME:-$HOME/.cache}/kazok
 - Only the person's messages to you are their answers. The input box of an idle Claude Code may show a predicted reply in grey: leave it unsent.
 - Keep the person's focus where it is: pass `--no-focus` to every `herdr` command that accepts it.
 - Close only the workspaces this skill opened. They carry the label `#<N>`.
+- Send every prompt with `--wait --until working --until blocked --timeout 60000`. It returns once the agent has started, and `herdr agent wait <name>` then waits for the end. A bare `herdr agent wait` right after a prompt can return before the agent starts.
 - After a wait times out or stalls, inspect the agent with `herdr agent get` and `herdr agent read --source recent-unwrapped --lines 120` before you send anything. Never resend a prompt blindly.
 - To notify the person: `herdr notification show "<title>" --body "<what you need>" --sound request`.
 
@@ -40,42 +41,43 @@ Done when no worktree or `#<N>` workspace belongs to a closed ticket.
 
 The **frontier** is every open sub-issue of the spec labelled `ready-for-agent` with no open blockers and no `ticket/<N>-*` branch yet (`git gtr list`).
 
-- **First run**: if no PR from a `ticket/` branch has ever been merged, pick one ticket and give it to Claude Code.
+Pick up to two tickets from the frontier. Grok implements every ticket (ADR 0007, `docs/adr/20261107_grok_implementer.md`), with one Grok per ticket.
 
-  ```bash
-  gh pr list --state merged --limit 100 --json headRefName,mergedAt \
-    --jq '[.[] | select(.headRefName | startswith("ticket/"))] | sort_by(.mergedAt) | last'
-  ```
+Tell the person the plan in one line (`#12, #13 → Grok`) and go on.
 
-- **Later runs**: pick up to two tickets, one for Claude Code and one for Grok. If only one is ready, give it to the kind that did not implement the last merged ticket. The kind is in its branch name.
-
-Tell the person the plan in one line (`#12 → Claude Code, #13 → Grok`) and go on.
-
-Done when every picked ticket has an implementer kind, `claude` or `grok`.
+Done when up to two tickets are picked.
 
 ## 4. Implement
 
 For each picked ticket, in parallel:
 
-1. Write the ticket to `<work>/ticket.md` and the spec to `<work>/spec.md`, each as its title, body, and comments from `gh issue view`. The implementers do not use `gh`.
+1. Write the ticket to `<work>/ticket.md` and the spec to `<work>/spec.md`, each as its title, body, and comments. The implementers do not use `gh`. Check that both files start with the right issue's title before going on.
+
+   ```bash
+   issue_md() {
+     gh issue view "$1" --json number,title,body,comments --jq \
+       '"# #\(.number) \(.title)\n\n\(.body)\n" + ([.comments[] | "\n## Comment by \(.author.login)\n\n\(.body)\n"] | join(""))'
+   }
+   issue_md "$N" > "$work/ticket.md"      # in zsh, write ${N} before a colon: "$N:t" is the :t modifier
+   issue_md "<spec>" > "$work/spec.md"
+   ```
 2. Create and open the worktree:
 
    ```bash
-   git gtr new ticket/<N>-<kind> --yes        # the hooks run mise trust and codegraph init, and .env is copied
-   wt=$(git gtr go ticket/<N>-<kind>)          # not "path": in zsh, path is PATH
+   git gtr new ticket/<N>-grok --yes        # the hooks run mise trust and codegraph init, and .env is copied
+   wt=$(git gtr go ticket/<N>-grok)          # not "path": in zsh, path is PATH
    herdr worktree open --path "$wt" --no-focus --label "#<N>"
    ```
 
    The pane is `.result.root_pane.pane_id`, and the workspace is `.result.workspace.workspace_id`.
-3. Start the implementer with rules that block `git push` and `gh`:
+3. Start Grok with rules that block `git push` and `gh`:
 
    ```bash
-   herdr agent start t<N>-impl --kind claude --pane <pane> -- --disallowedTools "Bash(git push:*)" "Bash(gh:*)"
    herdr agent start t<N>-impl --kind grok --pane <pane> -- --deny "Bash(git push*)" --deny "Bash(gh *)"
    ```
 
    `agent_not_ready` usually means a trust dialog: notify the person, then `herdr agent wait t<N>-impl`.
-4. Prompt it without `--wait`:
+4. Prompt it as the Guardrails say. When two tickets run, add one sentence naming the other ticket and asking it to stay within its own:
 
    > /implement `<work>/ticket.md`. The parent spec is `<work>/spec.md`. Skip the final code-review step: another agent reviews your work. Run `mise run check` before you finish, and commit to the current branch with a Japanese commit message. Do not push. If you need a test that talks through the Mac's microphone or speaker, stop and say so: the person runs those tests, one at a time.
 
@@ -114,8 +116,8 @@ Done when Codex has written its second file, or the first review held no finding
 3. Push and open the PR. The title is the ticket's title.
 
    ```bash
-   git -C "$wt" push -u origin ticket/<N>-<kind>
-   gh pr create --base main --head ticket/<N>-<kind> --title "<ticket title>" --body-file <work>/pr_ja.md
+   git -C "$wt" push -u origin ticket/<N>-grok
+   gh pr create --base main --head ticket/<N>-grok --title "<ticket title>" --body-file <work>/pr_ja.md
    gh pr checks <pr> --watch
    ```
 
