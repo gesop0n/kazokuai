@@ -81,7 +81,8 @@ void main() {
     expect(find.text('読みました'), findsNothing);
     expect(button(tester, '同意して登録する').onTap, isNull);
     expect(button(tester, 'Googleで登録').onTap, isNull);
-    expect(find.text('2つとも読むと登録できます'), findsOneWidget);
+    expect(find.text('次の2つをお読みください'), findsOneWidget);
+    expect(find.text('2つとも読むと登録できます'), findsNothing);
   });
 
   testWidgets('L2 の「新規登録へ」からも新規登録が開く', (tester) async {
@@ -110,6 +111,7 @@ void main() {
 
     await openDocument(tester, '利用規約');
 
+    expect(find.text('最後まで読むと押せるようになります'), findsNothing);
     expect(find.text('モック用の見本です。実際の規約ではありません。'), findsOneWidget);
     expect(
       find.text('最初の電話で、AIであることと、会話を文字にしてご家族に共有することを説明します。同意がない場合は共有しません。'),
@@ -183,7 +185,7 @@ void main() {
 
     expect(find.text('未読'), findsNothing);
     expect(find.text('読みました'), findsNWidgets(2));
-    expect(find.text('登録すると、2つの内容に同意したことになります'), findsOneWidget);
+    expect(find.text('登録すると、2つの内容に同意したことになります'), findsNothing);
     expect(button(tester, '同意して登録する').onTap, isNotNull);
     expect(button(tester, 'Googleで登録').onTap, isNotNull);
 

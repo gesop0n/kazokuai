@@ -114,24 +114,11 @@ class _DocumentScreenState extends State<DocumentScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 4,
-                children: [
-                  Text(
-                    '最後まで読むと押せるようになります',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
-                  AppButton(
-                    label: '読みました',
-                    variant: AppButtonVariant.primary,
-                    size: AppButtonSize.l,
-                    onTap: _reachedEnd ? () => context.pop(true) : null,
-                  ),
-                ],
+              child: AppButton(
+                label: '読みました',
+                variant: AppButtonVariant.primary,
+                size: AppButtonSize.l,
+                onTap: _reachedEnd ? () => context.pop(true) : null,
               ),
             ),
           ],

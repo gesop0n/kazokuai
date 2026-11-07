@@ -118,7 +118,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         spacing: 6,
                         children: [
                           const Text(
-                            '先に、次の2つをお読みください',
+                            '次の2つをお読みください',
                             style: AppTextStyles.labelM,
                           ),
                           _AgreeRow(
@@ -203,13 +203,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         ),
                       ),
                     ),
-                  Text(
-                    _bothRead ? '登録すると、2つの内容に同意したことになります' : '2つとも読むと登録できます',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
                   AppButton(
                     label: '同意して登録する',
                     variant: AppButtonVariant.primary,
