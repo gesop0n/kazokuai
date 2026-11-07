@@ -42,6 +42,30 @@ Future<void> _tapChip(WidgetTester tester, String label) async {
   await tester.pump();
 }
 
+List<String> _selectedLabels(WidgetTester tester) => tester
+    .widgetList<AppChip>(find.byType(AppChip))
+    .where((chip) => chip.selected)
+    .map((chip) => chip.label)
+    .toList();
+
+// 間隔の「入力」が 0、回数の「入力」が 1。欄は開いている順に並ぶ
+Future<void> _tapCustom(WidgetTester tester, int index) async {
+  await tester.tap(find.widgetWithText(AppChip, '入力').at(index));
+  await tester.pump();
+}
+
+Future<void> _typeInField(WidgetTester tester, int index, String text) async {
+  await tester.enterText(find.byType(TextField).at(index), text);
+  await tester.pump();
+}
+
+void _expectCanSave(WidgetTester tester, bool canSave) {
+  expect(
+    tester.getSemantics(find.bySemanticsLabel('このルールで保存')),
+    isSemantics(isButton: true, hasEnabledState: true, isEnabled: canSave),
+  );
+}
+
 // 読み上げの文で流れを並び順に取り出す
 List<String> _flowLabels(WidgetTester tester) {
   final labels = <String>[];
@@ -77,6 +101,19 @@ void main() {
         });
       }
     }
+
+    testEachLayout('60分おきに5回', (tester, layout) async {
+      await _pumpRule(
+        tester,
+        layout: layout,
+        rule: const RetryRule(interval: Duration(minutes: 60), attempts: 5),
+      );
+
+      await tester.ensureVisible(find.text('知らせる人'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('このルールで保存'), findsOneWidget);
+    });
 
     testEachLayout('押せる領域はどれも 44 以上になる', (tester, layout) async {
       await _pumpRule(tester, layout: layout);
@@ -123,38 +160,148 @@ void main() {
   });
 
   group('選択', () {
-    testWidgets('モックの選択肢が並び、初期値は 15 分と 3 回', (tester) async {
+    testWidgets('選択肢が並び、初期値は 10 分と 3 回', (tester) async {
       await _pumpRule(tester);
 
-      for (final label in [
-        '10分',
-        '15分',
-        '30分',
-        '1時間',
-        '1回',
-        '2回',
-        '3回',
-        '5回',
-      ]) {
+      for (final label in ['5分', '10分', '30分', '1回', '2回', '3回']) {
         expect(find.widgetWithText(AppChip, label), findsOneWidget);
       }
-      final selected = tester
-          .widgetList<AppChip>(find.byType(AppChip))
-          .where((chip) => chip.selected)
-          .map((chip) => chip.label);
-      expect(selected, ['15分', '3回']);
+      expect(find.widgetWithText(AppChip, '入力'), findsNWidgets(2));
+      expect(find.text('15分'), findsNothing);
+      expect(find.text('1時間'), findsNothing);
+      expect(find.text('5回'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+      expect(_selectedLabels(tester), ['10分', '3回']);
     });
 
     testWidgets('押すとそのチップだけが選ばれる', (tester) async {
       await _pumpRule(tester);
 
       await _tapChip(tester, '30分');
-      await _tapChip(tester, '5回');
+      await _tapChip(tester, '1回');
 
       expect(_chip(tester, '30分').selected, isTrue);
-      expect(_chip(tester, '15分').selected, isFalse);
-      expect(_chip(tester, '5回').selected, isTrue);
+      expect(_chip(tester, '10分').selected, isFalse);
+      expect(_chip(tester, '1回').selected, isTrue);
       expect(_chip(tester, '3回').selected, isFalse);
+    });
+  });
+
+  group('入力', () {
+    testWidgets('間隔は分の欄で、1〜60 なら保存でき、空と範囲の外はできない', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpRule(tester);
+
+      await _tapCustom(tester, 0);
+
+      expect(find.text('分'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('分')).dy,
+        greaterThan(
+          tester.getBottomLeft(find.widgetWithText(AppChip, '30分')).dy,
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('分')).dy,
+        lessThan(tester.getTopLeft(find.text('かける回数(最初の1回をふくむ)')).dy),
+      );
+      expect(_selectedLabels(tester), ['入力', '3回']);
+      _expectCanSave(tester, false);
+
+      await _typeInField(tester, 0, '0');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '61');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '1');
+      _expectCanSave(tester, true);
+      await _typeInField(tester, 0, '60');
+      _expectCanSave(tester, true);
+      handle.dispose();
+    });
+
+    testWidgets('回数は回の欄で、1〜5 なら保存でき、空と範囲の外はできない', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpRule(tester);
+
+      await _tapCustom(tester, 1);
+
+      expect(find.text('回'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('回')).dy,
+        greaterThan(
+          tester.getBottomLeft(find.widgetWithText(AppChip, '3回')).dy,
+        ),
+      );
+      expect(
+        tester.getTopLeft(find.text('回')).dy,
+        lessThan(tester.getTopLeft(find.text('朝9:00の電話に出ないとき')).dy),
+      );
+      expect(_selectedLabels(tester), ['10分', '入力']);
+      _expectCanSave(tester, false);
+
+      await _typeInField(tester, 0, '0');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '6');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '');
+      _expectCanSave(tester, false);
+      await _typeInField(tester, 0, '1');
+      _expectCanSave(tester, true);
+      await _typeInField(tester, 0, '5');
+      _expectCanSave(tester, true);
+      handle.dispose();
+    });
+
+    testWidgets('どちらかが範囲の外なら保存できない', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpRule(tester);
+
+      await _tapCustom(tester, 0);
+      await _typeInField(tester, 0, '7');
+      await _tapCustom(tester, 1);
+      await _typeInField(tester, 1, '6');
+      _expectCanSave(tester, false);
+
+      await _typeInField(tester, 1, '4');
+      _expectCanSave(tester, true);
+      await _typeInField(tester, 0, '');
+      _expectCanSave(tester, false);
+      handle.dispose();
+    });
+
+    testWidgets('入れた数ですぐ流れを計算し直す', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpRule(tester);
+
+      await _tapCustom(tester, 0);
+      await _typeInField(tester, 0, '60');
+      await _tapCustom(tester, 1);
+      await _typeInField(tester, 1, '5');
+
+      expect(_flowLabels(tester), [
+        '9:00 1回目',
+        '10:00 2回目',
+        '11:00 3回目',
+        '12:00 4回目',
+        '13:00 5回目',
+        '13:00 家族に通知',
+      ]);
+      handle.dispose();
+    });
+
+    testWidgets('チップを選び直すと欄が消えて保存できる', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpRule(tester);
+
+      await _tapCustom(tester, 0);
+      await _tapChip(tester, '5分');
+
+      expect(find.byType(TextField), findsNothing);
+      expect(_selectedLabels(tester), ['5分', '3回']);
+      _expectCanSave(tester, true);
+      handle.dispose();
     });
   });
 
@@ -165,9 +312,9 @@ void main() {
 
       expect(_flowLabels(tester), [
         '9:00 1回目',
-        '9:15 2回目',
-        '9:30 3回目',
-        '9:30 家族に通知',
+        '9:10 2回目',
+        '9:20 3回目',
+        '9:20 家族に通知',
       ]);
       handle.dispose();
     });
@@ -176,10 +323,10 @@ void main() {
       final handle = tester.ensureSemantics();
       await _pumpRule(tester);
 
-      await _tapChip(tester, '10分');
+      await _tapChip(tester, '5分');
       await _tapChip(tester, '2回');
 
-      expect(_flowLabels(tester), ['9:00 1回目', '9:10 2回目', '9:10 家族に通知']);
+      expect(_flowLabels(tester), ['9:00 1回目', '9:05 2回目', '9:05 家族に通知']);
       handle.dispose();
     });
 
@@ -193,44 +340,20 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('5 回のときは、最後の回と同じ時刻に通知する', (tester) async {
-      final handle = tester.ensureSemantics();
-      await _pumpRule(tester);
-
-      await _tapChip(tester, '1時間');
-      await _tapChip(tester, '5回');
-
-      expect(_flowLabels(tester), [
-        '9:00 1回目',
-        '10:00 2回目',
-        '11:00 3回目',
-        '12:00 4回目',
-        '13:00 5回目',
-        '13:00 家族に通知',
-      ]);
-      handle.dispose();
-    });
-
     testWidgets('画面の文字も選択から作る', (tester) async {
       await _pumpRule(tester);
 
       expect(find.text('9:00'), findsOneWidget);
-      expect(find.text('9:15'), findsOneWidget);
-      expect(find.text('9:30'), findsNWidgets(2));
+      expect(find.text('9:10'), findsOneWidget);
+      expect(find.text('9:20'), findsNWidgets(2));
       expect(find.text('3回目'), findsOneWidget);
       expect(find.text('4回目'), findsNothing);
 
-      await _tapChip(tester, '1時間');
-      await _tapChip(tester, '5回');
-
-      expect(find.text('12:00'), findsOneWidget);
-      expect(find.text('13:00'), findsNWidgets(2));
-      expect(find.text('5回目'), findsOneWidget);
-
+      await _tapChip(tester, '5分');
       await _tapChip(tester, '1回');
 
       expect(find.text('9:00'), findsNWidgets(2));
-      expect(find.text('10:00'), findsNothing);
+      expect(find.text('9:05'), findsNothing);
       expect(find.text('2回目'), findsNothing);
     });
 
@@ -276,9 +399,10 @@ void main() {
     });
 
     testWidgets('5 回のときは 3 つずつ 2 段に分ける', (tester) async {
-      await _pumpRule(tester);
-
-      await _tapChip(tester, '5回');
+      await _pumpRule(
+        tester,
+        rule: const RetryRule(interval: Duration(minutes: 10), attempts: 5),
+      );
 
       final tops = find
           .byWidgetPredicate(_isFlowCircle)
@@ -343,27 +467,50 @@ void main() {
     testWidgets('保存すると 06 に戻り、行の文字が変わる', (tester) async {
       await openRule(tester);
 
-      await _tapChip(tester, '1時間');
-      await _tapChip(tester, '5回');
+      await _tapChip(tester, '5分');
+      await _tapChip(tester, '2回');
       await save(tester);
 
       expect(find.byType(RetryRuleScreen), findsNothing);
       expect(find.byType(BookingScreen), findsOneWidget);
-      expect(find.text('1時間おきに5回かけて、家族に通知'), findsOneWidget);
+      expect(find.text('5分おきに2回かけて、家族に通知'), findsOneWidget);
+    });
+
+    testWidgets('入力した数も保存できる', (tester) async {
+      await openRule(tester);
+
+      await _tapCustom(tester, 0);
+      await _typeInField(tester, 0, '45');
+      await _tapCustom(tester, 1);
+      await _typeInField(tester, 1, '4');
+      await save(tester);
+
+      expect(find.text('45分おきに4回かけて、家族に通知'), findsOneWidget);
+
+      await openRule(tester);
+      expect(_selectedLabels(tester), ['入力', '入力']);
+      expect(
+        tester.widget<TextField>(find.byType(TextField).at(0)).controller?.text,
+        '45',
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField).at(1)).controller?.text,
+        '4',
+      );
     });
 
     testWidgets('保存せずに戻ると変更は残らない', (tester) async {
       await openRule(tester);
 
-      await _tapChip(tester, '1時間');
-      await _tapChip(tester, '5回');
+      await _tapChip(tester, '5分');
+      await _tapChip(tester, '1回');
       await back(tester);
 
       expect(find.byType(BookingScreen), findsOneWidget);
-      expect(find.text('15分おきに3回かけて、家族に通知'), findsOneWidget);
+      expect(find.text('10分おきに3回かけて、家族に通知'), findsOneWidget);
 
       await openRule(tester);
-      expect(_chip(tester, '15分').selected, isTrue);
+      expect(_chip(tester, '10分').selected, isTrue);
       expect(_chip(tester, '3回').selected, isTrue);
     });
 
@@ -377,7 +524,7 @@ void main() {
 
       expect(_chip(tester, '30分').selected, isTrue);
       expect(_chip(tester, '2回').selected, isTrue);
-      expect(_chip(tester, '15分').selected, isFalse);
+      expect(_chip(tester, '10分').selected, isFalse);
     });
 
     testWidgets('保存せずに戻っても 1 度保存したルールは残る', (tester) async {
@@ -386,7 +533,7 @@ void main() {
       await save(tester);
 
       await openRule(tester);
-      await _tapChip(tester, '10分');
+      await _tapChip(tester, '5分');
       await back(tester);
 
       expect(find.text('30分おきに3回かけて、家族に通知'), findsOneWidget);
@@ -399,7 +546,7 @@ void main() {
       await _pumpRule(tester);
 
       expect(
-        tester.getSemantics(find.bySemanticsLabel('15分')),
+        tester.getSemantics(find.bySemanticsLabel('10分')),
         isSemantics(
           isButton: true,
           isEnabled: true,
@@ -425,7 +572,7 @@ void main() {
       final handle = tester.ensureSemantics();
       await _pumpRule(tester);
 
-      expect(find.bySemanticsLabel('9:30 家族に通知'), findsOneWidget);
+      expect(find.bySemanticsLabel('9:20 家族に通知'), findsOneWidget);
       expect(find.bySemanticsLabel('家族に'), findsNothing);
       expect(find.bySemanticsLabel('9:00'), findsNothing);
       handle.dispose();

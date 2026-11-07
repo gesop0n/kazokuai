@@ -374,7 +374,7 @@ class _MissedCard extends StatelessWidget {
         const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
         const SizedBox(height: 4),
         const Text(
-          '9:00、9:15、9:30にかけましたが、応答がありません。',
+          '9:00、9:10、9:20にかけましたが、応答がありません。',
           style: AppTextStyles.bodyM,
         ),
         const SizedBox(height: 16),

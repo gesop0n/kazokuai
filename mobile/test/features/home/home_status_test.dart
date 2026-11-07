@@ -98,12 +98,12 @@ void main() {
       expect(sampleHomeData.now, sampleHomeDataFor(HomeStatus.normal).now);
     });
 
-    test('不在のデータはモックの 07b と同じ', () {
+    test('不在の時刻はかけなおしの既定の 10 分おき', () {
       final missedCall = sampleHomeDataFor(HomeStatus.missedCall).missedCall;
       expect(missedCall.attemptedAt, [
         DateTime(2026, 11, 5, 9, 0),
-        DateTime(2026, 11, 5, 9, 15),
-        DateTime(2026, 11, 5, 9, 30),
+        DateTime(2026, 11, 5, 9, 10),
+        DateTime(2026, 11, 5, 9, 20),
       ]);
       expect(missedCall.lastTalk.startedAt, DateTime(2026, 11, 4, 19, 0));
       expect(missedCall.lastTalk.duration, const Duration(minutes: 3));

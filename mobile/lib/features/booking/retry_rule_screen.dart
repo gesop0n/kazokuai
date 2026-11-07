@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
@@ -8,6 +9,7 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
+import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/home/home_format.dart';
 
@@ -20,7 +22,90 @@ class RetryRuleScreen extends ConsumerStatefulWidget {
 
 class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
   // 保存するまで Riverpod のルールは変えないので、戻ると選択は消える
-  late RetryRule _draft = ref.read(retryRuleProvider);
+  late RetryRule _draft;
+  late bool _minutesCustom;
+  late bool _attemptsCustom;
+  late final TextEditingController _minutesInput;
+  late final TextEditingController _attemptsInput;
+
+  @override
+  void initState() {
+    super.initState();
+    final rule = ref.read(retryRuleProvider);
+    _draft = rule;
+    _minutesCustom = !RetryRule.intervalChoices.contains(rule.interval);
+    _attemptsCustom = !RetryRule.attemptChoices.contains(rule.attempts);
+    _minutesInput = TextEditingController(
+      text: _minutesCustom ? '${rule.interval.inMinutes}' : '',
+    );
+    _attemptsInput = TextEditingController(
+      text: _attemptsCustom ? '${rule.attempts}' : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _minutesInput.dispose();
+    _attemptsInput.dispose();
+    super.dispose();
+  }
+
+  // 欄が空か範囲の外のあいだは、前の規則の流れを見せたまま保存させない
+  bool get _canSave =>
+      (!_minutesCustom ||
+          RetryRule.minutesInRange(_minutesInput.text) != null) &&
+      (!_attemptsCustom ||
+          RetryRule.attemptsInRange(_attemptsInput.text) != null);
+
+  void _chooseMinutes(Duration interval) {
+    setState(() {
+      _minutesCustom = false;
+      _draft = _draft.copyWith(interval: interval);
+    });
+  }
+
+  void _chooseCustomMinutes() {
+    setState(() {
+      _minutesCustom = true;
+      final minutes = RetryRule.minutesInRange(_minutesInput.text);
+      if (minutes != null) {
+        _draft = _draft.copyWith(interval: Duration(minutes: minutes));
+      }
+    });
+  }
+
+  void _onMinutesChanged(String text) {
+    setState(() {
+      final minutes = RetryRule.minutesInRange(text);
+      if (minutes != null) {
+        _draft = _draft.copyWith(interval: Duration(minutes: minutes));
+      }
+    });
+  }
+
+  void _chooseAttempts(int attempts) {
+    setState(() {
+      _attemptsCustom = false;
+      _draft = _draft.copyWith(attempts: attempts);
+    });
+  }
+
+  void _chooseCustomAttempts() {
+    setState(() {
+      _attemptsCustom = true;
+      final attempts = RetryRule.attemptsInRange(_attemptsInput.text);
+      if (attempts != null) {
+        _draft = _draft.copyWith(attempts: attempts);
+      }
+    });
+  }
+
+  void _onAttemptsChanged(String text) {
+    setState(() {
+      final attempts = RetryRule.attemptsInRange(text);
+      if (attempts != null) _draft = _draft.copyWith(attempts: attempts);
+    });
+  }
 
   void _save() {
     ref.read(retryRuleProvider.notifier).save(_draft);
@@ -47,10 +132,17 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                         for (final interval in RetryRule.intervalChoices)
                           interval: RetryRule.intervalLabel(interval),
                       },
-                      selected: _draft.interval,
-                      onSelected: (interval) => setState(
-                        () => _draft = _draft.copyWith(interval: interval),
-                      ),
+                      selected: _minutesCustom ? null : _draft.interval,
+                      onSelected: _chooseMinutes,
+                      customSelected: _minutesCustom,
+                      onCustom: _chooseCustomMinutes,
+                      customField: _minutesCustom
+                          ? _NumberField(
+                              controller: _minutesInput,
+                              unit: '分',
+                              onChanged: _onMinutesChanged,
+                            )
+                          : null,
                     ),
                     // チップの上下の透明の余白 4 をふくめて、モックの間隔 20 になる
                     const SizedBox(height: 16),
@@ -60,10 +152,17 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                         for (final attempts in RetryRule.attemptChoices)
                           attempts: '$attempts回',
                       },
-                      selected: _draft.attempts,
-                      onSelected: (attempts) => setState(
-                        () => _draft = _draft.copyWith(attempts: attempts),
-                      ),
+                      selected: _attemptsCustom ? null : _draft.attempts,
+                      onSelected: _chooseAttempts,
+                      customSelected: _attemptsCustom,
+                      onCustom: _chooseCustomAttempts,
+                      customField: _attemptsCustom
+                          ? _NumberField(
+                              controller: _attemptsInput,
+                              unit: '回',
+                              onChanged: _onAttemptsChanged,
+                            )
+                          : null,
                     ),
                     const SizedBox(height: 16),
                     AppCard(
@@ -88,7 +187,7 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                 label: 'このルールで保存',
                 variant: AppButtonVariant.primary,
                 size: AppButtonSize.l,
-                onTap: _save,
+                onTap: _canSave ? _save : null,
               ),
             ),
           ],
@@ -104,12 +203,18 @@ class _ChoiceGroup<T> extends StatelessWidget {
     required this.choices,
     required this.selected,
     required this.onSelected,
+    required this.customSelected,
+    required this.onCustom,
+    required this.customField,
   });
 
   final String label;
   final Map<T, String> choices;
-  final T selected;
+  final T? selected;
   final ValueChanged<T> onSelected;
+  final bool customSelected;
+  final VoidCallback onCustom;
+  final Widget? customField;
 
   @override
   Widget build(BuildContext context) {
@@ -130,9 +235,39 @@ class _ChoiceGroup<T> extends StatelessWidget {
                 selected: value == selected,
                 onTap: () => onSelected(value),
               ),
+            AppChip(label: '入力', selected: customSelected, onTap: onCustom),
           ],
         ),
+        ?customField,
       ],
+    );
+  }
+}
+
+class _NumberField extends StatelessWidget {
+  const _NumberField({
+    required this.controller,
+    required this.unit,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String unit;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = AppTextStyles.labelL.copyWith(fontWeight: FontWeight.w400);
+    return AppTextField(
+      controller: controller,
+      semanticLabel: unit,
+      keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      textStyle: style,
+      onChanged: onChanged,
+      trailing: ExcludeSemantics(
+        child: Text(unit, style: style.copyWith(color: AppColors.inkPrimary)),
+      ),
     );
   }
 }
@@ -144,7 +279,8 @@ class _RetryFlow extends StatelessWidget {
   // 朝 9:00 の電話を例にする
   static final _firstCall = DateTime(2026, 11, 5, 9);
 
-  // 幅 68 の丸は幅 360 のカードに 4 つまで並ぶ。5 回のときの 6 つは 2 段に分ける
+  // 幅 68 の丸は幅 360 のカードに 4 つまで並ぶ。
+  // それを超えるときは 3 つずつに分け、最後の段は短くてよい。
   static const _maxDotsInRow = 4;
   static const _dotsInRowWhenSplit = 3;
 
@@ -182,7 +318,12 @@ class _RetryFlow extends StatelessWidget {
       spacing: 12,
       children: [
         for (var start = 0; start < dots.length; start += dotsInRow)
-          _FlowRow(dots.sublist(start, start + dotsInRow)),
+          _FlowRow(
+            dots.sublist(
+              start,
+              start + dotsInRow > dots.length ? dots.length : start + dotsInRow,
+            ),
+          ),
       ],
     );
   }
