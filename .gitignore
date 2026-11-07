@@ -3,3 +3,6 @@
 
 # scripts/ のテストを動かすと Python が作る
 __pycache__/
+
+# 環境変数。.env.example を写して作る。API キーが入るのでコミットしない
+.env
