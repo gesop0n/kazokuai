@@ -109,9 +109,35 @@ The remaining findings go into the PR body for the person to judge. There is no 
 
 Done when Codex has written its second file, or the first review held no findings.
 
-## 7. Open the PR
+## 7. Compare screens
 
-1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewer, and a section listing the remaining findings.
+When the ticket changes screens in `mobile/`, put each changed screen beside the same screen in the mock (ADR 0001). You alone run the simulator, because the tickets share one.
+
+1. Name the changed screens by their ids in the mock (`L2c`, `05`, `07b`).
+2. Boot the iPhone simulator without its window: `xcrun simctl list devices available` gives `<udid>`, and `xcrun simctl boot <udid>` boots it.
+3. For each changed screen that a route opens, run the app at that route in the background, wait for `Flutter run key commands` in the log, save the screenshot, and stop the run. The first build in a new worktree takes several minutes.
+
+   ```bash
+   mkdir -p <work>/shots && cd "$wt/mobile"
+   flutter run -d <udid> --route <path> > <work>/shots/run.log 2>&1 < /dev/null &
+   xcrun simctl io <udid> screenshot <work>/shots/<id>-app.png
+   pkill -f "run -d <udid> --route"
+   ```
+
+   The simulator keeps the app signed in, and the app sends a signed-in person away from the screens before login. Take the screens after login first. When one shows L1 instead, notify the person to sign in on the simulator and wait for their answer. Then sign out with `xcrun simctl keychain <udid> reset` and take the screens before login. Tell the person that this signed them out.
+4. Capture the mock's screens and pair them with the app's:
+
+   ```bash
+   uv run --with playwright --with pillow python3 .claude/skills/run-tickets/compare_screens.py docs/mock/ui.html <work>/shots <id>...
+   ```
+
+5. Look at every pair. Each difference the ticket does not explain goes into the PR body with the remaining findings.
+
+Done when every changed screen has a pair in `<work>/shots/<id>.png`, or is listed as not captured because no route opens it.
+
+## 8. Open the PR
+
+1. Write the PR body in English in the shape of the `pr` skill, in `<work>/pr_en.md`. Add `Closes #<N>`, the implementer, the reviewer, a section listing the remaining findings, and the screens compared in step 7 and those not captured.
 2. Turn it into Japanese as `AGENTS.md` says for PR bodies: `mise run translate`, mistranslations fixed against the English, then the `yomiyasu` skill.
 3. Push and open the PR. The title is the ticket's title.
 
@@ -122,10 +148,10 @@ Done when Codex has written its second file, or the first review held no finding
    ```
 
 4. When CI goes red, send the failure to the implementer, check its fix as in step 4, and push again.
-5. Notify the person with the PR URL.
+5. Notify the person with the PR URL and the paths of the pairs from step 7.
 
 Done when the PR is open, CI is green, and the person has the URL.
 
-## 8. Report
+## 9. Report
 
 Give the person one message: each ticket with its PR URL, CI state, and number of remaining findings. Tell them that merging may unblock more tickets, and that they run `/run-tickets <spec>` again after merging. When every sub-issue of the spec is closed, tell them they can close the spec.
