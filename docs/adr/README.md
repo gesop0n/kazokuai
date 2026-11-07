@@ -34,3 +34,4 @@
 | [20261107_development_process](20261107_development_process.md) | 開発プロセス | Accepted |
 | [20261107_issue_pr_writing](20261107_issue_pr_writing.md) | issue とプルリクエストの書き方 | Accepted |
 | [20261107_single_reviewer](20261107_single_reviewer.md) | レビュー役を Codex だけにする | Accepted |
+| [20261107_grok_implementer](20261107_grok_implementer.md) | 実装役を Grok だけにする | Accepted |
