@@ -26,7 +26,7 @@ class WeekCard extends StatelessWidget {
     return AppCard(
       variant: AppCardVariant.paper,
       children: [
-        const HomeCardHeading(title: 'この7日間の電話', label: '棒の数字は話した分数'),
+        const HomeCardHeading(title: '7日間の電話'),
         Wrap(
           spacing: 24,
           children: [
@@ -163,7 +163,7 @@ class _WeekChart extends StatelessWidget {
       parts.add('$monthPart${day.date.day}日$talked');
       month = day.date.month;
     }
-    return 'この7日間の通話時間。${parts.join('、')}';
+    return '7日間の通話時間。${parts.join('、')}';
   }
 }
 
@@ -262,10 +262,7 @@ class _DayLabel extends StatelessWidget {
         Text(
           '${date.day}',
           textAlign: TextAlign.center,
-          style: AppTextStyles.monoS.copyWith(
-            fontWeight: isToday ? FontWeight.w500 : FontWeight.w400,
-            color: color,
-          ),
+          style: AppTextStyles.monoS.copyWith(color: color),
         ),
         Text(
           weekdayLabel(date),

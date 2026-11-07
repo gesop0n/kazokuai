@@ -55,10 +55,11 @@ void main() {
       expect(find.text('今日の様子'), findsOneWidget);
     });
 
-    testEachLayout('この7日間の電話', (tester, layout) async {
+    testEachLayout('7日間の電話', (tester, layout) async {
       await pumpInLayout(tester, layout, _weekCard(sampleHomeData.week));
 
-      expect(find.text('この7日間の電話'), findsOneWidget);
+      expect(find.text('7日間の電話'), findsOneWidget);
+      expect(find.text('棒の数字は話した分数'), findsNothing);
     });
 
     testEachLayout('分数の桁が多いとき', (tester, layout) async {
@@ -94,7 +95,7 @@ void main() {
       expect(find.text('9:02の会話より'), findsOneWidget);
     });
 
-    testWidgets('項目名、内容、本人の言葉、注意書きを出す', (tester) async {
+    testWidgets('項目名、内容、本人の言葉を出し、注意書きは出さない', (tester) async {
       await pumpInLayout(
         tester,
         layoutCases.first,
@@ -111,10 +112,10 @@ void main() {
         '体調',
         '膝が痛い。階段がつらい',
         '「昨日の夕方から膝が痛くてね」',
-        'ご本人の話をAIがまとめたものです。医療上の判断ではありません。',
       ]) {
         expect(find.text(text), findsOneWidget);
       }
+      expect(find.text('ご本人の話をAIがまとめたものです。医療上の判断ではありません。'), findsNothing);
     });
 
     testWidgets('needsAttention の行だけに「気になる話」が出る', (tester) async {
@@ -193,30 +194,16 @@ void main() {
   });
 
   group('見出しの行', () {
-    testWidgets('収まるときはラベルを見出しの右に置く', (tester) async {
-      await pumpInLayout(
-        tester,
-        const LayoutCase(360, 1.0),
-        _weekCard(sampleHomeData.week),
-      );
-
-      final title = tester.getRect(find.text('この7日間の電話'));
-      final label = tester.getRect(find.text('棒の数字は話した分数'));
-      expect(label.left, greaterThan(title.right));
-      expect(label.top, lessThan(title.bottom));
-    });
-
-    testWidgets('収まらないときはラベルを次の行に送る', (tester) async {
+    testWidgets('週のカードに説明のラベルはない', (tester) async {
       await pumpInLayout(
         tester,
         const LayoutCase(360, 1.3),
         _weekCard(sampleHomeData.week),
       );
 
-      final title = tester.getRect(find.text('この7日間の電話'));
-      final label = tester.getRect(find.text('棒の数字は話した分数'));
-      expect(label.left, title.left);
-      expect(label.top, greaterThanOrEqualTo(title.bottom));
+      expect(find.text('7日間の電話'), findsOneWidget);
+      expect(find.text('棒の数字は話した分数'), findsNothing);
+      expect(find.textContaining('この7日間'), findsNothing);
     });
   });
 
@@ -324,7 +311,7 @@ void main() {
 
       expect(
         find.bySemanticsLabel(
-          'この7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分',
+          '7日間の通話時間。10月30日14分、31日22分、11月1日31分、2日は不在、3日18分、4日12分、5日6分',
         ),
         findsOneWidget,
       );
@@ -335,7 +322,7 @@ void main() {
 
       expect(
         find.bySemanticsLabel(
-          'この7日間の通話時間。11月1日100分、2日は不在、3日110分、4日120分、5日130分、6日140分、7日150分',
+          '7日間の通話時間。11月1日100分、2日は不在、3日110分、4日120分、5日130分、6日140分、7日150分',
         ),
         findsOneWidget,
       );

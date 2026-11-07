@@ -2,9 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 const _licenses = {
-  'Zen Maru Gothic': 'assets/licenses/ZenMaruGothic-OFL.txt',
-  'Shippori Mincho': 'assets/licenses/ShipporiMincho-OFL.txt',
-  'DM Mono': 'assets/licenses/DMMono-OFL.txt',
+  'BIZ UDPGothic': 'assets/licenses/BIZUDPGothic-OFL.txt',
   'Lucide': 'assets/licenses/Lucide-LICENSE.txt',
 };
 

@@ -14,14 +14,7 @@ import '../../support/layout_matrix.dart';
 // 読み込んだフォントはこのファイルのテストにだけ効く。
 Future<void> _loadFonts() async {
   const families = {
-    'ZenMaruGothic': [
-      'ZenMaruGothic-Regular',
-      'ZenMaruGothic-Medium',
-      'ZenMaruGothic-Bold',
-      'ZenMaruGothic-Black',
-    ],
-    'ShipporiMincho': ['ShipporiMincho-Medium'],
-    'DMMono': ['DMMono-Regular', 'DMMono-Medium'],
+    'BIZUDPGothic': ['BIZUDPGothic-Regular', 'BIZUDPGothic-Bold'],
   };
   for (final MapEntry(key: family, value: files) in families.entries) {
     final loader = FontLoader(family);
@@ -35,7 +28,8 @@ Future<void> _loadFonts() async {
 const _mockLayout = LayoutCase(393, 1.0);
 const _message = '金曜の通院、10時に迎えに行くと伝えて';
 const _suggestion = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
-const _footNote = '押すと、すぐにハナさんの固定電話にかけます';
+const _removedNote = '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。';
+const _removedFootNote = '押すと、すぐにハナさんの固定電話にかけます';
 
 // 指定のシミュレーター(iPhone 17 Pro)で測った値
 const _deviceSize = Size(402, 874);
@@ -61,7 +55,7 @@ void main() {
     testWidgets('チップの幅は 68.84、83.13、111.69 で、1 行に並ぶ', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
-      const expected = {'ふつう': 68.84, 'ゆっくり': 83.13, 'カスタマイズ': 111.69};
+      const expected = {'ふつう': 67.03, 'ゆっくり': 77.67, 'カスタマイズ': 103.84};
       for (final MapEntry(key: label, value: width) in expected.entries) {
         expect(
           tester.getSize(find.widgetWithText(AppChip, label).first).width,
@@ -94,28 +88,25 @@ void main() {
       expect(field.top - tester.getBottomLeft(find.text('伝えたいこと')).dy, 8);
     });
 
-    testWidgets('案の文は 3 行で、説明は 2 行', (tester) async {
+    testWidgets('案の文は 3 行で、削った説明はない', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
-      // 行の高さ 28 と 20
+      // 行の高さ 28
       expect(tester.getSize(find.text(_suggestion)).height, 84);
-      expect(
-        tester.getSize(find.text('電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。')).height,
-        40,
-      );
+      expect(find.text(_removedNote), findsNothing);
     });
 
-    testWidgets('案のカードはモックの 214 より「なおす」の 12 だけ高い', (tester) async {
+    testWidgets('案のカードはモックの 162 より「なおす」の 12 だけ高い', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
       // モックの「なおす」は高さ 32 で、44pt にした分だけ伸びる
-      expect(tester.getSize(find.byType(AppCard)).height, 214 + 12);
+      expect(tester.getSize(find.byType(AppCard)).height, 162 + 12);
     });
 
-    testWidgets('文言は 1 行で、通話 56、予約 44', (tester) async {
+    testWidgets('通話は 56、予約は 44 で、削った文言はない', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
-      expect(tester.getSize(find.text(_footNote)).height, 20);
+      expect(find.text(_removedFootNote), findsNothing);
       expect(tester.getSize(find.widgetWithText(AppButton, '通話')).height, 56);
       expect(
         tester.getSize(find.widgetWithText(AppButton, '日時を決めて予約する')).height,
@@ -175,7 +166,9 @@ void main() {
     testWidgets('文字倍率 1.0 では、入力欄と案の文の全部がスクロールせずに見える', (tester) async {
       await pumpOnDevice(tester, 1.0);
 
-      final footTop = tester.getTopLeft(find.text(_footNote)).dy;
+      final footTop = tester
+          .getTopLeft(find.widgetWithText(AppButton, '通話'))
+          .dy;
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
         lessThan(footTop),
@@ -189,7 +182,9 @@ void main() {
     testWidgets('文字倍率 1.3 では、案の文はスクロールすれば全部見える', (tester) async {
       await pumpOnDevice(tester, 1.3);
 
-      final footTop = tester.getTopLeft(find.text(_footNote)).dy;
+      final footTop = tester
+          .getTopLeft(find.widgetWithText(AppButton, '通話'))
+          .dy;
       // 入力欄と案の見出しはスクロールしなくても見える
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,

@@ -70,7 +70,7 @@ class _AppTextFieldState extends State<AppTextField> {
     final isMultiline = widget.maxLines != 1;
     final style =
         (widget.textStyle ??
-                AppTextStyles.labelL.copyWith(fontWeight: FontWeight.w500))
+                AppTextStyles.labelL.copyWith(fontWeight: FontWeight.w400))
             .copyWith(color: AppColors.inkPrimary);
     return GestureDetector(
       // TextField は文字の高さしかないので、余白を押しても入力できるようにする

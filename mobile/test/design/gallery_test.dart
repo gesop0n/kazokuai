@@ -37,6 +37,23 @@ void main() {
     }
   });
 
+  testWidgets('モックで削った文は部品一覧にも出さない', (tester) async {
+    await pumpScreenInLayout(tester, layoutCases.first, const GalleryScreen());
+
+    for (final text in [
+      'Geminiのまとめ',
+      '予約もできます',
+      '棒の数字は話した分数',
+      '外出中の可能性もあります',
+      '電話ではこの言い方で伝えます',
+      '押すと、すぐにハナさんの固定電話にかけます',
+      '詳細なまとめ',
+      '電話に出なかったら、どうしますか',
+    ]) {
+      expect(find.textContaining(text), findsNothing, reason: text);
+    }
+  });
+
   testWidgets('ボタン、カード、チップの種類がすべて並ぶ', (tester) async {
     await pumpScreenInLayout(tester, layoutCases.first, const GalleryScreen());
 

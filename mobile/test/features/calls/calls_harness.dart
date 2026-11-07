@@ -101,14 +101,7 @@ Future<void> tapSemantics(WidgetTester tester, String label) async {
 // 読み込んだフォントは呼んだテストファイルにだけ効く。
 Future<void> loadBundledFonts() async {
   const families = {
-    'ZenMaruGothic': [
-      'ZenMaruGothic-Regular',
-      'ZenMaruGothic-Medium',
-      'ZenMaruGothic-Bold',
-      'ZenMaruGothic-Black',
-    ],
-    'ShipporiMincho': ['ShipporiMincho-Medium'],
-    'DMMono': ['DMMono-Regular', 'DMMono-Medium'],
+    'BIZUDPGothic': ['BIZUDPGothic-Regular', 'BIZUDPGothic-Bold'],
   };
   for (final MapEntry(key: family, value: files) in families.entries) {
     final loader = FontLoader(family);

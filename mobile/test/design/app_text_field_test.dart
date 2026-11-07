@@ -156,7 +156,7 @@ void main() {
       );
     });
 
-    testWidgets('文字は既定で labelL の太さ 500、ヒントは同じ大きさで inkSecondary', (
+    testWidgets('文字は既定で labelL の太さ 400、ヒントは同じ大きさで inkSecondary', (
       tester,
     ) async {
       await pumpInLayout(
@@ -168,7 +168,7 @@ void main() {
       final style = tester.widget<TextField>(find.byType(TextField)).style!;
       expect(style.fontSize, AppTextStyles.labelL.fontSize);
       expect(style.height, AppTextStyles.labelL.height);
-      expect(style.fontWeight, FontWeight.w500);
+      expect(style.fontWeight, FontWeight.w400);
       expect(style.color, AppColors.inkPrimary);
 
       final hint = tester.widget<Text>(find.text('話題を入力')).style!;

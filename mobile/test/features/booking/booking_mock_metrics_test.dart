@@ -17,14 +17,7 @@ import '../../support/layout_matrix.dart';
 // 読み込んだフォントはこのファイルのテストにだけ効く。
 Future<void> _loadFonts() async {
   const families = {
-    'ZenMaruGothic': [
-      'ZenMaruGothic-Regular',
-      'ZenMaruGothic-Medium',
-      'ZenMaruGothic-Bold',
-      'ZenMaruGothic-Black',
-    ],
-    'ShipporiMincho': ['ShipporiMincho-Medium'],
-    'DMMono': ['DMMono-Regular', 'DMMono-Medium'],
+    'BIZUDPGothic': ['BIZUDPGothic-Regular', 'BIZUDPGothic-Bold'],
   };
   for (final MapEntry(key: family, value: files) in families.entries) {
     final loader = FontLoader(family);
@@ -89,26 +82,30 @@ void main() {
       expect(tester.getSize(find.text('かけなおしのルール')).height, 24);
     });
 
-    testWidgets('予約の行の時刻は 1 行に入る', (tester) async {
+    testWidgets('短い時刻は 1 行で、11/7 10:00 は 2 行', (tester) async {
       await _pumpBooking(tester, _mockLayout);
 
-      for (final when in ['今日 12:00', '今日 19:00', '11/7 10:00']) {
+      for (final when in ['今日 12:00', '今日 19:00']) {
         expect(tester.getSize(find.text(when)).height, 16, reason: when);
       }
+      expect(tester.getSize(find.text('11/7 10:00')).height, 32);
     });
   });
 
   group('06 の文字倍率 1.3', () {
-    testWidgets('予約の行の時刻は 1 行に入る', (tester) async {
+    testWidgets('短い時刻は 1 行のまま、11/7 10:00 は 2 行のまま', (tester) async {
       await _pumpBooking(tester, _narrowLargeLayout);
 
-      for (final when in ['今日 12:00', '今日 19:00', '11/7 10:00']) {
+      for (final when in ['今日 12:00', '今日 19:00']) {
         expect(
           tester.getSize(find.text(when)).height,
           _isOneLineOf(16, _narrowLargeLayout),
           reason: when,
         );
       }
+      final height = tester.getSize(find.text('11/7 10:00')).height;
+      expect(height, greaterThan(16 * _narrowLargeLayout.textScale * 1.5));
+      expect(height, _isOneLineOf(32, _narrowLargeLayout));
     });
   });
 
@@ -127,14 +124,13 @@ void main() {
       await _pumpRule(tester, _mockLayout);
 
       // モックは状態バーの 54 を引いた位置
-      expect(tester.getTopLeft(find.textContaining('どうしますか')).dy, 114 - 54);
-      expect(tester.getTopLeft(find.text('かけなおす間隔')).dy, 198 - 54);
-      expect(tester.getTopLeft(find.text('かける回数(最初の1回をふくむ)')).dy, 282 - 54);
-      expect(tester.getTopLeft(find.byType(AppCard).first).dy, 366 - 54);
+      expect(tester.getTopLeft(find.text('かけなおす間隔')).dy, 114 - 54);
+      expect(tester.getTopLeft(find.text('かける回数(最初の1回をふくむ)')).dy, 198 - 54);
+      expect(tester.getTopLeft(find.byType(AppCard).first).dy, 282 - 54);
 
       // チップの面は押せる領域の上下 4 の内側にある
       final chip = tester.getTopLeft(find.widgetWithText(AppChip, '10分'));
-      expect(chip.dy + 4, 226 - 54);
+      expect(chip.dy + 4, 142 - 54);
     });
 
     testWidgets('丸の間の線はモックと同じ位置と幅', (tester) async {
@@ -219,7 +215,7 @@ void main() {
       final cards = find.byType(AppCard);
       expect(tester.getSize(cards.at(0)), const Size(361, 224));
       expect(tester.getSize(cards.at(1)), const Size(361, 120));
-      expect(tester.getSize(cards.at(2)), const Size(361, 136));
+      expect(tester.getSize(cards.at(2)), const Size(361, 114));
       expect(
         tester.getTopLeft(cards.at(1)).dy -
             tester.getBottomLeft(cards.at(0)).dy,

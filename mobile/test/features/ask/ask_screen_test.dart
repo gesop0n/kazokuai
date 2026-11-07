@@ -24,10 +24,10 @@ import '../../support/layout_matrix.dart';
 const _standardLayout = LayoutCase(393, 1.0);
 const _message = '金曜の通院、10時に迎えに行くと伝えて';
 const _suggestion = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
-const _note = '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。';
+const _removedNote = '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。';
 const _longMessage = '金曜の通院、10時に迎えに行くと伝えて。帰りに薬局へ寄ることも話しておいてほしいです。';
 
-const _footNote = '押すと、すぐにハナさんの固定電話にかけます';
+const _removedFootNote = '押すと、すぐにハナさんの固定電話にかけます';
 
 // iPhone 17 Pro で日本語のキーボードを出したときの値
 const _keyboardHeight = 336.0;
@@ -139,7 +139,7 @@ void main() {
       expect(find.byType(AppAiTag), findsOneWidget);
       expect(find.text('Geminiの言い方の案'), findsOneWidget);
       expect(find.text(_suggestion), findsOneWidget);
-      expect(find.text(_note), findsOneWidget);
+      expect(find.text(_removedNote), findsNothing);
       expect(_button(tester, '通話').onTap, isNotNull);
     });
 
@@ -224,11 +224,11 @@ void main() {
   });
 
   group('下に固定の部分', () {
-    testEachLayout('文言とボタンの種類がモックのとおりで、44pt 以上', (tester, layout) async {
+    testEachLayout('ボタンの種類がモックのとおりで、44pt 以上', (tester, layout) async {
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
 
-      expect(find.text(_footNote), findsOneWidget);
+      expect(find.text(_removedFootNote), findsNothing);
 
       final call = _button(tester, '通話');
       expect(call.variant, AppButtonVariant.record);
@@ -277,14 +277,12 @@ void main() {
       expect(tester.getTopLeft(find.byType(AppNavBar)).dy, 54);
     });
 
-    testWidgets('通話と予約の間と、文言と通話の間はモックの 8', (tester) async {
+    testWidgets('通話と予約の間はモックの 8', (tester) async {
       await _pumpAsk(tester);
 
-      final note = tester.getRect(find.text(_footNote));
       final call = tester.getRect(find.widgetWithText(AppButton, '通話'));
       final book = tester.getRect(find.widgetWithText(AppButton, '日時を決めて予約する'));
 
-      expect(call.top - note.bottom, 8);
       expect(book.top - call.bottom, 8);
       expect(call.left, 16);
       expect(call.width, 393 - 32);
@@ -313,7 +311,9 @@ void main() {
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
 
-      final noteTop = tester.getTopLeft(find.text(_footNote)).dy;
+      final noteTop = tester
+          .getTopLeft(find.widgetWithText(AppButton, '通話'))
+          .dy;
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
         lessThan(noteTop),
@@ -345,7 +345,9 @@ void main() {
 
       expect(
         tester.getBottomLeft(find.text('大きい')).dy,
-        lessThanOrEqualTo(tester.getTopLeft(find.text(_footNote)).dy),
+        lessThanOrEqualTo(
+          tester.getTopLeft(find.widgetWithText(AppButton, '通話')).dy,
+        ),
       );
     });
   });

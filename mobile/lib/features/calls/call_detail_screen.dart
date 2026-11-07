@@ -4,8 +4,8 @@ import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
-import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
+import 'package:kazokuai/design/widgets/app_pill.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
@@ -141,7 +141,7 @@ class _SummaryCard extends StatelessWidget {
               crossAxisAlignment: WrapCrossAlignment.center,
               spacing: 8,
               children: [
-                const Text('詳細なまとめ', style: AppTextStyles.labelM),
+                const Text('通話時間', style: AppTextStyles.labelM),
                 Text(
                   formatCallStamp(detail.startedAt, detail.duration),
                   style: AppTextStyles.monoS.copyWith(
@@ -150,8 +150,6 @@ class _SummaryCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            const AppAiTag(label: 'Geminiのまとめ。右の時刻で元の発言へ移動します'),
             const SizedBox(height: 8),
             for (final point in detail.points)
               _SummaryRow(point: point, onTap: () => onOpenUtterance(point.at)),
@@ -272,32 +270,41 @@ class _UtteranceRow extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(left: 8),
-                  child: Text(
-                    isAi ? 'AIヘルパー' : parentCallName,
-                    style: AppTextStyles.labelS.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: isAi
-                          ? AppColors.speakerAi
-                          : AppColors.speakerParent,
-                    ),
+                  child: Row(
+                    spacing: 8,
+                    children: [
+                      Text(
+                        isAi ? 'AIヘルパー' : parentCallName,
+                        style: AppTextStyles.labelS.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: isAi
+                              ? AppColors.speakerAi
+                              : AppColors.speakerParent,
+                        ),
+                      ),
+                      if (utterance.needsAttention)
+                        const AppPill(
+                          variant: AppPillVariant.care,
+                          icon: AppIcons.alert,
+                          label: '気になる話',
+                        ),
+                    ],
                   ),
                 ),
                 if (utterance.needsAttention)
-                  Semantics(
-                    label: '気になる発言',
-                    child: Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(top: 2),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.stateCareSoft,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(utterance.text, style: AppTextStyles.capS),
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
+                    decoration: BoxDecoration(
+                      color: AppColors.stateCareSoft,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.inkSecondary),
+                    ),
+                    child: Text(utterance.text, style: AppTextStyles.capS),
                   )
                 else
                   Padding(

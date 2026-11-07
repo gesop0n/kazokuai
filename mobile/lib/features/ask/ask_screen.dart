@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
-import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
@@ -135,10 +134,6 @@ class _SuggestionCard extends StatelessWidget {
           '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」',
           style: AppTextStyles.capM,
         ),
-        Text(
-          '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。',
-          style: AppTextStyles.bodyS.copyWith(color: AppColors.inkSecondary),
-        ),
       ],
     );
   }
@@ -191,11 +186,6 @@ class _AskActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
-        Text(
-          '押すと、すぐにハナさんの固定電話にかけます',
-          textAlign: TextAlign.center,
-          style: AppTextStyles.bodyS.copyWith(color: AppColors.inkSecondary),
-        ),
         if (isCalling)
           const AppButton(
             label: '現在通話中です',

@@ -60,11 +60,11 @@ void main() {
       );
       expect(
         tester.getSize(filterChip('話し相手')).width,
-        moreOrLessEquals(91.13, epsilon: 1),
+        moreOrLessEquals(89.03, epsilon: 1),
       );
       expect(
         tester.getTopLeft(filterChip('不在')).dx,
-        moreOrLessEquals(355.38, epsilon: 2),
+        moreOrLessEquals(353.28, epsilon: 2),
       );
     });
 
@@ -82,7 +82,7 @@ void main() {
       expect(tester.getSize(_textCard('朝食と薬は済み。膝を気にしている')).width, 281);
     });
 
-    testWidgets('不在の行は 1 行に収まり、カードの高さは 46', (tester) async {
+    testWidgets('不在の行は 1 行に収まり、カードの高さは 48', (tester) async {
       await _pumpMockCalls(tester);
 
       final card = find.ancestor(
@@ -91,7 +91,7 @@ void main() {
       );
       final decoration =
           tester.widget<Container>(card.first).decoration! as BoxDecoration;
-      expect(tester.getSize(card.first).height, 46);
+      expect(tester.getSize(card.first).height, 48);
       expect(decoration.color, AppColors.stateAlertSoft);
       expect(
         decoration.border,
@@ -146,8 +146,8 @@ void main() {
 
       expect(tester.getTopLeft(find.text('11月3日(火)')).dy - 8, 254);
       expect(tester.getTopLeft(find.text('11月2日(月)')).dy - 8, 372);
-      expect(tester.getTopLeft(find.text('11月1日(日)')).dy - 8, 468);
-      expect(tester.getTopLeft(find.text('10月31日(土)')).dy - 8, 586);
+      expect(tester.getTopLeft(find.text('11月1日(日)')).dy - 8, 470);
+      expect(tester.getTopLeft(find.text('10月31日(土)')).dy - 8, 588);
       expect(miniSelection(tester), '11月3日');
     });
 
@@ -246,17 +246,17 @@ void main() {
     testWidgets('カードは y=106 から始まる', (tester) async {
       await pumpDetail(tester);
 
-      expect(tester.getTopLeft(find.text('詳細なまとめ')).dy, 106 + 1 + 16);
+      expect(tester.getTopLeft(find.text('通話時間')).dy, 106 + 1 + 16);
     });
 
-    testWidgets('カードの高さはモックの 265 より 18 高い 283', (tester) async {
+    testWidgets('カードの高さはモックの 241 より 18 高い 259', (tester) async {
       await pumpDetail(tester);
 
       // 時刻の行は 33 から 44 に、ボタンは 32 から 44 にしたぶん高い
       final card = find
-          .ancestor(of: find.text('詳細なまとめ'), matching: find.byType(Container))
+          .ancestor(of: find.text('通話時間'), matching: find.byType(Container))
           .last;
-      expect(tester.getSize(card).height, 283);
+      expect(tester.getSize(card).height, 259);
     });
 
     testWidgets('まとめの時刻と文字は baseline が揃う', (tester) async {
