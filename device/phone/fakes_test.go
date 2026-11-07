@@ -654,6 +654,10 @@ func turnComplete() *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{TurnComplete: true}}
 }
 
+func generationComplete() *genai.LiveServerMessage {
+	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{GenerationComplete: true}}
+}
+
 func interrupted() *genai.LiveServerMessage {
 	return &genai.LiveServerMessage{ServerContent: &genai.LiveServerContent{Interrupted: true}}
 }

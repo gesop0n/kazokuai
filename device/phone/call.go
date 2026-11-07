@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"google.golang.org/genai"
 
@@ -204,6 +205,11 @@ func (d *Device) hear(content *genai.LiveServerContent, lines *transcript) {
 			lines.flushOutput()
 		}
 	}
+	// 終わりの印がなくても、モデルが話し終えたら、そこまでの AI の発話は 1 行である。
+	// 文字起こしは、この印より先に届く。
+	if content.GenerationComplete {
+		lines.modelTurnCompleted()
+	}
 	if content.Interrupted {
 		d.Phone.Handset.Hush()
 	}
@@ -264,8 +270,9 @@ func send(session Session, done <-chan struct{}) (outgoing, turns chan<- func(Se
 }
 
 // transcript は、少しずつ届く文字起こしを話し手ごとにまとめ、ターミナルに 1 行ずつ出す。
-// 行を区切るのは、その人の文字起こしが終わったときと、電話が終わったときだけである。
-// 相手の文字起こしや TurnComplete では区切らない。入り交じって届いても、1 つの発話は 1 行のままになる。
+// 行を区切るのは、その人の文字起こしが終わったとき、モデルが話し終えたとき、電話が終わったときである。
+// 相手の文字起こしや TurnComplete では区切らない。入り交じって届いた欠片は、1 つの発話のままである。
+// モデルが話し終えたあとに見守る方がまた話し始めたら、前の発話とは別の行にする。
 type transcript struct {
 	out   io.Writer
 	clock Clock
@@ -275,6 +282,8 @@ type transcript struct {
 	input, output openLine
 	// seq は、開いている行が始まった順番を数える。電話の終わりに、先に始まった行から出す。
 	seq int
+	// modelTurns は、モデルが話し終えた回数である。見守る方の次の発話を、前の発話と分けるのに使う。
+	modelTurns int
 	// recorded は、区切った発話と、それが始まった順番である。
 	// 文字起こしが終わる順に増える。報告の直前に、始まった順へ並べる。
 	recorded []recordedUtterance
@@ -293,16 +302,33 @@ type openLine struct {
 	seq int
 	// at は、この行の最初の文字が届いた時刻である。
 	at time.Time
+	// modelTurns は、この行が始まったときに、モデルが話し終えていた回数である。
+	modelTurns int
 }
 
-func (t *transcript) addInput(chunk string)  { t.add(&t.input, chunk) }
+func (t *transcript) addInput(chunk string) {
+	// モデルが一度話し終えてから届いた見守る方の文字起こしは、新しい発話である。
+	// 話し終える前に入り交じって届いた欠片は、開いている行につなぐ。
+	if t.input.text.Len() > 0 && t.modelTurns > t.input.modelTurns {
+		t.flushInput()
+	}
+	t.add(&t.input, chunk)
+}
+
 func (t *transcript) addOutput(chunk string) { t.add(&t.output, chunk) }
+
+// modelTurnCompleted は、モデルが話し終えたので、開いている AI の発話を区切る。
+func (t *transcript) modelTurnCompleted() {
+	t.flushOutput()
+	t.modelTurns++
+}
 
 func (t *transcript) add(line *openLine, chunk string) {
 	if line.text.Len() == 0 {
 		t.seq++
 		line.seq = t.seq
 		line.at = t.clock.Now()
+		line.modelTurns = t.modelTurns
 	}
 	line.text.WriteString(chunk)
 }
@@ -327,7 +353,7 @@ func (t *transcript) flush() {
 }
 
 func (t *transcript) close(label, speaker string, line *openLine) {
-	text := strings.TrimSpace(line.text.String())
+	text := strings.TrimSpace(tightenJapanese(line.text.String()))
 	at := line.at
 	seq := line.seq
 	line.text.Reset()
@@ -351,6 +377,54 @@ func (t *transcript) close(label, speaker string, line *openLine) {
 			Text:     text,
 		},
 	})
+}
+
+// tightenJapanese は、かな、漢字、句読点の間にある空白を除く。
+// ラテン文字の単語の間の空白は残す。文字起こしは「朝に おにぎり」のように空白を挟む。
+func tightenJapanese(text string) string {
+	rs := []rune(text)
+	var b strings.Builder
+	var prev rune
+	hasPrev := false
+	for i := 0; i < len(rs); {
+		if unicode.IsSpace(rs[i]) {
+			j := i
+			for j < len(rs) && unicode.IsSpace(rs[j]) {
+				j++
+			}
+			if hasPrev && j < len(rs) && isJapanese(prev) && isJapanese(rs[j]) {
+				i = j
+				continue
+			}
+			b.WriteString(string(rs[i:j]))
+			prev = rs[j-1]
+			hasPrev = true
+			i = j
+			continue
+		}
+		b.WriteRune(rs[i])
+		prev = rs[i]
+		hasPrev = true
+		i++
+	}
+	return b.String()
+}
+
+func isJapanese(r rune) bool {
+	switch {
+	case r >= 0x3040 && r <= 0x309F, // ひらがな
+		r >= 0x30A0 && r <= 0x30FF, // カタカナ
+		r >= 0x3400 && r <= 0x4DBF, // CJK 拡張 A
+		r >= 0x4E00 && r <= 0x9FFF, // 漢字
+		r >= 0xFF66 && r <= 0xFF9D: // 半角カナ
+		return true
+	}
+	switch r {
+	case '、', '。', '「', '」', '『', '』', '（', '）', '！', '？', '〜', '…', '々', '〆', '・', '：', '；':
+		return true
+	default:
+		return false
+	}
 }
 
 // report は、この電話の報告を作る。ended は、電話が終わった時刻である。
