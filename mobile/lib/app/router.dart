@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/loading_screen.dart';
-import 'package:kazokuai/app/setup_return.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
@@ -44,7 +43,6 @@ const _watchedPersonNamePath = '/setup/name';
 GoRouter createAppRouter({
   required AuthRepository auth,
   required WatchedPersonRepository watchedPerson,
-  required SetupReturn setupReturn,
 }) {
   final rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -56,17 +54,8 @@ GoRouter createAppRouter({
     redirect: (context, state) {
       final location = state.matchedLocation;
       if (!auth.signedIn.value) {
-        // L6 の「もどる」はログアウトして、開く前の画面に戻す。
-        // ログインしたままでは、下の分岐がまた L6 に戻してしまう
-        if (setupReturn.leaving) {
-          setupReturn.leaving = false;
-          final previous = setupReturn.location;
-          if (previous != null &&
-              previous.startsWith(_signedOutPath) &&
-              previous != location) {
-            return previous;
-          }
-        }
+        // ログアウトすると L1 に戻す。見守る方が続いて unknown になっても、
+        // この分岐が先なので、読み込み中の画面には進まない
         return location.startsWith(_signedOutPath) ? null : _signedOutPath;
       }
       // 見守る方がいるかを読み終えるまでと、見守る方がいない間は、ホームに進ませない
@@ -76,10 +65,6 @@ GoRouter createAppRouter({
         WatchedPersonStatus.registered => null,
       };
       if (waitingAt != null) {
-        // 読み込み中や L6 自身は、戻る先にしない
-        if (location != _loadingPath && location != _watchedPersonNamePath) {
-          setupReturn.location = location;
-        }
         return location == waitingAt ? null : waitingAt;
       }
       final isBeforeHome =

@@ -19,7 +19,7 @@ abstract interface class AuthRepository {
   // 作れなかったときは CreateAccountException を投げる
   Future<void> createAccount({required String email, required String password});
 
-  // ログアウトする。L6 の「もどる」が、ログイン前の画面に戻るときに使う
+  // ログアウトする。L6 の「もどる」が、ようこそ(L1)に戻るときに使う
   Future<void> signOut();
 }
 

@@ -9,6 +9,7 @@ import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
+import 'package:kazokuai/features/account/register_screen.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
@@ -52,6 +53,33 @@ Future<void> tapNext(WidgetTester tester) async {
 bool canGoNext(WidgetTester tester) =>
     tester.widget<AppButton>(find.widgetWithText(AppButton, '次へ')).onTap !=
     null;
+
+// 本物のデータ層は、ログアウトを知らせた直後に見守る方を unknown にする。
+// フレームを描く前に続けるので、2回目の redirect も遷移前の場所を読む。
+Future<void> goBackFromSetup(
+  WidgetTester tester, {
+  required FakeAuthRepository auth,
+  required FakeWatchedPersonRepository watchedPerson,
+}) async {
+  await tester.tap(find.bySemanticsLabel('もどる'));
+  expect(auth.signedIn.value, isFalse);
+  expect(watchedPerson.status.value, WatchedPersonStatus.none);
+  watchedPerson.status.value = WatchedPersonStatus.unknown;
+  await tester.pumpAndSettle();
+}
+
+Future<void> readDocument(WidgetTester tester, String title) async {
+  await tester.ensureVisible(find.text(title));
+  await tester.tap(find.text(title));
+  await tester.pumpAndSettle();
+  final position = tester
+      .state<ScrollableState>(find.byType(Scrollable).last)
+      .position;
+  position.jumpTo(position.maxScrollExtent);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('読みました'));
+  await tester.pumpAndSettle();
+}
 
 void main() {
   group('ログインした家族が開く画面', () {
@@ -251,7 +279,7 @@ void main() {
       );
     });
 
-    testWidgets('L2 から開いた L6 の「もどる」は、ログインの画面に戻る', (tester) async {
+    testWidgets('L2 から開いた L6 の「もどる」は、ログアウトして L1 に戻る', (tester) async {
       final auth = FakeAuthRepository(
         accounts: {'misaki@example.com': 'hanasan1234'},
       );
@@ -271,26 +299,57 @@ void main() {
       watchedPerson.status.value = WatchedPersonStatus.none;
       await tester.pumpAndSettle();
 
-      await tester.tap(find.bySemanticsLabel('もどる'));
-      await tester.pumpAndSettle();
+      await goBackFromSetup(tester, auth: auth, watchedPerson: watchedPerson);
 
-      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+      expect(find.byType(WatchedPersonNameScreen), findsNothing);
+      expect(auth.signedIn.value, isFalse);
+    });
+
+    testWidgets('新規登録から開いた L6 の「もどる」は、ログアウトして L1 に戻る', (tester) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(393, 700);
+      addTearDown(tester.view.reset);
+
+      final auth = FakeAuthRepository();
+      final watchedPerson = FakeWatchedPersonRepository(
+        status: WatchedPersonStatus.unknown,
+      );
+      await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
+      await tester.tap(find.text('はじめる'));
+      await tester.pumpAndSettle();
+      await readDocument(tester, '利用規約');
+      await readDocument(tester, 'プライバシーポリシー');
+      await tester.enterText(
+        find.bySemanticsLabel('メールアドレス'),
+        'misaki@example.com',
+      );
+      await tester.enterText(find.bySemanticsLabel('パスワード'), 'hanasan1234');
+      await tester.pump();
+      await tester.tap(find.text('同意して登録する'));
+      watchedPerson.status.value = WatchedPersonStatus.none;
+      await tester.pumpAndSettle();
+      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+
+      await goBackFromSetup(tester, auth: auth, watchedPerson: watchedPerson);
+
+      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(RegisterScreen), findsNothing);
+      expect(find.byType(LoginScreen), findsNothing);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);
       expect(auth.signedIn.value, isFalse);
     });
 
     testWidgets('ログインしたまま開いた L6 の「もどる」は、L1 に戻る', (tester) async {
       final auth = FakeAuthRepository(signedIn: true);
-      await pumpApp(
-        tester,
-        auth: auth,
-        watchedPerson: FakeWatchedPersonRepository(
-          status: WatchedPersonStatus.none,
-        ),
+      final watchedPerson = FakeWatchedPersonRepository(
+        status: WatchedPersonStatus.none,
       );
+      await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
 
-      await tester.tap(find.bySemanticsLabel('もどる'));
-      await tester.pumpAndSettle();
+      await goBackFromSetup(tester, auth: auth, watchedPerson: watchedPerson);
 
       expect(find.byType(WelcomeScreen), findsOneWidget);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:kazokuai/app/setup_return.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
@@ -44,17 +43,8 @@ class _WatchedPersonNameScreenState
   // 入力を直したら、前のメッセージは消す
   void _onChanged(String _) => setState(() => _failed = false);
 
-  // ログインしたままではルーターが L6 に戻すので、ログアウトしてから開く前の画面へ戻す。
-  // アプリを開いただけで L6 だったときは、戻る先がホームになる。ログアウトすると L1 に着く
-  Future<void> _back() async {
-    final setupReturn = ref.read(setupReturnProvider);
-    setupReturn.leaving = true;
-    try {
-      await ref.read(authRepositoryProvider).signOut();
-    } catch (_) {
-      setupReturn.leaving = false;
-    }
-  }
+  // ログインしたままではルーターが L6 に戻すので、ログアウトして L1 に戻す
+  Future<void> _back() => ref.read(authRepositoryProvider).signOut();
 
   Future<void> _register() async {
     if (!_canRegister) return;
