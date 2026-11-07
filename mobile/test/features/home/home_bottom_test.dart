@@ -76,7 +76,7 @@ void main() {
       await pumpScreenInLayout(
         tester,
         layout,
-        const Scaffold(body: HomeScreen()),
+        Scaffold(body: HomeScreen(data: sampleHomeData)),
       );
 
       expect(find.byType(TodayCard), findsOneWidget);

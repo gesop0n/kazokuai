@@ -58,12 +58,41 @@ class Call {
 }
 
 class DayCallRecord {
-  const DayCallRecord({required this.date, this.talkedMinutes});
+  const DayCallRecord({required this.date, this.talkedMinutes}) : quiet = false;
+
+  // 電話がなかった日。棒も、出なかった印も出さない
+  const DayCallRecord.quiet({required this.date})
+    : talkedMinutes = null,
+      quiet = true;
 
   final DateTime date;
 
-  // 電話に出なかった日は null
+  // 電話がなかった日と、出なかった日は null。0 分でも電話があれば 0
   final int? talkedMinutes;
+
+  // true の日は、電話が一度もなかった日。false で分数がない日は、出なかった日
+  final bool quiet;
+}
+
+// ホームが Firestore から読む、見守る方と電話。まだ読めないときはリポジトリが null を出す
+class HomeView {
+  const HomeView({
+    required this.person,
+    required this.now,
+    required this.latestCall,
+    required this.todayCall,
+    required this.week,
+  });
+
+  final WatchedPerson person;
+  final DateTime now;
+
+  // いちばん新しい電話。1 件もなければ null
+  final Call? latestCall;
+
+  // 今日の最後の電話。今日の電話がなければ null で、今日の様子は話していない
+  final Call? todayCall;
+  final WeekCallRecords week;
 }
 
 class WeekCallRecords {

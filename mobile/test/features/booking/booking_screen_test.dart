@@ -10,6 +10,7 @@ import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
@@ -413,7 +414,7 @@ void main() {
     Future<void> openBookingTab(WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [signedInAuth(), registeredWatchedPerson()],
+          overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
           child: const KazokuAiApp(),
         ),
       );

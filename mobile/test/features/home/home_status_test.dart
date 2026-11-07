@@ -36,7 +36,7 @@ Future<void> _pumpHome(
 }) => pumpScreenInLayout(
   tester,
   layout,
-  const Scaffold(body: HomeScreen()),
+  Scaffold(body: HomeScreen(data: sampleHomeDataFor(status))),
   overrides: _startingAt(status),
 );
 
@@ -185,7 +185,13 @@ void main() {
     });
 
     testWidgets('「もう一度電話する」を押すと通話中の表示になる', (tester) async {
-      await _pumpHome(tester, HomeStatus.missedCall);
+      // 見本を渡すと状態が変わっても時刻が残るので、状態に合わせて見本を選ばせる
+      await pumpScreenInLayout(
+        tester,
+        _standardLayout,
+        const Scaffold(body: HomeScreen()),
+        overrides: _startingAt(HomeStatus.missedCall),
+      );
 
       await tester.tap(find.text('もう一度電話する'));
       await tester.pump();
