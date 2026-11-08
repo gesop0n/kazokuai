@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 
@@ -71,7 +72,8 @@ enum AppButtonVariant {
 }
 
 // 親が幅を決めればその幅に広がり、決めなければ中身の幅になる。
-// onTap が null のときは押せず、どの variant でもモックの disabledBtn の見た目になる。
+// onTap が null のときは押せず、背景は buttonDisabled、文字は inkSecondary になる。
+// 副ボタンだけは、モックの .btn.secondary:disabled のとおり枠線を残す。
 // leading は AppIcons にない、色を変えずに出す画像(Google のロゴ)に使う。
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -99,13 +101,17 @@ class AppButton extends StatelessWidget {
     final trailingIcon = this.trailingIcon;
     final isEnabled = onTap != null;
     final foreground = isEnabled ? variant.foreground : AppColors.inkSecondary;
+    final keepsBorder = isEnabled || variant == AppButtonVariant.secondary;
     return AppPressable(
       onTap: onTap,
       foregroundColor: foreground,
       backgroundColor: isEnabled
           ? variant.background
           : AppColors.buttonDisabled,
-      shape: StadiumBorder(side: isEnabled ? variant.border : BorderSide.none),
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.borderRadius,
+        side: keepsBorder ? variant.border : BorderSide.none,
+      ),
       minHeight: size.minHeight,
       padding: EdgeInsets.symmetric(horizontal: size.horizontalPadding),
       child: Row(

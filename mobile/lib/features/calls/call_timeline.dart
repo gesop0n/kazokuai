@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
@@ -192,7 +193,7 @@ class _CallRow extends StatelessWidget {
           foregroundColor: AppColors.inkPrimary,
           backgroundColor: AppColors.paperRaised,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.borderRadius,
             side: const BorderSide(color: AppColors.line),
           ),
           padding: const EdgeInsets.all(12),
@@ -260,7 +261,7 @@ class _MissedRow extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: AppColors.stateAlertSoft,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: AppRadius.borderRadius,
             border: Border.all(color: AppColors.stateAlert, width: 2),
           ),
           child: Text(

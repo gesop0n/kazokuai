@@ -7,6 +7,7 @@ import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -250,7 +251,7 @@ class _UnderlinedButton extends StatelessWidget {
     return AppPressable(
       onTap: onTap,
       foregroundColor: AppColors.inkPrimary,
-      shape: const StadiumBorder(),
+      shape: const RoundedRectangleBorder(borderRadius: AppRadius.borderRadius),
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Center(
         widthFactor: 1,

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_field.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
@@ -348,6 +349,45 @@ void main() {
     expect(find.bySemanticsLabel('通知'), findsOneWidget);
   });
 
+  testWidgets('ボタンと入力欄の角は 8', (tester) async {
+    await pumpInLayout(
+      tester,
+      layoutCases.first,
+      Column(
+        children: [
+          AppButton(
+            label: 'このルールで保存',
+            variant: AppButtonVariant.primary,
+            size: AppButtonSize.l,
+            onTap: () {},
+          ),
+          AppField(text: '伝えたいことを入力', onTap: () {}),
+        ],
+      ),
+    );
+
+    RoundedRectangleBorder shapeOf(String label) =>
+        tester
+                .widget<Material>(
+                  find
+                      .ancestor(
+                        of: find.text(label),
+                        matching: find.byType(Material),
+                      )
+                      .first,
+                )
+                .shape!
+            as RoundedRectangleBorder;
+
+    expect(shapeOf('このルールで保存').borderRadius, AppRadius.borderRadius);
+    final field = shapeOf('伝えたいことを入力');
+    expect(field.borderRadius, AppRadius.borderRadius);
+    expect(
+      field.side,
+      const BorderSide(color: AppColors.lineStrong, width: 1.5),
+    );
+  });
+
   group('onTap が null のボタン', () {
     for (final variant in AppButtonVariant.values) {
       testEachLayout('${variant.name} は押せず、読み上げも押せない状態になる', (
@@ -402,7 +442,15 @@ void main() {
               .first,
         );
         expect(material.color, AppColors.buttonDisabled);
-        expect(material.shape, const StadiumBorder());
+        expect(
+          material.shape,
+          RoundedRectangleBorder(
+            borderRadius: AppRadius.borderRadius,
+            side: variant == AppButtonVariant.secondary
+                ? const BorderSide(color: AppColors.lineStrong, width: 1.5)
+                : BorderSide.none,
+          ),
+        );
         expect(
           tester.widget<Text>(find.text('現在通話中です')).style?.color,
           AppColors.inkSecondary,

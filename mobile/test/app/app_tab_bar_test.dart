@@ -32,7 +32,8 @@ void main() {
     for (final (index, label) in _labels.indexed) {
       await pumpScreenInLayout(tester, layout, _screen(currentIndex: index));
 
-      expect(tester.getSize(_button(label)), const Size(88, 56));
+      expect(tester.getSize(_button(label)).width, layout.width / 3);
+      expect(tester.getSize(_button(label)).height, 56);
       expect(tester.getSize(find.byType(AppTabBar)).width, layout.width);
     }
   });
@@ -74,7 +75,31 @@ void main() {
     );
   });
 
-  testWidgets('選択中のタブは paperSunken の背景と太字になる', (tester) async {
+  testWidgets('平らな紙のバーで、上に lineStrong の線がある', (tester) async {
+    await tester.pumpWidget(_tabBar());
+
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: find.byType(AppTabBar),
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
+    expect(decoration.color, AppColors.paperRaised);
+    expect(decoration.borderRadius, isNull);
+    expect(decoration.boxShadow, isNull);
+    expect(
+      decoration.border?.top,
+      const BorderSide(color: AppColors.lineStrong),
+    );
+  });
+
+  testWidgets('開いているタブは太字の ink で、上に左右 20 空けた線がある', (tester) async {
     await tester.pumpWidget(_tabBar(currentIndex: 1));
 
     Material materialOf(String label) => tester.widget<Material>(
@@ -85,10 +110,30 @@ void main() {
     FontWeight? weightOf(String label) =>
         tester.widget<Text>(find.text(label)).style?.fontWeight;
 
-    expect(materialOf('通話記録').color, AppColors.paperSunken);
+    expect(materialOf('通話記録').color, Colors.transparent);
+    expect(materialOf('通話記録').shape, const RoundedRectangleBorder());
     expect(weightOf('通話記録'), FontWeight.w700);
+    expect(
+      tester.widget<Text>(find.text('通話記録')).style?.color,
+      AppColors.inkPrimary,
+    );
     expect(materialOf('ホーム').color, Colors.transparent);
+    expect(materialOf('ホーム').shape, const RoundedRectangleBorder());
     expect(weightOf('ホーム'), FontWeight.w400);
+
+    final line = find.byWidgetPredicate(
+      (widget) => widget is ColoredBox && widget.color == AppColors.inkPrimary,
+    );
+    expect(line, findsOneWidget);
+    final button = _button('通話記録');
+    expect(tester.getSize(line), Size(tester.getSize(button).width - 40, 3));
+    expect(tester.getTopLeft(line).dx, tester.getTopLeft(button).dx + 20);
+    expect(
+      tester.getTopLeft(line).dy,
+      tester.getTopLeft(find.byType(AppTabBar)).dy,
+    );
+    final box = tester.widget<ColoredBox>(line);
+    expect(box.color, AppColors.inkPrimary);
   });
 
   testWidgets('押すと選んだタブの番号を返す', (tester) async {

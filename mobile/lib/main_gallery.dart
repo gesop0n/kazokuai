@@ -14,6 +14,7 @@ import 'package:kazokuai/design/widgets/app_field.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_circle.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
+import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
 // flutter run -t lib/main_gallery.dart で開く部品一覧画面。main.dart からは読み込まない。
@@ -50,6 +51,7 @@ class GalleryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      bottomNavigationBar: AppTabBar(currentIndex: 0, onSelected: (_) {}),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),

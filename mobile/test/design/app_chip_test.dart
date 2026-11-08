@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
 
 import '../support/layout_matrix.dart';
@@ -123,7 +124,10 @@ void main() {
     expect(surface.color, AppColors.paperRaised);
     expect(
       surface.shape,
-      const StadiumBorder(side: BorderSide(color: AppColors.lineStrong)),
+      const RoundedRectangleBorder(
+        borderRadius: AppRadius.borderRadius,
+        side: BorderSide(color: AppColors.lineStrong),
+      ),
     );
     expect(
       tester.widget<Text>(find.text('体調')).style?.color,
@@ -149,7 +153,10 @@ void main() {
     expect(surface.color, AppColors.inkPrimary);
     expect(
       surface.shape,
-      const StadiumBorder(side: BorderSide(color: AppColors.inkPrimary)),
+      const RoundedRectangleBorder(
+        borderRadius: AppRadius.borderRadius,
+        side: BorderSide(color: AppColors.inkPrimary),
+      ),
     );
     expect(
       tester.widget<Text>(find.text('全部')).style?.color,

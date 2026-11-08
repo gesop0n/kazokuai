@@ -372,7 +372,7 @@ void main() {
           (widget) => widget is AppIcon && widget.icon == AppIcons.bell,
         ),
       );
-      expect(bell.color, AppColors.onAccentCall);
+      expect(bell.color, AppColors.white);
       final circle = tester.widget<Container>(
         find
             .ancestor(of: find.byWidget(bell), matching: find.byType(Container))

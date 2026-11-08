@@ -380,7 +380,7 @@ class _FlowDot extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 // モックはどちらの丸も白のアイコン
-                child: AppIcon(icon, size: 16, color: AppColors.onAccentCall),
+                child: AppIcon(icon, size: 16, color: AppColors.white),
               ),
               Text(
                 time,

@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 
 enum AppPillVariant {
@@ -33,7 +34,7 @@ class AppPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: variant.background,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: AppRadius.borderRadius,
         border: Border.all(color: AppColors.inkSecondary),
       ),
       child: Row(

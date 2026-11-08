@@ -26,31 +26,22 @@ class AppTabBar extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.paperRaised,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x2E000000),
-            offset: Offset(0, -6),
-            blurRadius: 24,
-          ),
-        ],
+        border: Border(top: BorderSide(color: AppColors.lineStrong)),
       ),
       child: SafeArea(
         top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              for (final (index, tab) in _tabs.indexed)
-                _TabButton(
+        child: Row(
+          children: [
+            for (final (index, tab) in _tabs.indexed)
+              Expanded(
+                child: _TabButton(
                   icon: tab.icon,
                   label: tab.label,
                   selected: index == currentIndex,
                   onTap: () => onSelected(index),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -74,40 +65,52 @@ class _TabButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected ? AppColors.inkPrimary : AppColors.inkSecondary;
 
-    // AppPressable の読み上げは独立したノードなので、selected とまとめて 1 つにする
-    return MergeSemantics(
-      child: Semantics(
-        selected: selected,
-        child: SizedBox(
-          width: 88,
-          child: AppPressable(
-            onTap: onTap,
-            foregroundColor: color,
-            backgroundColor: selected
-                ? AppColors.paperSunken
-                : Colors.transparent,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            minHeight: 56,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              spacing: 2,
-              children: [
-                AppIcon(icon, color: color),
-                Text(
-                  label,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: color,
-                    fontWeight: selected ? FontWeight.w700 : null,
+    // AppPressable の読み上げは独立したノードなので、selected とまとめて 1 つにする。
+    // 上の 1 は枠線の分。開いているタブの線は、その枠線に重ねて引く。
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: SizedBox(
+            width: double.infinity,
+            child: MergeSemantics(
+              child: Semantics(
+                selected: selected,
+                child: AppPressable(
+                  onTap: onTap,
+                  foregroundColor: color,
+                  backgroundColor: Colors.transparent,
+                  shape: const RoundedRectangleBorder(),
+                  minHeight: 56,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    spacing: 2,
+                    children: [
+                      AppIcon(icon, color: color),
+                      Text(
+                        label,
+                        style: AppTextStyles.labelS.copyWith(
+                          color: color,
+                          fontWeight: selected ? FontWeight.w700 : null,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+        if (selected)
+          const Positioned(
+            top: 0,
+            left: 20,
+            right: 20,
+            height: 3,
+            child: ColoredBox(color: AppColors.inkPrimary),
+          ),
+      ],
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_avatar.dart';
@@ -156,6 +157,7 @@ void main() {
                   .decoration!
               as BoxDecoration;
       expect(decoration.border, Border.all(color: AppColors.inkSecondary));
+      expect(decoration.borderRadius, AppRadius.borderRadius);
     });
   });
 
