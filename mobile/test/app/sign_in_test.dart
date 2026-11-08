@@ -31,8 +31,7 @@ Future<void> tapText(WidgetTester tester, String text) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> openLogin(WidgetTester tester) =>
-    tapText(tester, 'アカウントをお持ちの方はログイン');
+Future<void> openLogin(WidgetTester tester) => tapText(tester, '始める');
 
 Future<void> logIn(
   WidgetTester tester, {
@@ -161,17 +160,22 @@ void main() {
     });
   });
 
-  group('まだない入口は「準備中です」と出る', () {
-    for (final label in ['Googleでログイン', 'パスワードを忘れた場合']) {
-      testWidgets('L2 の「$label」', (tester) async {
-        await pumpApp(tester, FakeAuthRepository());
-        await openLogin(tester);
+  testWidgets('L1 の「始める」で L2 が開く', (tester) async {
+    await pumpApp(tester, FakeAuthRepository());
 
-        await tapText(tester, label);
+    await openLogin(tester);
 
-        expect(find.text('準備中です'), findsOneWidget);
-        expect(find.byType(LoginScreen), findsOneWidget);
-      });
-    }
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsNothing);
+  });
+
+  testWidgets('L2 の「Googleでログイン」は「準備中です」と出る', (tester) async {
+    await pumpApp(tester, FakeAuthRepository());
+    await openLogin(tester);
+
+    await tapText(tester, 'Googleでログイン');
+
+    expect(find.text('準備中です'), findsOneWidget);
+    expect(find.byType(LoginScreen), findsOneWidget);
   });
 }

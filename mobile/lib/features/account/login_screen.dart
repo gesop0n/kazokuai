@@ -7,13 +7,11 @@ import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
-import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
-import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
 // L2。ログインできると、ルーターがホームに切り替える
@@ -141,9 +139,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onTap: _canSignIn ? _signIn : null,
                       ),
                       Center(
-                        child: _UnderlinedButton(
+                        child: AppButton(
                           label: 'パスワードを忘れた場合',
-                          onTap: () => showComingSoon(context),
+                          variant: AppButtonVariant.ghostInk,
+                          size: AppButtonSize.m,
+                          underlined: true,
+                          onTap: () =>
+                              context.pushNamed(AppRoutes.passwordReset),
                         ),
                       ),
                     ],
@@ -153,24 +155,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 4,
-                children: [
-                  Text(
-                    'はじめての方は',
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.labelM.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
-                  AppButton(
-                    label: '新規登録へ',
-                    variant: AppButtonVariant.secondary,
-                    size: AppButtonSize.m,
-                    onTap: () => context.pushNamed(AppRoutes.register),
-                  ),
-                ],
+              child: AppButton(
+                label: 'はじめての方は新規登録',
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.m,
+                underlined: true,
+                onTap: () => context.pushNamed(AppRoutes.register),
               ),
             ),
           ],
@@ -235,34 +225,6 @@ class _ErrorMessage extends StatelessWidget {
         SignInError.wrongCredentials => 'メールアドレスかパスワードが違います',
         SignInError.other => 'ログインできませんでした。時間をおいて、もう一度お試しください',
       }, style: AppTextStyles.labelM.copyWith(color: AppColors.stateAlert)),
-    );
-  }
-}
-
-// モックの ghost-ink。下線を引いた、文字色のボタン
-class _UnderlinedButton extends StatelessWidget {
-  const _UnderlinedButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPressable(
-      onTap: onTap,
-      foregroundColor: AppColors.inkPrimary,
-      shape: const RoundedRectangleBorder(borderRadius: AppRadius.borderRadius),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Center(
-        widthFactor: 1,
-        child: Text(
-          label,
-          style: AppTextStyles.labelM.copyWith(
-            decoration: TextDecoration.underline,
-            decorationColor: AppColors.inkPrimary,
-          ),
-        ),
-      ),
     );
   }
 }
