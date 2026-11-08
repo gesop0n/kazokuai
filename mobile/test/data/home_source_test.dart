@@ -8,7 +8,7 @@ const _uid = 'misaki';
 final _now = DateTime(2026, 11, 5, 10, 24);
 
 void main() {
-  test('作れた電話を、直近の電話と今日の様子と 7 日間にする', () async {
+  test('作れた電話を、直近の電話と今日の様子にする', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
     await _call(
@@ -51,8 +51,6 @@ void main() {
     expect(latest.startedAt, DateTime(2026, 11, 5, 9, 2));
     expect(latest.duration, const Duration(milliseconds: 400000));
     expect(latest.summary.headline, '朝ごはんを食べたそうです。');
-    expect(latest.summary.quote.text, '朝ごはんも食べたしね');
-    expect(latest.summary.quote.spokenAt, DateTime(2026, 11, 5, 9, 3));
 
     final today = home.todayCall!;
     expect(today.summary.headline, '朝ごはんを食べたそうです。');
@@ -70,9 +68,6 @@ void main() {
     expect(today.summary.conditions[2].value, '膝が痛い');
     expect(today.summary.conditions[2].quote, '膝が痛くてね');
     expect(today.summary.conditions[2].needsAttention, isTrue);
-
-    // 6分40秒と1分30秒を足すと8分10秒で、分数は8分。ひとつ前の電話の食事は使わない
-    expect(_minutes(home, DateTime(2026, 11, 5)), 8);
   });
 
   test('今日の様子は、その日の最後の電話だけで、昨日の電話は直近になっても今日にはしない', () async {
@@ -97,11 +92,9 @@ void main() {
 
     expect(home.latestCall!.summary.headline, '昨日の電話です。');
     expect(home.todayCall, isNull);
-    expect(_minutes(home, DateTime(2026, 11, 4)), 3);
-    expect(_day(home, DateTime(2026, 11, 5)).quiet, isTrue);
   });
 
-  test('この 7 日間は話した分数を足し、電話がなかった日と期間の外は足さない', () async {
+  test('今日の最後の電話が今日の様子になり、それより新しい電話が直近になる', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
     await _call(
@@ -123,49 +116,11 @@ void main() {
       'also-today',
       _bare(at: DateTime(2026, 11, 5, 12, 0), durationMs: 90000),
     );
-    await _call(
-      firestore,
-      'yesterday',
-      _bare(at: DateTime(2026, 11, 4, 12, 0), durationMs: 90000),
-    );
-    await _call(
-      firestore,
-      'old',
-      _bare(at: DateTime(2026, 10, 29, 12, 0), durationMs: 6000000),
-    );
-    await _call(
-      firestore,
-      'zero',
-      _bare(at: DateTime(2026, 11, 3, 7, 0), durationMs: 0),
-    );
 
     final home = await _home(firestore, _now);
-    final days = home.week.days;
 
-    expect(days.map((day) => day.date), [
-      DateTime(2026, 10, 30),
-      DateTime(2026, 10, 31),
-      DateTime(2026, 11, 1),
-      DateTime(2026, 11, 2),
-      DateTime(2026, 11, 3),
-      DateTime(2026, 11, 4),
-      DateTime(2026, 11, 5),
-    ]);
-    expect(_minutes(home, DateTime(2026, 11, 5)), 7);
-    expect(_minutes(home, DateTime(2026, 11, 4)), 1);
-    expect(_minutes(home, DateTime(2026, 11, 3)), 0);
-    expect(_day(home, DateTime(2026, 11, 3)).quiet, isFalse);
-    for (final date in [
-      DateTime(2026, 10, 30),
-      DateTime(2026, 10, 31),
-      DateTime(2026, 11, 1),
-      DateTime(2026, 11, 2),
-    ]) {
-      expect(_day(home, date).quiet, isTrue, reason: '$date');
-      expect(_day(home, date).talkedMinutes, isNull);
-    }
-    expect(home.week.totalTalkedMinutes, 8);
     expect(home.latestCall!.startedAt, DateTime(2026, 11, 5, 12, 0));
+    expect(home.todayCall!.startedAt, DateTime(2026, 11, 5, 12, 0));
   });
 
   test('7 日間より前の電話でも、直近の電話には出す', () async {
@@ -189,13 +144,8 @@ void main() {
     final home = await _home(firestore, _now);
 
     expect(home.latestCall!.summary.headline, 'だいぶ前の電話です。');
-    expect(
-      home.latestCall!.summary.quote.spokenAt,
-      DateTime(2026, 10, 20, 9, 0, 1),
-    );
+    expect(home.latestCall!.startedAt, DateTime(2026, 10, 20, 9, 0));
     expect(home.todayCall, isNull);
-    expect(home.week.days.every((day) => day.quiet), isTrue);
-    expect(home.week.totalTalkedMinutes, 0);
   });
 
   test('まとめを作れなかった電話は、その文言になり、様子は話していない', () async {
@@ -221,7 +171,6 @@ void main() {
     final call = home.latestCall!;
 
     expect(call.summary.headline, 'まとめを作れませんでした');
-    expect(call.summary.quote.text, isEmpty);
     expect(call.startedAt, DateTime(2026, 11, 5, 9, 2));
     expect(call.duration, const Duration(minutes: 1));
     expect(
@@ -248,7 +197,6 @@ void main() {
     final home = await _home(firestore, _now);
 
     expect(home.latestCall!.summary.headline, isEmpty);
-    expect(home.latestCall!.summary.quote.text, isEmpty);
     expect(home.latestCall!.summary.headline, isNot('まとめを作れませんでした'));
   });
 
@@ -285,7 +233,7 @@ void main() {
     expect(meal.needsAttention, isFalse);
   });
 
-  test('電話がまだなければ、直近の電話はなく、7 日間はどの日も電話がない', () async {
+  test('電話がまだなければ、直近の電話も今日の様子もない', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
 
@@ -293,9 +241,6 @@ void main() {
 
     expect(home.latestCall, isNull);
     expect(home.todayCall, isNull);
-    expect(home.week.days, hasLength(7));
-    expect(home.week.days.every((day) => day.quiet), isTrue);
-    expect(home.week.answeredDays, 0);
   });
 }
 
@@ -375,9 +320,3 @@ Map<String, Object?> _silent() => {
   'quote': '',
   'concerning': false,
 };
-
-DayCallRecord _day(HomeView home, DateTime date) => home.week.days.firstWhere(
-  (day) => day.date == DateTime(date.year, date.month, date.day),
-);
-
-int? _minutes(HomeView home, DateTime date) => _day(home, date).talkedMinutes;

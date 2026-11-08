@@ -4,10 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
-import 'package:kazokuai/features/home/calling_banner.dart';
+import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/home_format.dart';
-import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
@@ -22,15 +21,13 @@ Future<void> _pumpView(
   WidgetTester tester, {
   LayoutCase layout = _standardLayout,
   MissedCall? missedCall,
-  DateTime? now,
-  VoidCallback? onCallAgain,
+  VoidCallback? onOpenAsk,
 }) => pumpInLayout(
   tester,
   layout,
   MissedCallView(
     missedCall: missedCall ?? _sample.missedCall,
-    now: now ?? _sample.now,
-    onCallAgain: onCallAgain ?? () {},
+    onOpenAsk: onOpenAsk ?? () {},
   ),
 );
 
@@ -50,7 +47,6 @@ void main() {
           attemptedAt: [
             for (var hour = 9; hour < 14; hour++) DateTime(2026, 11, 5, hour),
           ],
-          lastTalk: _sample.missedCall.lastTalk,
         ),
       );
 
@@ -67,23 +63,28 @@ void main() {
   });
 
   group('モックの内容', () {
-    testWidgets('alert のカードと 2 枚のカードが順に並ぶ', (tester) async {
+    testWidgets('注意のカード、伝えるカード、今日の様子の順に並ぶ', (tester) async {
       await _pumpView(tester);
 
       final cards = tester.widgetList<AppCard>(find.byType(AppCard)).toList();
       expect(cards.map((card) => card.variant), [
         AppCardVariant.alert,
         AppCardVariant.paper,
-        AppCardVariant.paper,
       ]);
+      final alert = tester.getRect(find.byType(AppCard).first);
+      final ask = tester.getRect(find.byType(AskCard));
+      final today = tester.getRect(find.byType(AppCard).last);
+      expect(ask.top, greaterThanOrEqualTo(alert.bottom));
+      expect(today.top, greaterThanOrEqualTo(ask.bottom));
     });
 
     testWidgets('alert のカードの文字', (tester) async {
       await _pumpView(tester);
 
       expect(find.text('確認をお願いします'), findsOneWidget);
-      expect(find.text('朝の電話に出ていません'), findsOneWidget);
-      expect(find.text('9:00、9:10、9:20にかけましたが、応答がありません。'), findsOneWidget);
+      expect(find.text('電話に出ていません'), findsOneWidget);
+      expect(find.text('朝の電話に出ていません'), findsNothing);
+      expect(find.text('9:00、9:15、9:30にかけましたが、応答がありませんでした。'), findsOneWidget);
       expect(find.textContaining('外出中の可能性もあります'), findsNothing);
       expect(
         tester.widget<AppIcon>(find.byType(AppIcon).first).icon,
@@ -95,15 +96,16 @@ void main() {
       await _pumpView(tester);
 
       expect(find.text('今日の様子'), findsOneWidget);
-      expect(find.text('今日はまだ話せていないので、様子は分かっていません。'), findsOneWidget);
+      expect(find.text('今日はまだ話せていません。'), findsOneWidget);
+      expect(find.text('今日はまだ話せていないので、様子は分かっていません。'), findsNothing);
     });
 
-    testWidgets('最後に話したときのカード', (tester) async {
+    testWidgets('もう一度電話すると最後に話したときは出ない', (tester) async {
       await _pumpView(tester);
 
-      expect(find.text('最後に話したとき'), findsOneWidget);
-      expect(find.text('昨日 19:00 ・ 3分'), findsOneWidget);
-      expect(find.text('「さっき飲んだよ。膝が少し痛むけど、大丈夫。」'), findsOneWidget);
+      expect(find.text('もう一度電話する'), findsNothing);
+      expect(find.text('最後に話したとき'), findsNothing);
+      expect(find.byType(AppButton), findsNothing);
     });
   });
 
@@ -116,85 +118,31 @@ void main() {
             DateTime(2026, 11, 5, 8, 5),
             DateTime(2026, 11, 5, 18, 40),
           ],
-          lastTalk: _sample.missedCall.lastTalk,
         ),
       );
 
-      expect(find.text('8:05、18:40にかけましたが、応答がありません。'), findsOneWidget);
-    });
-
-    testWidgets('最後に話したときの時刻と長さは lastTalk から作る', (tester) async {
-      await _pumpView(
-        tester,
-        missedCall: MissedCall(
-          attemptedAt: _sample.missedCall.attemptedAt,
-          lastTalk: LastTalk(
-            startedAt: DateTime(2026, 11, 2, 7, 5),
-            duration: const Duration(minutes: 12),
-            quote: '「元気だよ」',
-          ),
-        ),
-      );
-
-      expect(find.text('11月2日 7:05 ・ 12分'), findsOneWidget);
-      expect(find.text('「元気だよ」'), findsOneWidget);
-    });
-
-    testWidgets('「昨日」は now をもとに決める', (tester) async {
-      await _pumpView(tester, now: DateTime(2026, 11, 6, 9));
-
-      expect(find.text('11月4日 19:00 ・ 3分'), findsOneWidget);
+      expect(find.text('8:05、18:40にかけましたが、応答がありませんでした。'), findsOneWidget);
     });
   });
 
-  group('もう一度電話する', () {
-    testWidgets('ボタンは white の L が 1 つだけ', (tester) async {
-      await _pumpView(tester);
+  group('AIに伝えてもらう', () {
+    testWidgets('押すと onOpenAsk を呼ぶ', (tester) async {
+      var count = 0;
+      await _pumpView(tester, onOpenAsk: () => count++);
 
-      final button = tester.widget<AppButton>(find.byType(AppButton));
-      expect(button.label, 'もう一度電話する');
-      expect(button.variant, AppButtonVariant.white);
-      expect(button.size, AppButtonSize.l);
-      expect(button.leadingIcon, AppIcons.phone);
-    });
+      await tester.tap(find.text('AIに伝えてもらう'));
 
-    testWidgets('押すと onCallAgain を呼ぶ', (tester) async {
-      var callCount = 0;
-      await _pumpView(tester, onCallAgain: () => callCount++);
-
-      await tester.tap(find.text('もう一度電話する'));
-
-      expect(callCount, 1);
-    });
-
-    testWidgets('ホーム画面で押すと通話中の表示になる', (tester) async {
-      await pumpScreenInLayout(
-        tester,
-        _standardLayout,
-        const Scaffold(body: HomeScreen()),
-        overrides: [
-          homeStatusProvider.overrideWithBuild(
-            (ref, self) => HomeStatus.missedCall,
-          ),
-        ],
-      );
-      expect(find.text('昨日 19:00 ・ 3分'), findsOneWidget);
-
-      await tester.tap(find.text('もう一度電話する'));
-      await tester.pump();
-
-      expect(find.byType(CallingBanner), findsOneWidget);
-      expect(find.byType(MissedCallView), findsNothing);
+      expect(count, 1);
     });
   });
 
   group('読み上げ', () {
-    testWidgets('ボタンは押せるものとして読む', (tester) async {
+    testWidgets('伝えるカードは押せるものとして読む', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpView(tester);
 
       expect(
-        tester.getSemantics(find.bySemanticsLabel('もう一度電話する')),
+        tester.getSemantics(find.bySemanticsLabel('AIに伝えてもらう')),
         isSemantics(isButton: true, isEnabled: true, hasEnabledState: true),
       );
       handle.dispose();
@@ -204,8 +152,8 @@ void main() {
       final handle = tester.ensureSemantics();
       await _pumpView(tester);
 
-      expect(find.bySemanticsLabel(RegExp('朝の電話に出ていません')), findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp('昨日 19:00 ・ 3分')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('電話に出ていません')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('最後に話したとき')), findsNothing);
       handle.dispose();
     });
   });

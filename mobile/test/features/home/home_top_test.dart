@@ -5,7 +5,7 @@ import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_avatar.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
-import 'package:kazokuai/design/widgets/app_field.dart';
+import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/home_format.dart';
@@ -19,11 +19,11 @@ import '../../support/layout_matrix.dart';
 Widget buildHeader({
   WatchedPerson? person,
   DateTime? now,
-  VoidCallback? onOpenNotifications,
+  VoidCallback? onOpenSettings,
 }) => HomeHeader(
   person: person ?? sampleHomeData.person,
   now: now ?? sampleHomeData.now,
-  onOpenNotifications: onOpenNotifications ?? () {},
+  onOpenSettings: onOpenSettings ?? () {},
 );
 
 Widget buildRecentCard({
@@ -83,6 +83,7 @@ void main() {
       expect(find.byType(HomeHeader), findsOneWidget);
       expect(find.byType(RecentCallCard), findsOneWidget);
       expect(find.byType(AskCard), findsOneWidget);
+      expect(find.text('7日間の電話'), findsNothing);
     });
   });
 
@@ -135,17 +136,37 @@ void main() {
       expect(tester.getSize(find.byType(HomeHeader)).height, greaterThan(60));
     });
 
-    testWidgets('ベルで onOpenNotifications を呼ぶ', (tester) async {
+    testWidgets('設定の歯車は名前で読み上げ、押すと onOpenSettings を呼ぶ', (tester) async {
       var count = 0;
       await pumpHeader(
         tester,
         standardLayout,
-        buildHeader(onOpenNotifications: () => count++),
+        buildHeader(onOpenSettings: () => count++),
       );
 
-      await tester.tap(find.bySemanticsLabel('通知'));
+      expect(
+        tester.widget<AppIconButton>(find.byType(AppIconButton)).icon,
+        AppIcons.settings,
+      );
+      await tester.tap(find.bySemanticsLabel('田中ハナさんの設定'));
 
       expect(count, 1);
+    });
+
+    testWidgets('別の名前なら設定の読み上げも変わる', (tester) async {
+      await pumpHeader(
+        tester,
+        standardLayout,
+        buildHeader(
+          person: const WatchedPerson(
+            name: '佐藤タロウ',
+            callName: 'タロウさん',
+            initial: 'タ',
+          ),
+        ),
+      );
+
+      expect(find.bySemanticsLabel('佐藤タロウさんの設定'), findsOneWidget);
     });
   });
 
@@ -158,9 +179,8 @@ void main() {
       expect(find.text('今日 9:02 ・ 6分'), findsOneWidget);
       expect(find.text('Geminiのまとめ'), findsNothing);
       expect(find.text(summary.headline), findsOneWidget);
-      expect(find.text(summary.quote.text), findsOneWidget);
-      expect(find.text('9:03'), findsOneWidget);
-      expect(find.textContaining('の言葉'), findsNothing);
+      expect(find.text('「昨日の夕方から膝が痛くてね。\n階段がつらいの。」'), findsNothing);
+      expect(find.text('9:03'), findsNothing);
       expect(find.text('会話を見る'), findsOneWidget);
     });
 
@@ -183,13 +203,9 @@ void main() {
           call: Call(
             startedAt: DateTime(2026, 11, 5, 18, 30),
             duration: const Duration(minutes: 12, seconds: 40),
-            summary: CallSummary(
+            summary: const CallSummary(
               headline: '夕方に散歩をしたそうです。',
-              quote: Quote(
-                text: '「今日は風が気持ちよかった。」',
-                spokenAt: DateTime(2026, 11, 5, 18, 41),
-              ),
-              conditions: const [],
+              conditions: [],
             ),
           ),
         ),
@@ -197,8 +213,7 @@ void main() {
 
       expect(find.text('今日 18:30 ・ 12分'), findsOneWidget);
       expect(find.text('夕方に散歩をしたそうです。'), findsOneWidget);
-      expect(find.text('「今日は風が気持ちよかった。」'), findsOneWidget);
-      expect(find.textContaining('の言葉'), findsNothing);
+      expect(find.text('「今日は風が気持ちよかった。」'), findsNothing);
     });
 
     testWidgets('間隔はモックの margin-top と同じになる', (tester) async {
@@ -207,25 +222,10 @@ void main() {
       final summary = sampleHomeData.latestCall.summary;
       final title = tester.getRect(find.text('直近の電話'));
       final headline = tester.getRect(find.text(summary.headline));
-      final time = tester.getRect(find.text('9:03'));
-      final quote = tester.getRect(find.text(summary.quote.text));
       final button = tester.getRect(find.byType(AppButton));
 
       expect(headline.top - title.bottom, 12);
-      expect(time.top - headline.bottom, 12);
-      expect(quote.top - time.bottom, 2);
-      expect(button.top - quote.bottom, 16);
-    });
-
-    testWidgets('引用は線と余白の分だけ字下げする', (tester) async {
-      await pumpInLayout(tester, standardLayout, buildRecentCard());
-
-      final summary = sampleHomeData.latestCall.summary;
-      expect(
-        tester.getTopLeft(find.text(summary.quote.text)).dx -
-            tester.getTopLeft(find.text(summary.headline)).dx,
-        14,
-      );
+      expect(button.top - headline.bottom, 16);
     });
 
     testWidgets('ボタンは light の M で、幅いっぱいに広がる', (tester) async {
@@ -255,24 +255,21 @@ void main() {
   });
 
   group('AIに伝えてもらうのカード', () {
-    testWidgets('見出しと入力欄と通話ボタンを表示する', (tester) async {
+    testWidgets('見出しとシェブロンだけで、入力欄と通話ボタンはない', (tester) async {
       await pumpInLayout(tester, standardLayout, AskCard(onOpenAsk: () {}));
 
       expect(find.text('AIに伝えてもらう'), findsOneWidget);
       expect(find.text('予約もできます'), findsNothing);
-      expect(find.text('伝えたいことを入力'), findsOneWidget);
-      expect(find.text('通話'), findsOneWidget);
+      expect(find.text('伝えたいことを入力'), findsNothing);
+      expect(find.text('通話'), findsNothing);
 
-      final field = find.byType(AppField);
-      expect(tester.widget<AppField>(field).minHeight, 48);
-
-      final button = tester.widget<AppButton>(find.byType(AppButton));
-      expect(button.variant, AppButtonVariant.record);
-      expect(button.size, AppButtonSize.l);
-      expect(button.leadingIcon, AppIcons.phone);
+      final icon = tester.widget<AppIcon>(find.byType(AppIcon));
+      expect(icon.icon, AppIcons.chevronRight);
+      expect(icon.size, 20);
+      expect(icon.color, AppColors.inkSecondary);
     });
 
-    testWidgets('入力欄で onOpenAsk を呼ぶ', (tester) async {
+    testWidgets('カードを押すと onOpenAsk を呼ぶ', (tester) async {
       var count = 0;
       await pumpInLayout(
         tester,
@@ -280,22 +277,26 @@ void main() {
         AskCard(onOpenAsk: () => count++),
       );
 
-      await tester.tap(find.text('伝えたいことを入力'));
+      await tester.tap(find.text('AIに伝えてもらう'));
 
       expect(count, 1);
     });
 
-    testWidgets('通話ボタンで onOpenAsk を呼ぶ', (tester) async {
-      var count = 0;
-      await pumpInLayout(
-        tester,
-        standardLayout,
-        AskCard(onOpenAsk: () => count++),
+    testWidgets('読み上げは押せる「AIに伝えてもらう」', (tester) async {
+      final handle = tester.ensureSemantics();
+      await pumpInLayout(tester, standardLayout, AskCard(onOpenAsk: () {}));
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('AIに伝えてもらう')),
+        isSemantics(
+          label: 'AIに伝えてもらう',
+          isButton: true,
+          isEnabled: true,
+          hasEnabledState: true,
+          hasTapAction: true,
+        ),
       );
-
-      await tester.tap(find.text('通話'));
-
-      expect(count, 1);
+      handle.dispose();
     });
   });
 

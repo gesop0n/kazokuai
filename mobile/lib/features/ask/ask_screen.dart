@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
@@ -12,16 +11,15 @@ import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/voice_setting.dart';
-import 'package:kazokuai/features/home/home_status.dart';
 
-class AskScreen extends ConsumerStatefulWidget {
+class AskScreen extends StatefulWidget {
   const AskScreen({super.key});
 
   @override
-  ConsumerState<AskScreen> createState() => _AskScreenState();
+  State<AskScreen> createState() => _AskScreenState();
 }
 
-class _AskScreenState extends ConsumerState<AskScreen> {
+class _AskScreenState extends State<AskScreen> {
   final _messageController = TextEditingController();
 
   @override
@@ -30,14 +28,8 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     super.dispose();
   }
 
-  void _startCall() {
-    ref.read(homeStatusProvider.notifier).startCall();
-    context.goNamed(AppRoutes.home);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final isCalling = ref.watch(homeStatusProvider) == HomeStatus.calling;
     final hasMessage = _messageController.text.trim().isNotEmpty;
     return Scaffold(
       body: SafeArea(
@@ -67,8 +59,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _AskActions(
-                isCalling: isCalling,
-                onCall: hasMessage ? _startCall : null,
+                onCall: hasMessage ? () => showComingSoon(context) : null,
                 onBook: () => context.goNamed(AppRoutes.booking),
               ),
             ),
@@ -170,13 +161,8 @@ class _VoiceSettings extends StatelessWidget {
 }
 
 class _AskActions extends StatelessWidget {
-  const _AskActions({
-    required this.isCalling,
-    required this.onCall,
-    required this.onBook,
-  });
+  const _AskActions({required this.onCall, required this.onBook});
 
-  final bool isCalling;
   final VoidCallback? onCall;
   final VoidCallback onBook;
 
@@ -186,21 +172,13 @@ class _AskActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 8,
       children: [
-        if (isCalling)
-          const AppButton(
-            label: '現在通話中です',
-            variant: AppButtonVariant.record,
-            size: AppButtonSize.l,
-            onTap: null,
-          )
-        else
-          AppButton(
-            label: '通話',
-            variant: AppButtonVariant.record,
-            size: AppButtonSize.l,
-            leadingIcon: AppIcons.phone,
-            onTap: onCall,
-          ),
+        AppButton(
+          label: '通話',
+          variant: AppButtonVariant.record,
+          size: AppButtonSize.l,
+          leadingIcon: AppIcons.phone,
+          onTap: onCall,
+        ),
         AppButton(
           label: '日時を決めて予約する',
           variant: AppButtonVariant.secondary,

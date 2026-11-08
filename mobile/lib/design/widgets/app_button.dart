@@ -56,9 +56,7 @@ enum AppButtonVariant {
     border: BorderSide(color: AppColors.lineStrong, width: 1.5),
   ),
   light(background: AppColors.nightText, foreground: AppColors.nightBase),
-  ghost(background: Colors.transparent, foreground: AppColors.inkSecondary),
-  // 07b の注意の赤のカードに置く。文字とアイコンは ink
-  white(background: AppColors.onStateAlert, foreground: AppColors.inkPrimary);
+  ghost(background: Colors.transparent, foreground: AppColors.inkSecondary);
 
   const AppButtonVariant({
     required this.background,

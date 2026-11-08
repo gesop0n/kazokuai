@@ -7,6 +7,7 @@ import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
+import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
@@ -222,25 +223,25 @@ void main() {
   });
 
   group('07b の大きさがモックと同じ', () {
-    testWidgets('カードの高さは 224、120、136', (tester) async {
+    testWidgets('知らせ、AIに伝えてもらう、今日の様子の高さ', (tester) async {
       final sample = sampleHomeDataFor(HomeStatus.missedCall);
       await pumpInLayout(
         tester,
         _mockLayout,
-        MissedCallView(
-          missedCall: sample.missedCall,
-          now: sample.now,
-          onCallAgain: () {},
-        ),
+        MissedCallView(missedCall: sample.missedCall, onOpenAsk: () {}),
       );
 
       final cards = find.byType(AppCard);
-      expect(tester.getSize(cards.at(0)), const Size(361, 224));
-      expect(tester.getSize(cards.at(1)), const Size(361, 120));
-      expect(tester.getSize(cards.at(2)), const Size(361, 114));
+      final ask = find.byType(AskCard);
+      expect(tester.getSize(cards.at(0)), const Size(361, 152));
+      expect(tester.getSize(ask), const Size(361, 60));
+      expect(tester.getSize(cards.at(1)), const Size(361, 96));
       expect(
-        tester.getTopLeft(cards.at(1)).dy -
-            tester.getBottomLeft(cards.at(0)).dy,
+        tester.getTopLeft(ask).dy - tester.getBottomLeft(cards.at(0)).dy,
+        12,
+      );
+      expect(
+        tester.getTopLeft(cards.at(1)).dy - tester.getBottomLeft(ask).dy,
         12,
       );
     });

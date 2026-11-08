@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/calls/sample_calls_data.dart';
-import 'package:kazokuai/features/home/sample_home_data.dart';
 
 void main() {
   group('サンプルの一覧', () {
@@ -29,19 +28,6 @@ void main() {
           ('10月31日(土)', '1回 ・ 22分'),
         ],
       );
-    });
-
-    test('話した分数はホームのグラフと同じ', () {
-      for (final day in sampleCallLog.days) {
-        final minutes = sampleHomeData.week.days
-            .firstWhere((record) => record.date == day.date)
-            .talkedMinutes;
-        final total = day.answeredEntries.fold(
-          0,
-          (sum, entry) => sum + entry.duration.inMinutes,
-        );
-        expect(total, minutes ?? 0, reason: '${day.date}');
-      }
     });
 
     test('10月30日は印はあるが、記録はない', () {

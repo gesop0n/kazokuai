@@ -6,16 +6,18 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/app_theme.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
-import 'package:kazokuai/design/widgets/app_avatar.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_field.dart';
-import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_circle.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
+import 'package:kazokuai/features/home/ask_card.dart';
+import 'package:kazokuai/features/home/home_data.dart';
+import 'package:kazokuai/features/home/home_header.dart';
+import 'package:kazokuai/features/home/missed_call_view.dart';
 
 // flutter run -t lib/main_gallery.dart で開く部品一覧画面。main.dart からは読み込まない。
 void main() {
@@ -59,15 +61,15 @@ class GalleryScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: [
-              const _SectionLabel('アバター、アイコンボタン(hhead)'),
-              const _Header(),
+              const _SectionLabel('ヘッダー(hhead)'),
+              _Header(),
               const _SectionLabel('夜のカード、AIのラベル、ボタン light(recentCard)'),
               const _RecentCard(),
-              const _SectionLabel('カード、入力欄、ボタン record(askCard)'),
-              const _AskCard(),
+              const _SectionLabel('AIに伝えてもらう(askCard)'),
+              AskCard(onOpenAsk: _noop),
               const _SectionLabel('丸いアイコン枠、ピル(stateRow)'),
               const _StateRows(),
-              const _SectionLabel('ボタン secondary(weekCard)'),
+              const _SectionLabel('ボタン secondary'),
               AppButton(
                 label: '通話記録を見る',
                 variant: AppButtonVariant.secondary,
@@ -176,8 +178,17 @@ class GalleryScreen extends StatelessWidget {
                 size: AppButtonSize.l,
                 onTap: null,
               ),
-              const _SectionLabel('濃い赤のカード、白いボタン(07b)'),
-              const _MissedCard(),
+              const _SectionLabel('電話に出なかったとき(07b)'),
+              MissedCallView(
+                missedCall: MissedCall(
+                  attemptedAt: [
+                    DateTime(2026, 11, 5, 9),
+                    DateTime(2026, 11, 5, 9, 15),
+                    DateTime(2026, 11, 5, 9, 30),
+                  ],
+                ),
+                onOpenAsk: _noop,
+              ),
               const _SectionLabel('テキスト入力 高さ 56(L7)'),
               const AppTextField(hintText: '話題を入力(例: 大相撲)'),
               const _SectionLabel('テキスト入力 複数行、高さ 60(01)'),
@@ -221,30 +232,10 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      spacing: 12,
-      children: [
-        const AppAvatar('ハ', color: AppColors.speakerParent),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('田中ハナさん', style: AppTextStyles.labelL),
-              Text(
-                '11月5日(木) 10:24 時点',
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.inkSecondary,
-                ),
-              ),
-            ],
-          ),
-        ),
-        AppIconButton(
-          AppIcons.bell,
-          semanticLabel: '通知',
-          onTap: GalleryScreen._noop,
-        ),
-      ],
+    return HomeHeader(
+      person: const WatchedPerson(name: '田中ハナ', callName: 'ハナさん', initial: 'ハ'),
+      now: DateTime(2026, 11, 5, 10, 24),
+      onOpenSettings: GalleryScreen._noop,
     );
   }
 }
@@ -280,28 +271,6 @@ class _RecentCard extends StatelessWidget {
           variant: AppButtonVariant.light,
           size: AppButtonSize.m,
           trailingIcon: AppIcons.chevronRight,
-          onTap: GalleryScreen._noop,
-        ),
-      ],
-    );
-  }
-}
-
-class _AskCard extends StatelessWidget {
-  const _AskCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      variant: AppCardVariant.paper,
-      children: [
-        const Text('AIに伝えてもらう', style: AppTextStyles.titleM),
-        AppField(text: '伝えたいことを入力', minHeight: 48, onTap: GalleryScreen._noop),
-        AppButton(
-          label: '通話',
-          variant: AppButtonVariant.record,
-          size: AppButtonSize.l,
-          leadingIcon: AppIcons.phone,
           onTap: GalleryScreen._noop,
         ),
       ],
@@ -346,52 +315,6 @@ class _FilledTextFieldState extends State<_FilledTextField> {
   }
 }
 
-class _MissedCard extends StatelessWidget {
-  const _MissedCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      variant: AppCardVariant.alert,
-      children: [
-        Row(
-          spacing: 6,
-          children: [
-            const AppIcon(
-              AppIcons.phoneMissed,
-              size: 16,
-              color: AppColors.onStateAlert,
-            ),
-            Expanded(
-              child: Text(
-                '確認をお願いします',
-                style: AppTextStyles.labelM.copyWith(
-                  color: AppColors.onStateAlert,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
-        const SizedBox(height: 4),
-        const Text(
-          '9:00、9:10、9:20にかけましたが、応答がありません。',
-          style: AppTextStyles.bodyM,
-        ),
-        const SizedBox(height: 16),
-        AppButton(
-          label: 'もう一度電話する',
-          variant: AppButtonVariant.white,
-          size: AppButtonSize.l,
-          leadingIcon: AppIcons.phone,
-          onTap: GalleryScreen._noop,
-        ),
-      ],
-    );
-  }
-}
-
 class _StateRows extends StatelessWidget {
   const _StateRows();
 
@@ -404,13 +327,13 @@ class _StateRows extends StatelessWidget {
           icon: AppIcons.moon,
           label: '睡眠',
           value: 'よく眠れた',
-          quote: '「よく眠れたよ」',
+          quote: 'よく眠れたよ',
         ),
         _StateRow(
           icon: AppIcons.heart,
           label: '体調',
           value: '膝が痛い。階段がつらい',
-          quote: '「昨日の夕方から膝が痛くてね」',
+          quote: '昨日の夕方から膝が痛くてね',
           flagged: true,
         ),
       ],

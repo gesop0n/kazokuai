@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
-import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
+import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/home_format.dart';
 
@@ -13,17 +13,14 @@ class MissedCallView extends StatelessWidget {
   const MissedCallView({
     super.key,
     required this.missedCall,
-    required this.now,
-    required this.onCallAgain,
+    required this.onOpenAsk,
   });
 
   final MissedCall missedCall;
-  final DateTime now;
-  final VoidCallback onCallAgain;
+  final VoidCallback onOpenAsk;
 
   @override
   Widget build(BuildContext context) {
-    final lastTalk = missedCall.lastTalk;
     final attemptedAt = missedCall.attemptedAt.map(formatTime).join('、');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -46,50 +43,24 @@ class MissedCallView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            const Text('朝の電話に出ていません', style: AppTextStyles.titleL),
+            const Text('電話に出ていません', style: AppTextStyles.titleL),
             const SizedBox(height: 4),
-            Text('$attemptedAtにかけましたが、応答がありません。', style: AppTextStyles.bodyM),
-            const SizedBox(height: 16),
-            AppButton(
-              label: 'もう一度電話する',
-              variant: AppButtonVariant.white,
-              size: AppButtonSize.l,
-              leadingIcon: AppIcons.phone,
-              onTap: onCallAgain,
+            Text(
+              '$attemptedAtにかけましたが、応答がありませんでした。',
+              style: AppTextStyles.bodyM,
             ),
           ],
         ),
+        AskCard(onOpenAsk: onOpenAsk),
         AppCard(
           variant: AppCardVariant.paper,
           children: [
             const Text('今日の様子', style: AppTextStyles.titleM),
             Text(
-              '今日はまだ話せていないので、様子は分かっていません。',
+              '今日はまだ話せていません。',
               style: AppTextStyles.bodyM.copyWith(
                 color: AppColors.inkSecondary,
               ),
-            ),
-          ],
-        ),
-        AppCard(
-          variant: AppCardVariant.paper,
-          children: [
-            // このカードだけ間隔が 8 なので、1 つの Column にまとめる
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 8,
-              children: [
-                const Text('最後に話したとき', style: AppTextStyles.titleM),
-                Text(
-                  '${formatRelativeDay(lastTalk.startedAt, now)} '
-                  '${formatTime(lastTalk.startedAt)} ・ '
-                  '${lastTalk.duration.inMinutes}分',
-                  style: AppTextStyles.monoS.copyWith(
-                    color: AppColors.inkSecondary,
-                  ),
-                ),
-                Text(lastTalk.quote, style: AppTextStyles.capS),
-              ],
             ),
           ],
         ),

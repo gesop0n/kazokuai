@@ -8,8 +8,7 @@ const _talked = '話した';
 const _notTalked = '話していない';
 
 // Firestore の見守る方と電話のドキュメントを、ホームの型にする。
-// 直近の電話は期間に関係なくいちばん新しいもの、今日の様子はその日の最後の電話、
-// 7 日間は今日を含む 7 日で、電話がなかった日は棒も印も出さない
+// 直近の電話は期間に関係なくいちばん新しいもの、今日の様子はその日の最後の電話。
 HomeView homeViewFrom({
   required Map<String, dynamic> person,
   required List<Map<String, dynamic>> calls,
@@ -25,14 +24,12 @@ HomeView homeViewFrom({
   parsed.sort((a, b) => b.startedAt.compareTo(a.startedAt));
 
   final today = _dateOnly(now);
-  final start = today.subtract(const Duration(days: 6));
   Call? todayCall;
-  final totals = <DateTime, int>{};
   for (final call in parsed) {
-    final day = _dateOnly(call.startedAt);
-    if (day == today && todayCall == null) todayCall = call;
-    if (day.isBefore(start) || day.isAfter(today)) continue;
-    totals[day] = (totals[day] ?? 0) + call.duration.inMilliseconds;
+    if (_dateOnly(call.startedAt) == today) {
+      todayCall = call;
+      break;
+    }
   }
 
   return HomeView(
@@ -44,19 +41,6 @@ HomeView homeViewFrom({
     now: now,
     latestCall: parsed.isEmpty ? null : parsed.first,
     todayCall: todayCall,
-    week: WeekCallRecords([
-      for (var i = 0; i < 7; i++)
-        _dayRecord(start.add(Duration(days: i)), totals),
-    ]),
-  );
-}
-
-DayCallRecord _dayRecord(DateTime date, Map<DateTime, int> totals) {
-  final milliseconds = totals[date];
-  if (milliseconds == null) return DayCallRecord.quiet(date: date);
-  return DayCallRecord(
-    date: date,
-    talkedMinutes: Duration(milliseconds: milliseconds).inMinutes,
   );
 }
 
@@ -71,7 +55,6 @@ Call? _callFrom(Map<String, dynamic> data) {
     duration: Duration(milliseconds: _int(data['durationMs'])),
     summary: CallSummary(
       headline: _headline(summary, state),
-      quote: _quote(startedAt, summary, made: made),
       conditions: [
         _condition(ConditionKind.meal, summary?['meal'], made: made),
         _condition(ConditionKind.sleep, summary?['sleep'], made: made),
@@ -86,19 +69,6 @@ String _headline(Map<String, dynamic>? summary, String state) {
   if (state == _summaryNotMade) return 'まとめを作れませんでした';
   if (state != _summaryMade) return '';
   return _string(summary?['headline']);
-}
-
-Quote _quote(
-  DateTime startedAt,
-  Map<String, dynamic>? summary, {
-  required bool made,
-}) {
-  if (!made) return Quote(text: '', spokenAt: startedAt);
-  final quote = _map(summary?['quote']);
-  return Quote(
-    text: _string(quote?['text']),
-    spokenAt: startedAt.add(Duration(milliseconds: _int(quote?['offsetMs']))),
-  );
 }
 
 Condition _condition(ConditionKind kind, Object? raw, {required bool made}) {
