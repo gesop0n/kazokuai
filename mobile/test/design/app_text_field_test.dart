@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
@@ -102,7 +103,7 @@ void main() {
   });
 
   group('モックの値', () {
-    testWidgets('既定の高さは 56 で、角丸 16、枠 1.5 の lineStrong', (tester) async {
+    testWidgets('既定の高さは 56 で、角丸 8、枠 1.5 の lineStrong', (tester) async {
       await pumpInLayout(tester, layoutCases.first, const AppTextField());
 
       expect(tester.getSize(find.byType(AppTextField)).height, 56);
@@ -115,10 +116,7 @@ void main() {
       );
       final decoration = container.decoration! as BoxDecoration;
       expect(decoration.color, AppColors.paperRaised);
-      expect(
-        decoration.borderRadius,
-        const BorderRadius.all(Radius.circular(16)),
-      );
+      expect(decoration.borderRadius, AppRadius.borderRadius);
       expect(
         _borderOf(tester).top,
         const BorderSide(color: AppColors.lineStrong, width: 1.5),

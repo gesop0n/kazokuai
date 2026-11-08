@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 
@@ -24,7 +25,7 @@ class AppField extends StatelessWidget {
       foregroundColor: AppColors.inkPrimary,
       backgroundColor: AppColors.paperRaised,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.borderRadius,
         side: const BorderSide(color: AppColors.lineStrong, width: 1.5),
       ),
       minHeight: minHeight,

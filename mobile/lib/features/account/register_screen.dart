@@ -7,6 +7,7 @@ import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -239,7 +240,7 @@ class _AgreeRow extends StatelessWidget {
       minHeight: 52,
       padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: AppRadius.borderRadius,
         side: const BorderSide(color: AppColors.line),
       ),
       child: Row(

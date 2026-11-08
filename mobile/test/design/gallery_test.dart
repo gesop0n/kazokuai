@@ -12,6 +12,7 @@ import 'package:kazokuai/design/widgets/app_field.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_circle.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
+import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/main_gallery.dart';
 
@@ -31,6 +32,7 @@ void main() {
       AppIconButton,
       AppIconCircle,
       AppPill,
+      AppTabBar,
       AppTextField,
     ]) {
       expect(find.byType(type), findsWidgets);

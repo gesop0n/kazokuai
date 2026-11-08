@@ -13,7 +13,7 @@ import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
 
-// モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 98 になる
+// モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 91 になる
 void useMockScreen(WidgetTester tester) {
   tester.view.devicePixelRatio = 3;
   tester.view.physicalSize = const Size(393 * 3, 852 * 3);

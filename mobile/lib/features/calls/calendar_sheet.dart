@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -53,7 +54,9 @@ class _CalendarSheetState extends State<CalendarSheet> {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.paperRaised,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppRadius.value),
+        ),
         boxShadow: [
           BoxShadow(
             color: Color(0x2E000000),

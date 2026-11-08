@@ -1,11 +1,11 @@
 import 'package:flutter/widgets.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 
 enum AppCardVariant {
   paper(
     padding: 16,
-    radius: 20,
     gap: 12,
     background: AppColors.paperRaised,
     foreground: AppColors.inkPrimary,
@@ -14,14 +14,12 @@ enum AppCardVariant {
   // 子どもの間隔が場所ごとに違うので gap は 0 にして、SizedBox で開ける
   night(
     padding: 20,
-    radius: 24,
     gap: 0,
     background: AppColors.nightBase,
     foreground: AppColors.nightText,
   ),
   alert(
     padding: 20,
-    radius: 24,
     gap: 0,
     background: AppColors.stateAlert,
     foreground: AppColors.onStateAlert,
@@ -29,7 +27,6 @@ enum AppCardVariant {
 
   const AppCardVariant({
     required this.padding,
-    required this.radius,
     required this.gap,
     required this.background,
     required this.foreground,
@@ -37,7 +34,6 @@ enum AppCardVariant {
   });
 
   final double padding;
-  final double radius;
   final double gap;
   final Color background;
   final Color foreground;
@@ -57,7 +53,7 @@ class AppCard extends StatelessWidget {
       padding: EdgeInsets.all(variant.padding),
       decoration: BoxDecoration(
         color: variant.background,
-        borderRadius: BorderRadius.circular(variant.radius),
+        borderRadius: AppRadius.borderRadius,
         border: border == null ? null : Border.fromBorderSide(border),
       ),
       child: DefaultTextStyle.merge(

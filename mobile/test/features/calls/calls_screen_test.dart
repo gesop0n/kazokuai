@@ -132,7 +132,7 @@ void main() {
 
     // サンプルでは末尾の余白がタブバーより大きいので、行が多い日で確かめる
     testWidgets('行が多くても、最後の行はタブバーに隠れない', (tester) async {
-      tester.view.padding = const FakeViewPadding(bottom: 98);
+      tester.view.padding = const FakeViewPadding(bottom: 91);
       addTearDown(tester.view.resetPadding);
       await pumpScreenInLayout(
         tester,
@@ -165,7 +165,7 @@ void main() {
 
       expect(
         tester.getBottomLeft(find.text('8時の電話')).dy,
-        lessThanOrEqualTo(852 - 98),
+        lessThanOrEqualTo(852 - 91),
       );
     });
 

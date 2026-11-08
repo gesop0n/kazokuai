@@ -1,7 +1,7 @@
 import 'package:flutter/painting.dart';
 
 abstract final class AppColors {
-  static const paperBase = Color(0xFFF1F1F1);
+  static const paperBase = Color(0xFFF5F5F5);
   static const paperRaised = Color(0xFFFFFFFF);
   static const paperSunken = Color(0xFFE2E3E6);
 
@@ -31,6 +31,9 @@ abstract final class AppColors {
   static const speakerParent = Color(0xFF663300);
 
   static const onAvatar = Color(0xFFFFFFFF);
+
+  // モックがアイコンに直接書く白。かける青の上の白は onAccentCall
+  static const white = Color(0xFFFFFFFF);
 
   // モックが押せないボタンに直接書く背景
   static const buttonDisabled = Color(0xFFD5D6D9);

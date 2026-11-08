@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 
 // .field と .field.focus の見た目で、実際に入力できる部品。押すと画面を開くだけの入力欄は AppField。
@@ -53,7 +54,6 @@ class AppTextField extends StatefulWidget {
 
 class _AppTextFieldState extends State<AppTextField> {
   static const _borderWidth = 1.5;
-  static const _borderRadius = BorderRadius.all(Radius.circular(16));
 
   // 親から渡されないときだけ自分で持つ
   FocusNode? _ownFocusNode;
@@ -92,11 +92,11 @@ class _AppTextFieldState extends State<AppTextField> {
           ),
           decoration: const BoxDecoration(
             color: AppColors.paperRaised,
-            borderRadius: _borderRadius,
+            borderRadius: AppRadius.borderRadius,
           ),
           // フォーカスで枠が太くなっても文字が動かないように、枠は余白の上に描く
           foregroundDecoration: BoxDecoration(
-            borderRadius: _borderRadius,
+            borderRadius: AppRadius.borderRadius,
             border: _focusNode.hasFocus
                 ? Border.all(color: AppColors.inkPrimary, width: 2)
                 : Border.all(color: AppColors.lineStrong, width: _borderWidth),

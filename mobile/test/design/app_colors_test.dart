@@ -6,7 +6,7 @@ import 'package:kazokuai/design/app_colors.dart';
 void main() {
   // 期待する値は docs/mock/ui.html の CSS と、その場に書いてある色
   test('色の名前は最新のモックの値を持つ', () {
-    expect(AppColors.paperBase, const Color(0xFFF1F1F1));
+    expect(AppColors.paperBase, const Color(0xFFF5F5F5));
     expect(AppColors.paperRaised, const Color(0xFFFFFFFF));
     expect(AppColors.paperSunken, const Color(0xFFE2E3E6));
     expect(AppColors.inkPrimary, const Color(0xFF1A1A1A));
@@ -28,6 +28,7 @@ void main() {
     expect(AppColors.speakerAi, const Color(0xFF0041FF));
     expect(AppColors.speakerParent, const Color(0xFF663300));
     expect(AppColors.onAvatar, const Color(0xFFFFFFFF));
+    expect(AppColors.white, const Color(0xFFFFFFFF));
     expect(AppColors.buttonDisabled, const Color(0xFFD5D6D9));
     expect(AppColors.welcomeIconCircle, const Color(0xFFB4EBFA));
     expect(AppColors.scrim, const Color(0x80000000));

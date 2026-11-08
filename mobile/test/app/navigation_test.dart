@@ -249,7 +249,7 @@ void main() {
   });
 
   group('本文とタブバーの重なり', () {
-    // モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 98 になる
+    // モックと同じ画面。下の安全領域が 34 なので、タブバーは tabH と同じ 91 になる
     void useMockScreen(WidgetTester tester) {
       tester.view.devicePixelRatio = 3;
       tester.view.physicalSize = const Size(393 * 3, 852 * 3);
@@ -257,11 +257,11 @@ void main() {
       addTearDown(tester.view.reset);
     }
 
-    testWidgets('タブバーの高さは tabH と同じ 98 になる', (tester) async {
+    testWidgets('タブバーの高さは tabH と同じ 91 になる', (tester) async {
       useMockScreen(tester);
       await pumpApp(tester);
 
-      expect(tester.getSize(find.byType(AppTabBar)).height, 98);
+      expect(tester.getSize(find.byType(AppTabBar)).height, 91);
     });
 
     testWidgets('本文は画面の下端まで伸びる', (tester) async {
