@@ -1,16 +1,21 @@
-// device は電話機のプログラムである。起動するとすぐに呼び出しを始め、1 回の電話をして終わる。
+// device は電話機のプログラムである。起動するとバックエンドにつながり続け、今すぐ通話の指示で電話をする。
 //
 // 今は Mac で動かす。受話器の音声は既定のマイクとスピーカー、フックは Enter キー、
 // 呼び出し音とランプはターミナルの文字である。イヤホンを付けて使う。
+// 見守る方の ID は、起動するときに渡す。受話器を開く前に確かめる。
 //
-//	mise run device
+//	mise run device -- --watched-person <見守る方の ID>
 package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"google.golang.org/genai"
@@ -24,13 +29,17 @@ import (
 const backend = "http://localhost:8080"
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(args []string) error {
+	person, err := watchedPersonID(args)
+	if err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -41,8 +50,9 @@ func run() error {
 	defer handset.Close()
 
 	device := &phone.Device{
-		Backend: backend,
-		Gemini:  liveAPI{},
+		Backend:       backend,
+		WatchedPerson: person,
+		Gemini:        liveAPI{},
 		Phone: phone.Phone{
 			Handset: handset,
 			Hook:    mac.NewHook(os.Stdin, os.Stdout),
@@ -52,11 +62,24 @@ func run() error {
 		Out:   os.Stdout,
 		Clock: realClock{},
 	}
-	if err := device.Call(ctx); err != nil {
-		return fmt.Errorf("電話が終わりました: %w", err)
+	if err := device.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return fmt.Errorf("電話機が終わりました: %w", err)
 	}
-	fmt.Println("電話が終わりました。")
 	return nil
+}
+
+// watchedPersonID は、--watched-person の値を返す。無ければ、受話器を開かずにエラーを返す。
+func watchedPersonID(args []string) (string, error) {
+	fs := flag.NewFlagSet("device", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	id := fs.String("watched-person", "", "見守る方の ID")
+	if err := fs.Parse(args); err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(*id) == "" {
+		return "", errors.New("見守る方の ID が要ります。--watched-person で渡してください")
+	}
+	return *id, nil
 }
 
 // realClock は、そのマシンの時計である。

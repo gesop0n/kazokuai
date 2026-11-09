@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
@@ -28,6 +28,26 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   void dispose() {
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _call(String message) async {
+    try {
+      await ref
+          .read(immediateCallRepositoryProvider)
+          .start(message: message, script: _callScript);
+    } on PhoneNotConnectedException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('電話機につながっていません'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+    } on ImmediateCallException {
+      // つながらない以外の失敗は、画面に留まる。文面は、このチケットでは求めない。
+    }
   }
 
   void _book(String message) {
@@ -85,7 +105,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: BookingFormActions(
                 onBook: hasMessage ? () => _book(message) : null,
-                onCall: hasMessage ? () => showComingSoon(context) : null,
+                onCall: hasMessage ? () => _call(message) : null,
               ),
             ),
           ],

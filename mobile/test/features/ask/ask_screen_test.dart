@@ -10,6 +10,7 @@ import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
+import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
@@ -17,6 +18,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_immediate_call_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
@@ -39,7 +41,11 @@ Future<void> _pumpAsk(
 }) => pumpScreenInLayout(tester, layout, const AskScreen());
 
 // 遷移は go_router が要るので、アプリ全体をホームから動かす
-Future<void> _pumpAppAndOpenAsk(WidgetTester tester) async {
+Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
+  WidgetTester tester, {
+  FakeImmediateCallRepository? calls,
+}) async {
+  final repository = calls ?? FakeImmediateCallRepository();
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = const Size(393, 852);
@@ -51,6 +57,7 @@ Future<void> _pumpAppAndOpenAsk(WidgetTester tester) async {
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        immediateCallRepositoryProvider.overrideWithValue(repository),
       ],
       child: const KazokuAiApp(),
     ),
@@ -59,6 +66,7 @@ Future<void> _pumpAppAndOpenAsk(WidgetTester tester) async {
   await tester.tap(find.text('AIに伝えてもらう'));
   await tester.pumpAndSettle();
   expect(find.byType(AskScreen), findsOneWidget);
+  return repository;
 }
 
 Future<void> _enterMessage(
@@ -510,26 +518,58 @@ void main() {
   });
 
   group('操作', () {
-    testWidgets('「今すぐ通話」を押すと「準備中です」と出て、01 に留まる', (tester) async {
-      await _pumpAppAndOpenAsk(tester);
+    testWidgets('「今すぐ通話」は伝えたいことと通話内容を送り、01 に留まる', (tester) async {
+      final calls = await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
 
       await tester.tap(find.text('今すぐ通話'));
       await tester.pumpAndSettle();
 
-      expect(find.text('準備中です'), findsOneWidget);
+      expect(calls.started, [(message: _message, script: _script)]);
+      expect(find.text('準備中です'), findsNothing);
+      expect(find.text('電話機につながっていません'), findsNothing);
       expect(find.byType(AskScreen), findsOneWidget);
       expect(find.byType(AppTabBar), findsNothing);
       expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
     });
 
+    testWidgets('電話機がつながっていないと「電話機につながっていません」と出て、01 に留まる', (tester) async {
+      final calls = FakeImmediateCallRepository(disconnected: true);
+      await _pumpAppAndOpenAsk(tester, calls: calls);
+      await _enterMessage(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('電話機につながっていません'), findsOneWidget);
+      expect(find.text('準備中です'), findsNothing);
+      expect(calls.started, isEmpty);
+      expect(find.byType(AskScreen), findsOneWidget);
+      expect(find.byType(AppTabBar), findsNothing);
+    });
+
+    testWidgets('今すぐ通話が失敗しても、01 に留まる', (tester) async {
+      final calls = FakeImmediateCallRepository(failing: true);
+      await _pumpAppAndOpenAsk(tester, calls: calls);
+      await _enterMessage(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('準備中です'), findsNothing);
+      expect(find.text('電話機につながっていません'), findsNothing);
+      expect(calls.started, isEmpty);
+      expect(find.byType(AskScreen), findsOneWidget);
+    });
+
     testWidgets('空のあいだは「今すぐ通話」も「この日時で予約する」も何も起きない', (tester) async {
-      await _pumpAppAndOpenAsk(tester);
+      final calls = await _pumpAppAndOpenAsk(tester);
 
       await tester.tap(find.text('今すぐ通話'), warnIfMissed: false);
       await tester.tap(find.text('この日時で予約する'), warnIfMissed: false);
       await tester.pumpAndSettle();
 
+      expect(calls.started, isEmpty);
       expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
       expect(find.byType(AskScreen), findsOneWidget);
       expect(tester.container().read(bookedCallsProvider), hasLength(3));

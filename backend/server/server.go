@@ -1,4 +1,5 @@
-// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
+// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
+// つながっている電話機は、見守る方の ID ごとにメモリーで持つ。
 package server
 
 import (
@@ -14,11 +15,8 @@ import (
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
-// Config は、電話をかける相手と、AI の設定である。
+// Config は、AI の設定である。電話をかける見守る方は、電話機が接続するときに決まり、フラグでは持たない。
 type Config struct {
-	// WatchedPerson は、電話をかける見守る方の、Firestore のドキュメントの ID である。
-	// 空のときは、アプリからの見守る方の登録だけを受け、デバイスにトークンを渡さない。
-	WatchedPerson string
 	// Model は Live API のモデルである。
 	Model string
 	// Voice は AI の声の名前である。
@@ -57,15 +55,40 @@ type Clock interface {
 	Now() time.Time
 }
 
-// New は、protocol.TokenPath でデバイスにトークンを渡し、watchedPersonsPath でアプリから見守る方の登録を受け、
-// protocol.CallReportPath でデバイスから電話の報告を受ける http.Handler を返す。
-func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clock Clock) http.Handler {
-	s := &server{config: config, firebase: firebase, tokens: tokens, summarizer: summarizer, clock: clock}
+// Handler は、バックエンドの HTTP サーバーである。Stop で電話機との接続を閉じる。
+type Handler struct {
+	http.Handler
+	stop   context.CancelFunc
+	phones *phoneBook
+}
+
+// Stop は、つながっている電話機との WebSocket を閉じる。
+func (h *Handler) Stop() { h.stop() }
+
+// Connected は、personID の電話機が今つながっているかを返す。
+func (h *Handler) Connected(personID string) bool { return h.phones.connected(personID) }
+
+// New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
+// watchedPersonsPath でアプリから見守る方の登録を受け、protocol.StartCallPath で今すぐ通話を始め、
+// protocol.CallReportPath でデバイスから電話の報告を受ける Handler を返す。
+func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clock Clock) *Handler {
+	ctx, stop := context.WithCancel(context.Background())
+	s := &server{
+		config:     config,
+		firebase:   firebase,
+		tokens:     tokens,
+		summarizer: summarizer,
+		clock:      clock,
+		phones:     newPhoneBook(),
+		base:       ctx,
+	}
 	router := chi.NewRouter()
+	router.Get(protocol.PhonePath, s.phone)
 	router.Post(protocol.TokenPath, s.token)
 	router.Post(watchedPersonsPath, s.registerWatchedPerson)
+	router.Post(protocol.StartCallPath, s.startCall)
 	router.Post(protocol.CallReportPath, s.reportCall)
-	return router
+	return &Handler{Handler: router, stop: stop, phones: s.phones}
 }
 
 type server struct {
@@ -74,18 +97,30 @@ type server struct {
 	tokens     Tokens
 	summarizer Summarizer
 	clock      Clock
+	phones     *phoneBook
+	// base は、このサーバーが止まるまで生きている context である。電話機の接続はこれに従う。
+	base context.Context
 }
 
-// token は、見守る方の名前と呼び方を Firestore から読み、それをシステム指示に書いたトークンを作る。
+// token は、頼まれた電話の見守る方の名前と呼び方を Firestore から読み、それをシステム指示に書いたトークンを作る。
 func (s *server) token(w http.ResponseWriter, r *http.Request) {
-	config := s.config
-	if config.WatchedPerson == "" {
-		http.Error(w, "電話をかける見守る方が決まっていません。--watched-person で見守る方の ID を指定して、バックエンドを起動し直してください", http.StatusServiceUnavailable)
+	var req protocol.TokenRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRegistration)).Decode(&req); err != nil {
+		http.Error(w, "本文を JSON で読めなかった", http.StatusBadRequest)
 		return
 	}
-	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, config.WatchedPerson)
+	if req.CallID == "" || req.WatchedPersonID == "" {
+		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.callRef(req.WatchedPersonID, req.CallID).Get(r.Context()); err != nil {
+		http.Error(w, "電話が見つからなかった", http.StatusNotFound)
+		return
+	}
+	config := s.config
+	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, req.WatchedPersonID)
 	if err != nil {
-		log.Printf("見守る方 %s を読めなかった: %v", config.WatchedPerson, err)
+		log.Printf("見守る方 %s を読めなかった: %v", req.WatchedPersonID, err)
 		http.Error(w, "見守る方を読めなかった", http.StatusInternalServerError)
 		return
 	}

@@ -56,10 +56,16 @@ func RegisterWatchedPerson(ctx context.Context, backend, name, callName string) 
 	if err != nil {
 		return "", err
 	}
+	return RegisterWatchedPersonAs(ctx, backend, family, name, callName)
+}
+
+// RegisterWatchedPersonAs は、family の家族として見守る方を登録し、その ID を返す。
+// アプリの L6 と同じ API を使う。
+func RegisterWatchedPersonAs(ctx context.Context, backend string, family Family, name, callName string) (string, error) {
 	var registered struct {
 		ID string `json:"id"`
 	}
-	err = postJSON(ctx, backend+"/watched-persons", family.IDToken, map[string]string{
+	err := postJSON(ctx, backend+"/watched-persons", family.IDToken, map[string]string{
 		"name":     name,
 		"callName": callName,
 	}, http.StatusCreated, &registered)

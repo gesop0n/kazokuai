@@ -68,33 +68,8 @@ func TestSummaryModelFlag(t *testing.T) {
 	})
 }
 
-func TestWatchedPersonFlag(t *testing.T) {
-	t.Run("--watched-person で、電話をかける見守る方の ID を受け取る", func(t *testing.T) {
-		config := parseConfig(t, "--watched-person=hanako-id")
-
-		if config.WatchedPerson != "hanako-id" {
-			t.Errorf("見守る方 = %q, want hanako-id", config.WatchedPerson)
-		}
-	})
-
-	t.Run("--watched-person の見守る方が Firestore にいなければ、起動を断る", func(t *testing.T) {
-		t.Setenv("GEMINI_API_KEY", "test-key")
-		config := parseConfig(t, "--watched-person=nobody")
-
-		err := run(config)
-		if err == nil {
-			t.Fatal("起動してしまった")
-		}
-		for _, want := range []string{"--watched-person", "nobody", "起動できません"} {
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("起動を断るメッセージ %q に %q がない", err.Error(), want)
-			}
-		}
-	})
-}
-
 func TestRunRefusesWhenTheCallOutlastsTheConnection(t *testing.T) {
-	hanako := server.Config{WatchedPerson: "hanako-id"}
+	hanako := server.Config{}
 
 	t.Run("呼び出しの上限と電話の長さの上限の合計が 10 分を超えると、起動を断る", func(t *testing.T) {
 		config := hanako
