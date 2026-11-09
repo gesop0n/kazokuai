@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"firebase.google.com/go/v4/auth"
@@ -20,6 +21,8 @@ type Request struct {
 	Password      string
 	FirestoreHost string
 	AuthHost      string
+	// Today は、見本の 1 週間が朝で終わる日である。日付は日本時間で読む。ゼロのときは、実行した日。
+	Today time.Time
 }
 
 // Result は、作った審査員と見守る方である。
@@ -58,7 +61,8 @@ func validateRequest(req Request) error {
 }
 
 // Seed は、渡した Firebase に審査員と見本の電話を作る。
-// もう一度実行すると、そのアカウントの電話を見本に戻し、チュートリアルを見た記録を消す。
+// 見本の 1 週間は、渡した日の朝で終わる。日を渡さないときは、実行した日の朝で終わる。
+// もう一度実行すると、そのアカウントの電話をその日の見本に戻し、チュートリアルを見た記録を消す。
 func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, req Request) (Result, error) {
 	user, err := upsertJudge(ctx, accounts, req.Email, req.Password)
 	if err != nil {
@@ -78,7 +82,7 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 	if err := deleteCalls(ctx, store, person); err != nil {
 		return Result{}, err
 	}
-	calls := sampleCalls()
+	calls := sampleCalls(sampleDay(req))
 	missed := 0
 	for _, call := range calls {
 		if err := writeCall(ctx, store, person, call); err != nil {

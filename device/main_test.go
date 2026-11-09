@@ -38,8 +38,8 @@ func TestCheckNamesThePartBeforeOpeningAnything(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "speaker") {
 		t.Fatalf("部品なし = %v", err)
 	}
-	err = run([]string{"check", "keypad"})
-	if err == nil || !strings.Contains(err.Error(), "keypad") {
+	err = run([]string{"check", "lamp"})
+	if err == nil || !strings.Contains(err.Error(), "lamp") {
 		t.Fatalf("範囲外 = %v", err)
 	}
 }
@@ -48,7 +48,7 @@ func TestCheckRunsOnThePhone(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("Linux では部品を開くので、ここでは動かさない")
 	}
-	for _, part := range []string{"hook", "ringer"} {
+	for _, part := range []string{"hook", "ringer", "keypad"} {
 		err := run([]string{"check", part})
 		if err == nil || !strings.Contains(err.Error(), "電話機") {
 			t.Fatalf("Mac の %s = %v", part, err)

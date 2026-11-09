@@ -329,6 +329,9 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 		conn := dialPhone(t, srv.URL, "reading", "dev-phone-secret")
 		readPhone(conn)
 		waitConnected(t, handler, "reading", true)
+		// つながったと分かるのは、ping のタイマーを作る前である。
+		// その前に時計を進めると ping が飛ばず、読んでいても切っていないことを確かめられない。
+		clock.WaitForTimers(1)
 		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(1500 * time.Millisecond)
 		for time.Now().Before(deadline) {
@@ -344,6 +347,9 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 		conn := dialPhone(t, srv.URL, "silent", "dev-phone-secret")
 		waitConnected(t, handler, "silent", true)
+		// つながったと分かるのは、ping のタイマーを作る前である。
+		// その前に時計を進めるとタイマーは鳴らず、忙しいマシンでは 3 秒待っても切れない。
+		clock.WaitForTimers(1)
 		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(3 * time.Second)
 		for handler.Connected("silent") {

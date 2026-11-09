@@ -40,3 +40,4 @@
 | [20261109_bluetooth_sync](20261109_bluetooth_sync.md) | 電話機との同期と Wi-Fi の設定を Bluetooth LE で行う | Accepted |
 | [20261109_cloud_run_one_instance](20261109_cloud_run_one_instance.md) | Cloud Run を 1 インスタンスにし、つながっている電話機をメモリーで持つ | Accepted |
 | [20261109_four_tickets](20261109_four_tickets.md) | 同時に最大 4 つのチケットを動かす | Accepted |
+| [20261110_spoken_code_sync](20261110_spoken_code_sync.md) | 電話機が読み上げる認証コードで同期し、電話機ごとの ID と鍵で認証する | Accepted |

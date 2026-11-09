@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,6 +22,11 @@ import (
 
 // 時刻は日本時間。アプリは端末の現地時間で出す。審査は日本である。
 var tokyo = time.FixedZone("Asia/Tokyo", 9*60*60)
+
+// seedProject は、このテストだけのエミュレーターのプロジェクトである。
+// go test はパッケージを並べて動かし、ほかのパッケージは demo-kazokuai に家族と電話を書く。
+// 審査員のアカウントも見守る方も同じプロジェクトに置くと、その書き込みと一覧がぶつかる。
+const seedProject = "demo-kazokuai-seed"
 
 func TestValidateRequest(t *testing.T) {
 	ok := Request{
@@ -85,7 +91,9 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 		next  = "judge-pass-2"
 	)
 
-	got := seedJudge(t, ctx, store, accounts, email, first)
+	// 見本の中身を確かめる日。実行した日にはしない。
+	today := time.Date(2026, 11, 5, 8, 0, 0, 0, tokyo)
+	got := seedJudge(t, ctx, store, accounts, email, first, today)
 	if got.WatchedPersonID != "tanaka-hana" {
 		t.Fatalf("見守る方の ID = %s", got.WatchedPersonID)
 	}
@@ -113,7 +121,10 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	other, err := firebasetest.SignUp(ctx)
+	// 別の家族は、ほかのパッケージが使う Auth ではなく、このプロジェクトに作る。
+	other, err := accounts.CreateUser(ctx, (&auth.UserToCreate{}).
+		Email("other-"+strings.ToLower(rand.Text())+"@example.com").
+		Password("other-pass-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +152,7 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	again := seedJudge(t, ctx, store, accounts, email, next)
+	again := seedJudge(t, ctx, store, accounts, email, next, today)
 	if again.WatchedPersonID != got.WatchedPersonID || again.UID != got.UID {
 		t.Fatalf("戻したあとの ID = %+v, 最初 = %+v", again, got)
 	}
@@ -191,14 +202,98 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	}
 }
 
-func seedJudge(t *testing.T, ctx context.Context, store *firestore.Client, accounts *auth.Client, email, password string) Result {
+func TestSeedMovesTheWeekWhenRunOnAnotherDay(t *testing.T) {
+	store, accounts := openEmulator(t)
+	ctx := t.Context()
+	const email = "judge-week@example.com"
+	// 朝より前の時刻でも、その日の朝で終わる。
+	first := time.Date(2026, 11, 10, 8, 30, 0, 0, tokyo)
+	second := time.Date(2026, 11, 12, 7, 15, 0, 0, tokyo)
+
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", first)
+	person := store.Collection("watchedPersons").Doc("tanaka-hana")
+	assertWeekEndsOnMorning(t, ctx, person,
+		time.Date(2026, 11, 10, 9, 2, 0, 0, tokyo),
+		time.Date(2026, 11, 7, 9, 0, 0, 0, tokyo),
+	)
+
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", second)
+	assertWeekEndsOnMorning(t, ctx, person,
+		time.Date(2026, 11, 12, 9, 2, 0, 0, tokyo),
+		time.Date(2026, 11, 9, 9, 0, 0, 0, tokyo),
+	)
+	if callAt(t, ctx, person, time.Date(2026, 11, 5, 9, 0, 0, 0, tokyo)) {
+		t.Fatal("11月5日の電話が残っている")
+	}
+	if callAt(t, ctx, person, time.Date(2026, 11, 10, 9, 2, 0, 0, tokyo)) {
+		t.Fatal("11月10日の朝の電話が残っている")
+	}
+}
+
+func assertWeekEndsOnMorning(t *testing.T, ctx context.Context, person *firestore.DocumentRef, morning, missedAt time.Time) {
+	t.Helper()
+	calls, err := person.Collection("calls").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 7 {
+		t.Fatalf("電話 = %d 件, want 7", len(calls))
+	}
+	var missed int
+	var latest time.Time
+	var latestCall *firestore.DocumentSnapshot
+	for _, call := range calls {
+		fields := call.Data()
+		if fields["state"] == protocol.StateMissed {
+			missed++
+			got, _ := fields["createdAt"].(time.Time)
+			if !got.Equal(missedAt) {
+				t.Fatalf("出なかった時刻 = %v, want %v", got, missedAt)
+			}
+			continue
+		}
+		at, _ := fields["startedAt"].(time.Time)
+		if latestCall == nil || at.After(latest) {
+			latest = at
+			latestCall = call
+		}
+	}
+	if missed != 1 {
+		t.Fatalf("出なかった電話 = %d 件", missed)
+	}
+	if latestCall == nil || !latest.Equal(morning) {
+		t.Fatalf("いちばん新しい電話 = %v, want %v", latest, morning)
+	}
+	assertReplyCard(t, ctx, latestCall.Ref)
+}
+
+func callAt(t *testing.T, ctx context.Context, person *firestore.DocumentRef, at time.Time) bool {
+	t.Helper()
+	calls, err := person.Collection("calls").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range calls {
+		fields := call.Data()
+		if started, ok := fields["startedAt"].(time.Time); ok && started.Equal(at) {
+			return true
+		}
+		if created, ok := fields["createdAt"].(time.Time); ok && created.Equal(at) {
+			return true
+		}
+	}
+	return false
+}
+
+func seedJudge(t *testing.T, ctx context.Context, store *firestore.Client, accounts *auth.Client, email, password string, today time.Time) Result {
 	t.Helper()
 	req := Request{
-		ProjectID:     "demo-kazokuai",
+		ProjectID:     seedProject,
 		Email:         email,
 		Password:      password,
 		FirestoreHost: os.Getenv("FIRESTORE_EMULATOR_HOST"),
 		AuthHost:      os.Getenv("FIREBASE_AUTH_EMULATOR_HOST"),
+		Today:         today,
 	}
 	if err := validateRequest(req); err != nil {
 		t.Fatal(err)
@@ -293,6 +388,7 @@ func assertSampleWeek(t *testing.T, ctx context.Context, person *firestore.Docum
 		if at.Equal(time.Date(2026, 11, 5, 9, 2, 0, 0, tokyo)) {
 			morningID = call.Ref.ID
 			assertMorningCall(t, ctx, call.Ref, fields, summary)
+			assertReplyCard(t, ctx, call.Ref)
 		}
 		if at.Equal(time.Date(2026, 11, 4, 19, 0, 0, 0, tokyo)) {
 			meal := nested(t, summary["meal"])
@@ -388,10 +484,52 @@ func assertMorningCall(t *testing.T, ctx context.Context, ref *firestore.Documen
 		"そうね、お願いしようかな。",
 		"朝の薬は飲みましたか。",
 		"飲んだよ。",
+		"ハナさん、美咲さんからご伝言です。金曜の通院は、朝10時にお迎えに来るそうです。",
+		"わかったよ。玄関で待ってるね。",
 	}
 	if got := utteranceTexts(t, ctx, ref); strings.Join(got, "\n") != strings.Join(wantLines, "\n") {
 		t.Fatalf("会話 = %v", got)
 	}
+}
+
+func assertReplyCard(t *testing.T, ctx context.Context, call *firestore.DocumentRef) {
+	t.Helper()
+	doc, err := call.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := doc.Data()
+	if fields["message"] != "金曜の通院、10時に迎えに行くと伝えて" {
+		t.Fatalf("伝えたいこと = %v", fields["message"])
+	}
+	const script = "「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」"
+	if fields["script"] != script {
+		t.Fatalf("通話内容 = %v", fields["script"])
+	}
+	summary := nested(t, fields["summary"])
+	if summary["told"] != "金曜の通院は、朝10時にお迎えに来る" {
+		t.Fatalf("伝えたこと = %v", summary["told"])
+	}
+	reply := nested(t, summary["reply"])
+	const want = "わかったよ。玄関で待ってるね。"
+	if reply["text"] != want {
+		t.Fatalf("返答 = %v", reply["text"])
+	}
+	utterances, err := call.Collection("utterances").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, utterance := range utterances {
+		data := utterance.Data()
+		if data["speaker"] != protocol.SpeakerWatched || data["text"] != want {
+			continue
+		}
+		if asInt(data["offsetMs"]) != asInt(reply["offsetMs"]) {
+			t.Fatalf("返答の時刻 = %v, 発話 = %v", reply["offsetMs"], data["offsetMs"])
+		}
+		return
+	}
+	t.Fatalf("返答が見守る方の発話にない")
 }
 
 func utteranceTexts(t *testing.T, ctx context.Context, call *firestore.DocumentRef) []string {
@@ -418,7 +556,7 @@ func openEmulator(t *testing.T) (*firestore.Client, *auth.Client) {
 		t.Fatal(firebasetest.Hint)
 	}
 	ctx := t.Context()
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: "demo-kazokuai"})
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: seedProject})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -436,14 +574,23 @@ func openEmulator(t *testing.T) (*firestore.Client, *auth.Client) {
 
 func signInStatus(t *testing.T, email, password string) int {
 	t.Helper()
+	// エミュレーターの API キーは、起動したプロジェクト(demo-kazokuai)にだけ届く。
+	// 審査員は seedProject にいるので、そのプロジェクトを指定できる owner でログインする。
 	body, err := json.Marshal(map[string]any{
 		"email": email, "password": password, "returnSecureToken": true,
+		"targetProjectId": seedProject,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	url := "http://" + os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") + "/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=emulator"
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer owner")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,11 @@ import (
 const (
 	samplePersonName = "田中 ハナ"
 	sampleCallName   = "ハナさん"
+	// モックの伝言への返答。返答は、見守る方の発話と同じ文である。
+	sampleMessage = "金曜の通院、10時に迎えに行くと伝えて"
+	sampleScript  = "「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」"
+	sampleTold    = "金曜の通院は、朝10時にお迎えに来る"
+	sampleReply   = "わかったよ。玄関で待ってるね。"
 )
 
 // japan は、見本の電話の時刻である。アプリは端末の現地時間で出す。
@@ -26,6 +31,12 @@ type sampleCall struct {
 	health     condition
 	points     []point
 	lines      []line
+	// 伝言。伝えたいことと通話内容。無い電話は空。
+	message string
+	script  string
+	// 伝えたことと、見守る方の発話にある返答。無い電話は空。
+	told  string
+	reply string
 }
 
 type condition struct {
@@ -59,22 +70,42 @@ func (c sampleCall) fields() map[string]any {
 	}
 	// 本人の言葉は、見守る方の最初の発言をそのまま入れる。
 	quote := firstWatched(c.lines)
-	return map[string]any{
+	summary := map[string]any{
+		"headline": c.headline,
+		"quote":    map[string]any{"text": quote.text, "offsetMs": quote.offsetMs},
+		"meal":     c.meal.fields(),
+		"sleep":    c.sleep.fields(),
+		"health":   c.health.fields(),
+		"topic":    c.topic,
+		"points":   points,
+	}
+	if c.told != "" || c.reply != "" {
+		reply := watchedLine(c.lines, c.reply)
+		summary["told"] = c.told
+		summary["reply"] = map[string]any{"text": c.reply, "offsetMs": reply.offsetMs}
+	}
+	fields := map[string]any{
 		"state":        protocol.StateEnded,
 		"createdAt":    c.at,
 		"startedAt":    c.at,
 		"durationMs":   c.durationMs,
 		"summaryState": "作れた",
-		"summary": map[string]any{
-			"headline": c.headline,
-			"quote":    map[string]any{"text": quote.text, "offsetMs": quote.offsetMs},
-			"meal":     c.meal.fields(),
-			"sleep":    c.sleep.fields(),
-			"health":   c.health.fields(),
-			"topic":    c.topic,
-			"points":   points,
-		},
+		"summary":      summary,
 	}
+	if c.message != "" || c.script != "" {
+		fields["message"] = c.message
+		fields["script"] = c.script
+	}
+	return fields
+}
+
+func watchedLine(lines []line, text string) line {
+	for _, item := range lines {
+		if item.speaker == protocol.SpeakerWatched && item.text == text {
+			return item
+		}
+	}
+	return line{}
 }
 
 func firstWatched(lines []line) line {
@@ -103,18 +134,38 @@ func silent() condition {
 	return condition{status: "話していない"}
 }
 
-func at(year int, month time.Month, day, hour, minute int) time.Time {
-	return time.Date(year, month, day, hour, minute, 0, 0, japan)
-}
-
 func minutes(n int64) int64 { return n * 60 * 1000 }
 
+func callID(at time.Time) string {
+	return at.In(japan).Format("20060102-1504")
+}
+
+// sampleDay は、見本の 1 週間が朝で終わる日である。日付は日本時間。
+func sampleDay(req Request) time.Time {
+	day := req.Today
+	if day.IsZero() {
+		day = time.Now()
+	}
+	return day.In(japan)
+}
+
 // sampleCalls は、モックの通話記録に近い 1 週間である。出なかった電話を 1 件含む。
-// 11 月 5 日の朝は、ホームのまとめと、詳細の会話である。
-func sampleCalls() []sampleCall {
+// day の朝で終わり、その朝の電話がホームのまとめと詳細の会話になる。
+func sampleCalls(day time.Time) []sampleCall {
+	y, m, d := day.In(japan).Date()
+	at := func(delta, hour, minute int) time.Time {
+		return time.Date(y, m, d+delta, hour, minute, 0, 0, japan)
+	}
+	fiveDaysAgo := at(-5, 9, 0)
+	fourDaysAgo := at(-4, 12, 0)
+	threeDaysAgo := at(-3, 9, 0)
+	twoDaysAgo := at(-2, 9, 0)
+	yesterdayNoon := at(-1, 12, 0)
+	yesterdayNight := at(-1, 19, 0)
+	thisMorning := at(0, 9, 2)
 	return []sampleCall{
 		{
-			id: "20261031-0900", at: at(2026, 10, 31, 9, 0), durationMs: minutes(22),
+			id: callID(fiveDaysAgo), at: fiveDaysAgo, durationMs: minutes(22),
 			headline: "庭の菊が咲き始めた話をした", topic: "話し相手",
 			meal: silent(), sleep: silent(), health: silent(),
 			points: []point{{text: "庭の菊が咲き始めた話をした", offsetMs: 20000}},
@@ -124,7 +175,7 @@ func sampleCalls() []sampleCall {
 			},
 		},
 		{
-			id: "20261101-1200", at: at(2026, 11, 1, 12, 0), durationMs: minutes(31),
+			id: callID(fourDaysAgo), at: fourDaysAgo, durationMs: minutes(31),
 			headline: "お米が残り少ないと相談があった", topic: "話し相手",
 			meal: silent(), sleep: silent(), health: silent(),
 			points: []point{{text: "お米が残り少ないと相談があった", offsetMs: 15000}},
@@ -134,10 +185,10 @@ func sampleCalls() []sampleCall {
 			},
 		},
 		{
-			id: "20261102-0900", at: at(2026, 11, 2, 9, 0), missed: true,
+			id: callID(threeDaysAgo), at: threeDaysAgo, missed: true,
 		},
 		{
-			id: "20261103-0900", at: at(2026, 11, 3, 9, 0), durationMs: minutes(18),
+			id: callID(twoDaysAgo), at: twoDaysAgo, durationMs: minutes(18),
 			headline: "お孫さんの運動会の話がはずんだ", topic: "話し相手",
 			meal: silent(), sleep: silent(), health: silent(),
 			points: []point{{text: "お孫さんの運動会の話がはずんだ", offsetMs: 12000}},
@@ -147,7 +198,7 @@ func sampleCalls() []sampleCall {
 			},
 		},
 		{
-			id: "20261104-1200", at: at(2026, 11, 4, 12, 0), durationMs: minutes(9),
+			id: callID(yesterdayNoon), at: yesterdayNoon, durationMs: minutes(9),
 			headline: "テレビの映し方を案内して解決", topic: "操作案内",
 			meal: silent(), sleep: silent(), health: silent(),
 			points: []point{{text: "テレビの映し方を案内して解決", offsetMs: 30000}},
@@ -159,7 +210,7 @@ func sampleCalls() []sampleCall {
 			},
 		},
 		{
-			id: "20261104-1900", at: at(2026, 11, 4, 19, 0), durationMs: minutes(3),
+			id: callID(yesterdayNight), at: yesterdayNight, durationMs: minutes(3),
 			headline: "夕飯は大根の煮物。夜の薬も飲んだ", topic: "体調",
 			meal:   talked("夜ごはんは大根の煮物", "大根の煮物を食べたよ", false),
 			sleep:  silent(),
@@ -173,9 +224,13 @@ func sampleCalls() []sampleCall {
 			},
 		},
 		{
-			id: "20261105-0902", at: at(2026, 11, 5, 9, 2), durationMs: 6*60*1000 + 12*1000,
+			id: callID(thisMorning), at: thisMorning, durationMs: 6*60*1000 + 12*1000,
 			headline: "朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。",
 			topic:    "体調",
+			message:  sampleMessage,
+			script:   sampleScript,
+			told:     sampleTold,
+			reply:    sampleReply,
 			meal:     talked("朝ごはんを食べた", "朝ごはんも食べたしね", false),
 			sleep:    talked("よく眠れた", "よく眠れたよ", false),
 			health:   talked("膝が痛い。階段がつらい", "昨日の夕方から膝が痛くてね", true),
@@ -193,6 +248,8 @@ func sampleCalls() []sampleCall {
 				{protocol.SpeakerWatched, 2*60*1000 + 21*1000, "そうね、お願いしようかな。"},
 				{protocol.SpeakerAI, 4*60*1000 + 5*1000, "朝の薬は飲みましたか。"},
 				{protocol.SpeakerWatched, 4*60*1000 + 12*1000, "飲んだよ。"},
+				{protocol.SpeakerAI, 5 * 60 * 1000, "ハナさん、美咲さんからご伝言です。金曜の通院は、朝10時にお迎えに来るそうです。"},
+				{protocol.SpeakerWatched, 5*60*1000 + 20*1000, sampleReply},
 			},
 		},
 	}
