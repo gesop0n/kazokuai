@@ -505,19 +505,22 @@ void main() {
       addTearDown(tester.view.resetViewInsets);
     }
 
-    testEachLayout('ボタンはキーボードの上に 8 空けて残り、押せる', (tester, layout) async {
+    testEachLayout('ボタンはキーボードの下に隠れ、予約も今すぐ通話も押せるまま', (tester, layout) async {
       showKeyboard(tester);
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
       await _waitForDraft(tester);
 
-      final call = tester.getRect(find.widgetWithText(AppButton, '今すぐ通話'));
-      expect(call.bottom, 852 - _keyboardHeight - 8);
+      final keyboardTop = 852 - _keyboardHeight;
+      expect(
+        tester.getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する')).dy,
+        greaterThanOrEqualTo(keyboardTop),
+      );
       expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
       expect(_button(tester, '今すぐ通話').onTap, isNotNull);
     });
 
-    testEachLayout('入力欄はボタンより上に見え、通話内容と日時はスクロールすれば全部見える', (
+    testEachLayout('入力欄はキーボードの上に見え、通話内容と日時はスクロールすれば全部見える', (
       tester,
       layout,
     ) async {
@@ -526,26 +529,24 @@ void main() {
       await _enterMessage(tester);
       await _waitForDraft(tester);
 
-      final footTop = tester
-          .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
-          .dy;
+      final keyboardTop = 852 - _keyboardHeight;
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
-        lessThan(footTop),
+        lessThan(keyboardTop),
       );
 
       await tester.ensureVisible(find.text(_script));
       await tester.pumpAndSettle();
       expect(
         tester.getBottomLeft(find.text(_script)).dy,
-        lessThanOrEqualTo(footTop),
+        lessThanOrEqualTo(keyboardTop),
       );
 
       await tester.ensureVisible(find.text('08:30'));
       await tester.pumpAndSettle();
       expect(
         tester.getBottomLeft(find.text('08:30')).dy,
-        lessThanOrEqualTo(footTop),
+        lessThanOrEqualTo(keyboardTop),
       );
       expect(
         tester.getTopLeft(find.text('日付')).dy,

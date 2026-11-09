@@ -323,7 +323,7 @@ void main() {
       expect(tester.getTopLeft(find.text('この日時で予約する')), before);
     });
 
-    testEachLayout('ボタンはキーボードの上に 8 空けて残る', (tester, layout) async {
+    testEachLayout('ボタンはキーボードの下に隠れる', (tester, layout) async {
       tester.view.viewInsets = const FakeViewPadding(bottom: 336);
       addTearDown(tester.view.resetViewInsets);
       await pumpScreenInLayout(
@@ -334,8 +334,8 @@ void main() {
       await tester.pump();
 
       expect(
-        tester.getRect(find.widgetWithText(AppButton, '今すぐ通話')).bottom,
-        852 - 336 - 8,
+        tester.getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する')).dy,
+        greaterThanOrEqualTo(852 - 336),
       );
     });
   });

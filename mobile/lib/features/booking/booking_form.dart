@@ -6,6 +6,7 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
+import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
 // 01 と 06b が同じ部品を使う。通話内容をいつ出すかと、保存の中身は各画面が決める。
@@ -107,6 +108,70 @@ class BookingFormActions extends StatelessWidget {
           onTap: onCall,
         ),
       ],
+    );
+  }
+}
+
+// 01 と 06b の骨組み。モックの foot は画面の下端に固定されている。
+// キーボードの分だけ画面を縮めると、その foot がキーボードの上へ持ち上がり、
+// 短い画面では入力欄を押しつぶす。開いているあいだは foot を下端に残して
+// キーボードの下に隠し、中身はキーボードの上でスクロールする。
+// 閉じると、モックどおりボタンはホームバーの上に戻る。
+// スマホのブラウザも iOS も、キーボードは viewInsets.bottom で届く。
+class BookingFormLayout extends StatelessWidget {
+  const BookingFormLayout({
+    super.key,
+    required this.title,
+    required this.onLeadingTap,
+    required this.children,
+    required this.actions,
+  });
+
+  final String title;
+  final VoidCallback onLeadingTap;
+  final List<Widget> children;
+  final Widget actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final scroll = SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 16,
+        children: children,
+      ),
+    );
+    // モックの foot はボタンとホームバーの間も 8 空ける
+    final footer = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: actions,
+    );
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppNavBar(title: title, onLeadingTap: onLeadingTap),
+            Expanded(
+              child: keyboard == 0
+                  ? scroll
+                  : Stack(
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.only(bottom: keyboard),
+                          child: scroll,
+                        ),
+                        Positioned(left: 0, right: 0, bottom: 0, child: footer),
+                      ],
+                    ),
+            ),
+            if (keyboard == 0) footer,
+          ],
+        ),
+      ),
     );
   }
 }
