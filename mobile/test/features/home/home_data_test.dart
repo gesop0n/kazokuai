@@ -4,24 +4,11 @@ import 'package:kazokuai/features/home/home_format.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 
 void main() {
-  test('サンプルの7日間はモックの数字と一致する', () {
-    final week = sampleHomeData.week;
-
-    expect(week.days, hasLength(7));
-    expect(week.answeredDays, 6);
-    expect(week.totalTalkedMinutes, 103);
-  });
-
-  test('サンプルの曜日はモックと一致する', () {
-    expect(sampleHomeData.week.days.map((day) => weekdayLabel(day.date)), [
-      '金',
-      '土',
-      '日',
-      '月',
-      '火',
-      '水',
-      '木',
-    ]);
+  test('今日の様子の本人の言葉に鍵括弧はない', () {
+    expect(
+      sampleHomeData.latestCall.summary.conditions.map((item) => item.quote),
+      ['朝ごはんも食べたしね', 'よく眠れたよ', '昨日の夕方から膝が痛くてね'],
+    );
   });
 
   test('日時をモックの形で書く', () {

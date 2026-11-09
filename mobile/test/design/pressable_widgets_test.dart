@@ -100,20 +100,6 @@ final _pressables = [
     isTransparent: true,
   ),
   _Pressable(
-    name: 'ボタン L white',
-    build: (onTap) => AppButton(
-      label: 'もう一度電話する',
-      variant: AppButtonVariant.white,
-      size: AppButtonSize.l,
-      leadingIcon: AppIcons.phone,
-      onTap: onTap,
-    ),
-    semanticLabel: 'もう一度電話する',
-    minHeight: 56,
-    surface: AppColors.onStateAlert,
-    foreground: AppColors.inkPrimary,
-  ),
-  _Pressable(
     name: 'ボタン L record',
     build: (onTap) => AppButton(
       label: '通話',

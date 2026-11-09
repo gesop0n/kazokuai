@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
@@ -13,7 +12,6 @@ import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
-import 'package:kazokuai/features/home/calling_banner.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
@@ -33,43 +31,25 @@ const _removedFootNote = '押すと、すぐにハナさんの固定電話にか
 // iPhone 17 Pro で日本語のキーボードを出したときの値
 const _keyboardHeight = 336.0;
 
-List<Override> _startingAt(HomeStatus status) => [
-  homeStatusProvider.overrideWithBuild((ref, self) => status),
-];
-
 Future<void> _pumpAsk(
   WidgetTester tester, {
   LayoutCase layout = _standardLayout,
-  HomeStatus status = HomeStatus.normal,
-}) => pumpScreenInLayout(
-  tester,
-  layout,
-  const AskScreen(),
-  overrides: _startingAt(status),
-);
+}) => pumpScreenInLayout(tester, layout, const AskScreen());
 
 // 遷移は go_router が要るので、アプリ全体をホームから動かす
-Future<void> _pumpAppAndOpenAsk(
-  WidgetTester tester, {
-  HomeStatus status = HomeStatus.normal,
-}) async {
+Future<void> _pumpAppAndOpenAsk(WidgetTester tester) async {
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = const Size(393, 852);
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        ..._startingAt(status),
-        signedInAuth(),
-        registeredWatchedPerson(),
-        sampleHome(),
-      ],
+      overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
       child: const KazokuAiApp(),
     ),
   );
   await tester.pumpAndSettle();
-  await tester.tap(find.text('伝えたいことを入力'));
+  await tester.tap(find.text('AIに伝えてもらう'));
   await tester.pumpAndSettle();
   expect(find.byType(AskScreen), findsOneWidget);
 }
@@ -355,19 +335,17 @@ void main() {
   });
 
   group('操作', () {
-    testWidgets('「通話」を押すと通話中になり、ホームに戻る', (tester) async {
+    testWidgets('「通話」を押すと「準備中です」と出て、01 に留まる', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
 
-      await tester.tap(find.text('通話').last);
+      await tester.tap(find.text('通話'));
       await tester.pumpAndSettle();
 
-      expect(tester.container().read(homeStatusProvider), HomeStatus.calling);
-      expect(find.byType(AskScreen), findsNothing);
-      expect(find.byType(HomeScreen), findsOneWidget);
-      expect(find.byType(CallingBanner), findsOneWidget);
-      expect(tester.widget<AppTabBar>(find.byType(AppTabBar)).currentIndex, 0);
-      expect(tester.testTextInput.isVisible, isFalse);
+      expect(find.text('準備中です'), findsOneWidget);
+      expect(find.byType(AskScreen), findsOneWidget);
+      expect(find.byType(AppTabBar), findsNothing);
+      expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
     });
 
     testWidgets('空のあいだは「通話」を押しても何も起きない', (tester) async {
@@ -409,7 +387,7 @@ void main() {
       expect(find.byType(AskScreen), findsNothing);
       expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
 
-      await tester.tap(find.text('伝えたいことを入力'));
+      await tester.tap(find.text('AIに伝えてもらう'));
       await tester.pumpAndSettle();
 
       expect(_textField(tester).controller!.text, isEmpty);
@@ -421,65 +399,6 @@ void main() {
       await _pumpAsk(tester);
 
       expect(find.bySemanticsLabel('もどる'), findsOneWidget);
-    });
-  });
-
-  group('通話中に開いたとき', () {
-    testEachLayout('「通話」の位置に押せない「現在通話中です」を出す', (tester, layout) async {
-      await _pumpAsk(tester, layout: layout, status: HomeStatus.calling);
-      await _enterMessage(tester);
-
-      expect(find.text('通話'), findsNothing);
-      final button = _button(tester, '現在通話中です');
-      expect(button.onTap, isNull);
-      expect(button.size, AppButtonSize.l);
-      expect(button.leadingIcon, isNull);
-      expect(_button(tester, '日時を決めて予約する').onTap, isNotNull);
-    });
-
-    testWidgets('入力しても押せず、案は出る', (tester) async {
-      await _pumpAppAndOpenAsk(tester, status: HomeStatus.calling);
-      await _enterMessage(tester);
-
-      expect(find.text(_suggestion), findsOneWidget);
-
-      await tester.tap(find.text('現在通話中です').last, warnIfMissed: false);
-      await tester.pumpAndSettle();
-
-      expect(find.byType(AskScreen), findsOneWidget);
-      expect(tester.container().read(homeStatusProvider), HomeStatus.calling);
-    });
-
-    testWidgets('入力が空でも文言は「現在通話中です」', (tester) async {
-      await _pumpAsk(tester, status: HomeStatus.calling);
-
-      expect(find.text('現在通話中です'), findsOneWidget);
-      expect(find.text('通話'), findsNothing);
-    });
-
-    testWidgets('読み上げは押せないボタン', (tester) async {
-      await _pumpAsk(tester, status: HomeStatus.calling);
-
-      expect(
-        tester.getSemantics(find.widgetWithText(AppButton, '現在通話中です')),
-        isSemantics(
-          label: '現在通話中です',
-          isButton: true,
-          hasEnabledState: true,
-          isEnabled: false,
-          hasTapAction: false,
-        ),
-      );
-    });
-
-    testWidgets('「通話」と同じ位置に出る', (tester) async {
-      await _pumpAsk(tester);
-      final normal = tester.getRect(find.widgetWithText(AppButton, '通話'));
-
-      tester.container().read(homeStatusProvider.notifier).startCall();
-      await tester.pump();
-
-      expect(tester.getRect(find.widgetWithText(AppButton, '現在通話中です')), normal);
     });
   });
 }

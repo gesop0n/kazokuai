@@ -1,40 +1,41 @@
 import 'package:flutter/material.dart';
 
+import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
-import 'package:kazokuai/design/widgets/app_button.dart';
-import 'package:kazokuai/design/widgets/app_card.dart';
-import 'package:kazokuai/design/widgets/app_field.dart';
-import 'package:kazokuai/features/home/home_card_heading.dart';
+import 'package:kazokuai/design/app_radius.dart';
+import 'package:kazokuai/design/app_text_styles.dart';
+import 'package:kazokuai/design/widgets/app_pressable.dart';
 
+// モックの askCard。カード全体が 01 を開くボタン。
 class AskCard extends StatelessWidget {
-  const AskCard({super.key, required this.onOpenAsk, this.isCalling = false});
+  const AskCard({super.key, required this.onOpenAsk});
 
   final VoidCallback onOpenAsk;
-  final bool isCalling;
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      variant: AppCardVariant.paper,
-      children: [
-        const HomeCardHeading(title: 'AIに伝えてもらう'),
-        AppField(text: '伝えたいことを入力', minHeight: 48, onTap: onOpenAsk),
-        if (isCalling)
-          const AppButton(
-            label: '現在通話中です',
-            variant: AppButtonVariant.record,
-            size: AppButtonSize.l,
-            onTap: null,
-          )
-        else
-          AppButton(
-            label: '通話',
-            variant: AppButtonVariant.record,
-            size: AppButtonSize.l,
-            leadingIcon: AppIcons.phone,
-            onTap: onOpenAsk,
-          ),
-      ],
+    return AppPressable(
+      onTap: onOpenAsk,
+      foregroundColor: AppColors.inkPrimary,
+      backgroundColor: AppColors.paperRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.borderRadius,
+        side: BorderSide(color: AppColors.line),
+      ),
+      padding: const EdgeInsets.all(16),
+      child: DefaultTextStyle.merge(
+        style: const TextStyle(color: AppColors.inkPrimary),
+        child: const Row(
+          children: [
+            Expanded(child: Text('AIに伝えてもらう', style: AppTextStyles.titleM)),
+            AppIcon(
+              AppIcons.chevronRight,
+              size: 20,
+              color: AppColors.inkSecondary,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

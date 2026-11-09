@@ -58,9 +58,7 @@ enum AppButtonVariant {
   light(background: AppColors.nightText, foreground: AppColors.nightBase),
   ghost(background: Colors.transparent, foreground: AppColors.inkSecondary),
   // モックの ghost-ink。背景はなく、文字は ink
-  ghostInk(background: Colors.transparent, foreground: AppColors.inkPrimary),
-  // 07b の注意の赤のカードに置く。文字とアイコンは ink
-  white(background: AppColors.onStateAlert, foreground: AppColors.inkPrimary);
+  ghostInk(background: Colors.transparent, foreground: AppColors.inkPrimary);
 
   const AppButtonVariant({
     required this.background,

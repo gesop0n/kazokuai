@@ -13,12 +13,12 @@ class HomeHeader extends StatelessWidget {
     super.key,
     required this.person,
     required this.now,
-    required this.onOpenNotifications,
+    required this.onOpenSettings,
   });
 
   final WatchedPerson person;
   final DateTime now;
-  final VoidCallback onOpenNotifications;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +46,9 @@ class HomeHeader extends StatelessWidget {
               ),
             ),
             AppIconButton(
-              AppIcons.bell,
-              semanticLabel: '通知',
-              onTap: onOpenNotifications,
+              AppIcons.settings,
+              semanticLabel: '${person.name}さんの設定',
+              onTap: onOpenSettings,
             ),
           ],
         ),

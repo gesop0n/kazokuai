@@ -51,6 +51,10 @@ void main() {
       '押すと、すぐにハナさんの固定電話にかけます',
       '詳細なまとめ',
       '電話に出なかったら、どうしますか',
+      'もう一度電話する',
+      '最後に話したとき',
+      '7日間の電話',
+      '朝の電話に出ていません',
     ]) {
       expect(find.textContaining(text), findsNothing, reason: text);
     }

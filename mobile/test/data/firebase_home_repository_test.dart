@@ -59,7 +59,7 @@ void main() {
     }
   });
 
-  testWidgets('日付が変わると、今日の様子と 7 日間を計算し直す', (tester) async {
+  testWidgets('日付が変わると、今日の様子を計算し直す', (tester) async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
     await firestore
@@ -84,14 +84,15 @@ void main() {
 
       final view = repository.view.value!;
       expect(view.todayCall, isNull);
-      expect(view.week.days.last.date, DateTime(2026, 11, 6));
+      // 日付が変わる瞬間に計算し直す。2 分進めても、そのあとは再計算しない
+      expect(view.now, DateTime(2026, 11, 6));
       expect(view.latestCall!.summary.headline, '夕食を食べたそうです。');
     } finally {
       repository.dispose();
     }
   });
 
-  testWidgets('アプリに戻ると、その時刻で今日の様子と 7 日間を計算し直す', (tester) async {
+  testWidgets('アプリに戻ると、その時刻で今日の様子を計算し直す', (tester) async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
     await firestore
@@ -113,8 +114,6 @@ void main() {
       final view = repository.view.value!;
       expect(view.now, DateTime(2026, 11, 6, 0, 1));
       expect(view.todayCall, isNull);
-      expect(view.week.days.first.date, DateTime(2026, 10, 31));
-      expect(view.week.days.last.date, DateTime(2026, 11, 6));
     } finally {
       repository.dispose();
     }

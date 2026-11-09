@@ -21,7 +21,6 @@ Override sampleHome() => homeRepositoryProvider.overrideWithValue(
       now: sampleHomeData.now,
       latestCall: sampleHomeData.latestCall,
       todayCall: sampleHomeData.latestCall,
-      week: sampleHomeData.week,
     ),
   ),
 );

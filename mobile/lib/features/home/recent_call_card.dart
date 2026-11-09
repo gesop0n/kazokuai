@@ -23,7 +23,6 @@ class RecentCallCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final summary = call.summary;
-    final quote = summary.quote;
     return AppCard(
       variant: AppCardVariant.night,
       children: [
@@ -45,30 +44,6 @@ class RecentCallCard extends StatelessWidget {
         if (summary.headline.isNotEmpty) ...[
           const SizedBox(height: 12),
           Text(summary.headline, style: AppTextStyles.titleM),
-        ],
-        if (quote.text.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.only(left: 12),
-            decoration: const BoxDecoration(
-              border: Border(
-                left: BorderSide(color: AppColors.nightLine, width: 2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  formatTime(quote.spokenAt),
-                  style: AppTextStyles.monoS.copyWith(
-                    color: AppColors.nightTextSecondary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(quote.text, style: AppTextStyles.capS),
-              ],
-            ),
-          ),
         ],
         const SizedBox(height: 16),
         AppButton(

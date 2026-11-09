@@ -15,6 +15,7 @@ enum AppIcons {
   alert('alert'),
   rotate('rotate'),
   bell('bell'),
+  settings('settings'),
   lock('lock'),
   play('play'),
   plus('plus'),

@@ -4,9 +4,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/features/home/ask_card.dart';
+import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
-import 'package:kazokuai/features/home/week_card.dart';
 
 import '../../support/layout_matrix.dart';
 
@@ -41,8 +41,22 @@ double _baselineOf(WidgetTester tester, String text) {
 void main() {
   setUpAll(_loadFonts);
 
-  // docs/mock/ui.html を headless Chrome で開いて測った値
+  // docs/mock/ui.html を headless Chrome で開き、BIZ UDPゴシックで測った値
   group('カードの高さがモックと同じ', () {
+    testWidgets('直近の電話は 184', (tester) async {
+      await pumpInLayout(
+        tester,
+        _mockLayout,
+        RecentCallCard(
+          call: sampleHomeData.latestCall,
+          now: sampleHomeData.now,
+          onOpenConversation: () {},
+        ),
+      );
+
+      expect(tester.getSize(find.byType(RecentCallCard)), const Size(361, 184));
+    });
+
     testWidgets('今日の様子は 341', (tester) async {
       await pumpInLayout(
         tester,
@@ -53,20 +67,10 @@ void main() {
       expect(tester.getSize(find.byType(TodayCard)), const Size(361, 341));
     });
 
-    testWidgets('AIに伝えてもらうは 188', (tester) async {
+    testWidgets('AIに伝えてもらうは 60', (tester) async {
       await pumpInLayout(tester, _mockLayout, AskCard(onOpenAsk: () {}));
 
-      expect(tester.getSize(find.byType(AskCard)), const Size(361, 188));
-    });
-
-    testWidgets('7日間の電話は 338', (tester) async {
-      await pumpInLayout(
-        tester,
-        _mockLayout,
-        WeekCard(week: sampleHomeData.week, onOpenCallLog: () {}),
-      );
-
-      expect(tester.getSize(find.byType(WeekCard)), const Size(361, 338));
+      expect(tester.getSize(find.byType(AskCard)), const Size(361, 60));
     });
   });
 

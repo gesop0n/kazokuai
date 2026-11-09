@@ -10,7 +10,6 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/today_card.dart';
-import 'package:kazokuai/features/home/week_card.dart';
 
 import '../../support/fake_home_repository.dart';
 import '../../support/layout_matrix.dart';
@@ -18,7 +17,7 @@ import '../../support/layout_matrix.dart';
 final _now = DateTime(2026, 11, 5, 10, 24);
 
 void main() {
-  testWidgets('直近の電話に、まとめと始まった時刻と長さと、本人の言葉と時刻を出す', (tester) async {
+  testWidgets('直近の電話に、まとめと始まった時刻と長さを出し、本人の言葉は出さない', (tester) async {
     await _pump(
       tester,
       _view(
@@ -26,15 +25,11 @@ void main() {
           at: DateTime(2026, 11, 5, 9, 2),
           minutes: 6,
           headline: '朝ごはんを食べたそうです。',
-          quote: '朝ごはんも食べたしね',
-          spokenAt: DateTime(2026, 11, 5, 9, 3),
         ),
         today: _call(
           at: DateTime(2026, 11, 5, 9, 2),
           minutes: 6,
           headline: '朝ごはんを食べたそうです。',
-          quote: '朝ごはんも食べたしね',
-          spokenAt: DateTime(2026, 11, 5, 9, 3),
           conditions: const [
             Condition(
               kind: ConditionKind.meal,
@@ -55,10 +50,10 @@ void main() {
 
     expect(find.text('朝ごはんを食べたそうです。'), findsWidgets);
     expect(find.text('今日 9:02 ・ 6分'), findsOneWidget);
-    expect(find.text('朝ごはんも食べたしね'), findsWidgets);
-    expect(find.text('9:03'), findsOneWidget);
+    expect(find.text('9:03'), findsNothing);
     expect(find.text('食事'), findsOneWidget);
     expect(find.text('朝ごはんを食べた'), findsOneWidget);
+    expect(find.text('朝ごはんも食べたしね'), findsOneWidget);
     expect(find.text('睡眠'), findsOneWidget);
     expect(find.text('話していない'), findsOneWidget);
     expect(find.text('体調'), findsOneWidget);
@@ -66,6 +61,7 @@ void main() {
     expect(find.text('膝が痛くてね'), findsOneWidget);
     expect(find.text('気になる話'), findsOneWidget);
     expect(find.text('9:02の会話より'), findsOneWidget);
+    expect(find.text('7日間の電話'), findsNothing);
 
     final pill = tester.widget<AppPill>(find.byType(AppPill));
     expect(pill.label, '気になる話');
@@ -91,8 +87,6 @@ void main() {
           at: DateTime(2026, 11, 4, 19, 0),
           minutes: 3,
           headline: '昨日の電話です。',
-          quote: '昨日食べた',
-          spokenAt: DateTime(2026, 11, 4, 19, 1),
           conditions: const [
             Condition(
               kind: ConditionKind.meal,
@@ -106,49 +100,11 @@ void main() {
 
     expect(find.text('昨日の電話です。'), findsOneWidget);
     expect(find.text('昨日 19:00 ・ 3分'), findsOneWidget);
-    expect(find.text('19:01'), findsOneWidget);
+    expect(find.text('19:01'), findsNothing);
     expect(find.text('夕食を食べた'), findsNothing);
     expect(find.text('話していない'), findsNWidgets(3));
     expect(find.textContaining('の会話より'), findsNothing);
     expect(find.byType(TodayCard), findsOneWidget);
-  });
-
-  testWidgets('電話がなかった日は、棒も不在の印も出さない', (tester) async {
-    await _pump(
-      tester,
-      _view(
-        latest: _call(
-          at: DateTime(2026, 12, 1, 9, 0),
-          minutes: 14,
-          headline: '話した日がある。',
-          quote: '話した',
-          spokenAt: DateTime(2026, 12, 1, 9, 1),
-        ),
-        week: WeekCallRecords([
-          DayCallRecord(date: DateTime(2026, 12, 1), talkedMinutes: 14),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 2)),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 3)),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 4)),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 5)),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 6)),
-          DayCallRecord.quiet(date: DateTime(2026, 12, 7)),
-        ]),
-      ),
-    );
-
-    expect(find.text('14'), findsOneWidget);
-    expect(find.text('1 / 7日', findRichText: true), findsOneWidget);
-    expect(find.text('14 分', findRichText: true), findsOneWidget);
-    expect(find.byKey(WeekCard.barKey(DateTime(2026, 12, 1))), findsOneWidget);
-    expect(find.byKey(WeekCard.barKey(DateTime(2026, 12, 2))), findsNothing);
-    expect(find.text('不在'), findsNothing);
-    expect(find.text('2'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel(
-        '7日間の通話時間。12月1日14分、2日は電話がない、3日は電話がない、4日は電話がない、5日は電話がない、6日は電話がない、7日は電話がない',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('まとめを作れなかった電話は、その文言を出して本人の言葉は出さない', (tester) async {
@@ -159,8 +115,6 @@ void main() {
           at: DateTime(2026, 11, 5, 9, 2),
           minutes: 1,
           headline: 'まとめを作れませんでした',
-          quote: '',
-          spokenAt: DateTime(2026, 11, 5, 9, 2),
           conditions: const [
             Condition(kind: ConditionKind.meal, value: '話していない', quote: ''),
             Condition(kind: ConditionKind.sleep, value: '話していない', quote: ''),
@@ -185,7 +139,7 @@ void main() {
     expect(find.text('まだ電話がありません'), findsOneWidget);
     expect(find.byType(RecentCallCard), findsNothing);
     expect(find.byType(TodayCard), findsNothing);
-    expect(find.byType(WeekCard), findsNothing);
+    expect(find.text('7日間の電話'), findsNothing);
     expect(find.byType(AskCard), findsOneWidget);
     expect(find.byType(MissedCallView), findsNothing);
   });
@@ -202,23 +156,12 @@ Future<void> _pump(WidgetTester tester, HomeView view) {
   );
 }
 
-HomeView _view({
-  Call? latest,
-  Call? today,
-  WeekCallRecords? week,
-  bool todaySameAsLatest = false,
-}) {
+HomeView _view({Call? latest, Call? today, bool todaySameAsLatest = false}) {
   return HomeView(
     person: const WatchedPerson(name: '田中ハナ', callName: 'ハナさん', initial: 'ハ'),
     now: _now,
     latestCall: latest,
     todayCall: today ?? (todaySameAsLatest ? latest : null),
-    week:
-        week ??
-        WeekCallRecords([
-          for (var i = 0; i < 7; i++)
-            DayCallRecord.quiet(date: DateTime(2026, 10, 30 + i)),
-        ]),
   );
 }
 
@@ -226,17 +169,11 @@ Call _call({
   required DateTime at,
   required int minutes,
   required String headline,
-  required String quote,
-  required DateTime spokenAt,
   List<Condition> conditions = const [],
 }) {
   return Call(
     startedAt: at,
     duration: Duration(minutes: minutes),
-    summary: CallSummary(
-      headline: headline,
-      quote: Quote(text: quote, spokenAt: spokenAt),
-      conditions: conditions,
-    ),
+    summary: CallSummary(headline: headline, conditions: conditions),
   );
 }
