@@ -45,6 +45,8 @@ func runCheck(ctx context.Context, part string, hw hardware) error {
 		err = checkMic(ctx, hw)
 	case "hook":
 		err = checkHook(ctx, hw)
+	case "keypad":
+		err = checkKeypad(ctx, hw)
 	default:
 		err = fmt.Errorf("確認できない部品です: %s", part)
 	}
