@@ -24,7 +24,7 @@ TF_JSON = """{
   "firebase_app_id": {"value": "1:1:web:abc"},
   "firebase_messaging_sender_id": {"value": "123"},
   "firebase_storage_bucket": {"value": ""},
-  "hosting_url": {"value": "https://kazokuai-prod.web.app"},
+  "hosting_url": {"value": "https://kazokuai.web.app"},
   "cloud_run_uri": {"value": "https://kazokuai-example.run.app"},
   "cloud_run_region": {"value": "asia-northeast1"},
   "cloud_run_service": {"value": "kazokuai"}
@@ -230,7 +230,8 @@ class DeployScriptTest(unittest.TestCase):
         self.assertTrue(any(line.startswith("PWD=") and line.endswith("/firebase") for line in firebase.splitlines()))
         self.assertNotIn(AMBIENT, terraform + flutter + firebase)
         self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", terraform)
-        self.assertIn("https://kazokuai-prod.web.app", result.stdout)
+        self.assertIn("hosting:kazokuai", firebase)
+        self.assertIn("Web 版: https://kazokuai.web.app\n", result.stdout)
         self.assertNotIn("test-api-key", result.stdout)
         self.assertFalse(self.docker_log.exists())
 
@@ -246,6 +247,22 @@ class DeployScriptTest(unittest.TestCase):
             ),
         )
         self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.flutter_log.exists())
+        self.assertFalse(self.firebase_log.exists())
+
+    def test_web_stops_when_hosting_url_is_not_the_firebase_json_site(self):
+        result = self.run_script(
+            WEB,
+            f"--project={PROJECT}",
+            f"--state-bucket={BUCKET}",
+            FAKE_TF_JSON=TF_JSON.replace(
+                '"hosting_url": {"value": "https://kazokuai.web.app"}',
+                '"hosting_url": {"value": "https://kazokuai-prod.web.app"}',
+                1,
+            ),
+        )
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertIn("https://kazokuai.web.app", result.stderr)
         self.assertFalse(self.flutter_log.exists())
         self.assertFalse(self.firebase_log.exists())
 

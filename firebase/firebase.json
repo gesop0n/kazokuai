@@ -4,6 +4,7 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
+    "site": "kazokuai",
     "public": "../mobile/build/web",
     "ignore": [
       "firebase.json",

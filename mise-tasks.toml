@@ -67,7 +67,7 @@ dir = "{{config_root}}"
 run = "scripts/deploy_backend.sh"
 
 ["deploy:web"]
-description = "Terraform の output で本番向けの Web 版をビルドし、Firebase Hosting に公開する。例: mise run deploy:web -- --project=ID --state-bucket=BUCKET"
+description = "Terraform の output で本番向けの Web 版をビルドし、firebase.json の site へ公開する。例: mise run deploy:web -- --project=ID --state-bucket=BUCKET"
 dir = "{{config_root}}"
 run = "scripts/deploy_web.sh"
 

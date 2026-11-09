@@ -24,6 +24,7 @@ bootstrap_targets=(
   google_firebaserules_release.firestore
   google_firebase_web_app.web
   google_firebase_hosting_site.web
+  google_firebase_hosting_site.published
   google_billing_budget.monthly
 )
 
