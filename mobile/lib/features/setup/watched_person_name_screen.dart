@@ -9,7 +9,7 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
-// L6。ログインした家族に見守る方がいないときに開く。
+// L6。ログインした家族の見守る方に、まだ名前がないときに開く。
 // 「次へ」は見守る方を登録してホームを開き、もどるはログアウトする。
 // L7 と L8 はまだないので、進み具合は 3 段階のうち 1 段階目のまま。
 class WatchedPersonNameScreen extends ConsumerStatefulWidget {

@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/auth_repository.dart';
@@ -13,6 +14,7 @@ import 'package:kazokuai/features/account/register_screen.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
+import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_calls_repository.dart';
@@ -67,7 +69,7 @@ Future<void> goBackFromSetup(
 }) async {
   await tester.tap(find.bySemanticsLabel('もどる'));
   expect(auth.signedIn.value, isFalse);
-  expect(watchedPerson.status.value, WatchedPersonStatus.none);
+  // 偽物はログアウトしても状態を残す。本物はここで unknown になる
   watchedPerson.status.value = WatchedPersonStatus.unknown;
   await tester.pumpAndSettle();
 }
@@ -87,7 +89,7 @@ Future<void> readDocument(WidgetTester tester, String title) async {
 
 void main() {
   group('ログインした家族が開く画面', () {
-    testWidgets('見守る方がいなければ L6 が開く', (tester) async {
+    testWidgets('見守る方がいなければ L3 が開く', (tester) async {
       await pumpApp(
         tester,
         auth: FakeAuthRepository(signedIn: true),
@@ -96,11 +98,28 @@ void main() {
         ),
       );
 
-      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(find.text('電話機との同期を始めます。'), findsOneWidget);
+      expect(find.byType(WatchedPersonNameScreen), findsNothing);
       expect(find.byType(HomeScreen), findsNothing);
     });
 
-    testWidgets('見守る方がいればホームが開く', (tester) async {
+    testWidgets('名前がない見守る方は L6 が開く', (tester) async {
+      await pumpApp(
+        tester,
+        auth: FakeAuthRepository(signedIn: true),
+        watchedPerson: FakeWatchedPersonRepository(
+          status: WatchedPersonStatus.unnamed,
+        ),
+      );
+
+      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsNothing);
+      expect(find.byType(HomeScreen), findsNothing);
+    });
+
+    testWidgets('名前がある見守る方は、電話機がなくてもホームが開く', (tester) async {
+      // 偽物の registered は、名前があり電話機の ID を持たない状態
       await pumpApp(
         tester,
         auth: FakeAuthRepository(signedIn: true),
@@ -108,10 +127,32 @@ void main() {
       );
 
       expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);
     });
 
-    testWidgets('見守る方がいるかを読み終えるまでは、L6 もホームも開かない', (tester) async {
+    testWidgets('名前がある家族が同期の画面を開いても、ホームへ戻さない', (tester) async {
+      await pumpApp(
+        tester,
+        auth: FakeAuthRepository(signedIn: true),
+        watchedPerson: FakeWatchedPersonRepository(),
+      );
+      final router = GoRouter.of(tester.element(find.byType(HomeScreen)));
+
+      router.go('/sync');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(find.byType(HomeScreen), findsNothing);
+
+      router.go('/sync/done');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SyncDoneScreen), findsOneWidget);
+      expect(find.byType(HomeScreen), findsNothing);
+    });
+
+    testWidgets('見守る方がいるかを読み終えるまでは、L3 も L6 もホームも開かない', (tester) async {
       final watchedPerson = FakeWatchedPersonRepository(
         status: WatchedPersonStatus.unknown,
       );
@@ -121,13 +162,14 @@ void main() {
         watchedPerson: watchedPerson,
       );
 
+      expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);
       expect(find.byType(HomeScreen), findsNothing);
 
       watchedPerson.status.value = WatchedPersonStatus.none;
       await tester.pumpAndSettle();
 
-      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsOneWidget);
     });
 
     testWidgets('ログインしていなければ、見守る方がいなくても L1 が開く', (tester) async {
@@ -140,10 +182,11 @@ void main() {
       );
 
       expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);
     });
 
-    testWidgets('L2 でログインしたあと、見守る方がいなければ L6 が開く', (tester) async {
+    testWidgets('L2 でログインしたあと、見守る方がいなければ L3 が開く', (tester) async {
       final auth = FakeAuthRepository(
         accounts: {'misaki@example.com': 'hanasan1234'},
       );
@@ -164,7 +207,8 @@ void main() {
       watchedPerson.status.value = WatchedPersonStatus.none;
       await tester.pumpAndSettle();
 
-      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(find.byType(WatchedPersonNameScreen), findsNothing);
       expect(find.byType(LoginScreen), findsNothing);
     });
   });
@@ -175,7 +219,7 @@ void main() {
       bool failing = false,
     }) async {
       final watchedPerson = FakeWatchedPersonRepository(
-        status: WatchedPersonStatus.none,
+        status: WatchedPersonStatus.unnamed,
         failing: failing,
       );
       await pumpApp(
@@ -315,7 +359,7 @@ void main() {
       await tester.enterText(find.bySemanticsLabel('パスワード'), 'hanasan1234');
       await tester.pump();
       await tester.tap(find.widgetWithText(AppButton, 'ログイン'));
-      watchedPerson.status.value = WatchedPersonStatus.none;
+      watchedPerson.status.value = WatchedPersonStatus.unnamed;
       await tester.pumpAndSettle();
 
       await goBackFromSetup(tester, auth: auth, watchedPerson: watchedPerson);
@@ -326,7 +370,7 @@ void main() {
       expect(auth.signedIn.value, isFalse);
     });
 
-    testWidgets('新規登録から開いた L6 の「もどる」は、ログアウトして L1 に戻る', (tester) async {
+    testWidgets('新規登録から開いた L3 の「もどる」は、ログアウトして L1 に戻る', (tester) async {
       tester.view
         ..devicePixelRatio = 1
         ..physicalSize = const Size(393, 700);
@@ -352,13 +396,14 @@ void main() {
       await tester.tap(find.text('登録する'));
       watchedPerson.status.value = WatchedPersonStatus.none;
       await tester.pumpAndSettle();
-      expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+      expect(find.byType(SyncScreen), findsOneWidget);
 
       await goBackFromSetup(tester, auth: auth, watchedPerson: watchedPerson);
 
       expect(find.byType(WelcomeScreen), findsOneWidget);
       expect(find.byType(RegisterScreen), findsNothing);
       expect(find.byType(LoginScreen), findsNothing);
+      expect(find.byType(SyncScreen), findsNothing);
       expect(find.byType(WatchedPersonNameScreen), findsNothing);
       expect(auth.signedIn.value, isFalse);
     });
@@ -366,7 +411,7 @@ void main() {
     testWidgets('ログインしたまま開いた L6 の「もどる」は、L1 に戻る', (tester) async {
       final auth = FakeAuthRepository(signedIn: true);
       final watchedPerson = FakeWatchedPersonRepository(
-        status: WatchedPersonStatus.none,
+        status: WatchedPersonStatus.unnamed,
       );
       await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
 

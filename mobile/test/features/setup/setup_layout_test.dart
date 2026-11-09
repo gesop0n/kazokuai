@@ -16,7 +16,7 @@ void main() {
       overrides: [
         watchedPersonRepositoryProvider.overrideWithValue(
           FakeWatchedPersonRepository(
-            status: WatchedPersonStatus.none,
+            status: WatchedPersonStatus.unnamed,
             failing: true,
           ),
         ),

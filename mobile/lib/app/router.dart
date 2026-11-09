@@ -21,6 +21,7 @@ import 'package:kazokuai/features/settings/account_info_screen.dart';
 import 'package:kazokuai/features/settings/logout_screen.dart';
 import 'package:kazokuai/features/settings/settings_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
+import 'package:kazokuai/features/sync/sync_screen.dart';
 import 'package:kazokuai/features/tutorial/tutorial_shell.dart';
 
 abstract final class AppRoutes {
@@ -32,6 +33,8 @@ abstract final class AppRoutes {
   static const privacy = 'privacy';
   static const loading = 'loading';
   static const watchedPersonName = 'watchedPersonName';
+  static const sync = 'sync';
+  static const syncDone = 'syncDone';
   static const home = 'home';
   static const calls = 'calls';
   static const booking = 'booking';
@@ -50,6 +53,8 @@ const _signedOutPath = '/welcome';
 // ログインした家族に見守る方がいるかを読み終えるまでと、読めなかったときに開く
 const _loadingPath = '/loading';
 const _watchedPersonNamePath = '/setup/name';
+const _syncPath = '/sync';
+const _syncDonePath = '/sync/done';
 
 GoRouter createAppRouter({
   required AuthRepository auth,
@@ -64,7 +69,8 @@ GoRouter createAppRouter({
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-    // ログインしていない家族は L1 に、見守る方がいない家族は L6 に、それ以外は開いている道に残す
+    // ログインしていない家族は L1 に、見守る方がいない家族は L3 に、
+    // 名前のない見守る方の家族は L6 に、それ以外は開いている道に残す
     refreshListenable: Listenable.merge([auth.signedIn, watchedPerson.status]),
     redirect: (context, state) {
       final location = state.matchedLocation;
@@ -80,10 +86,18 @@ GoRouter createAppRouter({
           // /loading へ付け替えると、読み終えたあとホームへ戻り、読み直した画面を失う
           return null;
         case WatchedPersonStatus.none:
-          return location == _watchedPersonNamePath
+          // 新規登録は同期から始める。完了の画面へ進んだ直後も、ここを許す
+          return location == _syncPath || location == _syncDonePath
               ? null
-              : _watchedPersonNamePath;
+              : _syncPath;
+        case WatchedPersonStatus.unnamed:
+          // 認証コードを受け付けた直後は、名前の知らせより先に完了の画面を出す
+          if (location == _watchedPersonNamePath || location == _syncDonePath) {
+            return null;
+          }
+          return _watchedPersonNamePath;
         case WatchedPersonStatus.registered:
+          // 同期の画面は戻さない。設定から開き直すのは、別のチケット
           final isBeforeHome =
               location.startsWith(_signedOutPath) ||
               location == _loadingPath ||
@@ -139,6 +153,18 @@ GoRouter createAppRouter({
         name: AppRoutes.watchedPersonName,
         path: _watchedPersonNamePath,
         builder: (context, state) => const WatchedPersonNameScreen(),
+      ),
+      GoRoute(
+        name: AppRoutes.sync,
+        path: _syncPath,
+        builder: (context, state) => const SyncScreen(),
+        routes: [
+          GoRoute(
+            name: AppRoutes.syncDone,
+            path: 'done',
+            builder: (context, state) => const SyncDoneScreen(),
+          ),
+        ],
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

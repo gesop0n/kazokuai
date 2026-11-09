@@ -17,6 +17,10 @@ abstract interface class WatchedPersonRepository {
   // 登録できると status が registered になる。できなかったときは RegisterWatchedPersonException を投げる
   Future<void> register({required String name, required String callName});
 
+  // 同期で名前のない見守る方ができたとき、Firestore の知らせを待たずに unnamed にする。
+  // すでに名前があるときは変えない。
+  void noteLinkedWithoutName();
+
   // 見守る方を読み直す。待っているあいだ status は unknown になり、画面は何も描かない
   void reload();
 }
@@ -24,9 +28,11 @@ abstract interface class WatchedPersonRepository {
 enum WatchedPersonStatus {
   // まだ読み終えていない。ログインしていないときもこれ
   unknown,
-  // 家族に見守る方がいない
+  // 家族に見守る方がいない。新規登録は L3 から始める
   none,
-  // 家族に見守る方がいる
+  // 見守る方はいるが、名前が空。同期のあと、L6 で名前を入れる
+  unnamed,
+  // 見守る方に名前がある。電話機がなくてもホームを開く
   registered,
 
   // 読み取りが失敗した。いるかどうかは、まだ分からない

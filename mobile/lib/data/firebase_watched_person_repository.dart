@@ -42,7 +42,9 @@ class FirebaseWatchedPersonRepository implements WatchedPersonRepository {
         .listen(
           (snapshot) {
             if (snapshot.docs.isNotEmpty) {
-              _status.value = WatchedPersonStatus.registered;
+              _status.value = _hasName(snapshot.docs.first.data())
+                  ? WatchedPersonStatus.registered
+                  : WatchedPersonStatus.unnamed;
             } else if (!snapshot.metadata.isFromCache) {
               _status.value = WatchedPersonStatus.none;
             }
@@ -85,6 +87,18 @@ class FirebaseWatchedPersonRepository implements WatchedPersonRepository {
     );
     // Firestore からの知らせを待たずに、すぐにホームへ進める
     _status.value = WatchedPersonStatus.registered;
+  }
+
+  @override
+  void noteLinkedWithoutName() {
+    if (_status.value == WatchedPersonStatus.registered) return;
+    _status.value = WatchedPersonStatus.unnamed;
+  }
+
+  // 名前の前後の空白だけ、または名前がない見守る方は、まだ新規登録の途中
+  bool _hasName(Map<String, dynamic> data) {
+    final name = data['name'];
+    return name is String && name.trim().isNotEmpty;
   }
 
   void dispose() {
