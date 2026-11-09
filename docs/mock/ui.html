@@ -1253,6 +1253,62 @@
             flex-direction: column;
             gap: 4px
         }
+
+        /* 認証コードの入力(L3k) */
+        .code {
+            display: flex;
+            gap: 8px
+        }
+
+        .code i {
+            flex: 1;
+            height: 60px;
+            border-radius: var(--radius);
+            background: var(--paper-raised);
+            border: 1.5px solid var(--line-strong);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font: 700 28px/36px var(--num);
+            font-style: normal;
+            color: var(--ink)
+        }
+
+        .code i.cur {
+            border: 2px solid var(--ink)
+        }
+
+        .code.err i {
+            border: 2px solid var(--alert);
+            background: var(--alert-soft)
+        }
+
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            padding-bottom: 4px
+        }
+
+        .keypad button {
+            height: 48px;
+            border-radius: 12px;
+            background: var(--paper-raised);
+            border: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font: 500 24px/32px var(--num);
+            color: var(--ink)
+        }
+
+        .keypad button:active {
+            background: var(--paper-sunken)
+        }
+
+        .keypad button.blank {
+            visibility: hidden
+        }
     </style>
 </head>
 
@@ -1289,6 +1345,7 @@
             pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
             eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
             settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+            delete: '<path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><path d="m12 9 6 6"/><path d="m18 9-6 6"/>',
             mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
         };
         const FILLED = new Set(['square', 'play']);
@@ -1308,24 +1365,8 @@
         const tabs = on => `<div class="tabbar"><div class="dock">${[['home', 'ホーム', 'home', '00'], ['calls', '通話記録', 'list', '04'], ['book', '予約電話', 'calendar-clock', '06']].map(([k, l, ic, go]) => `<button class="dockact ${on === k ? 'on' : ''}"${on === k ? ' aria-current="page"' : ''}${to(go)}>${icon(ic, 24, on === k ? INK : INK2)}<span>${l}</span></button>`).join('')}</div>${homebar()}</div>`;
         const prog = (n, all) => `<div class="prog" aria-label="${all}段階のうち${n}段階目">${Array.from({ length: all }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
 
-        // 電話機に貼ってあるQRコードの見本(21×21マス。3隅の目印以外は決まった並びの飾り)
-        const QR_PATH = (() => {
-            const n = 21, finder = (x, y, ox, oy) => { const a = x - ox, b = y - oy; return a >= 0 && a < 7 && b >= 0 && b < 7 ? (a === 0 || a === 6 || b === 0 || b === 6 || (a >= 2 && a <= 4 && b >= 2 && b <= 4)) : null };
-            let s = 7, d = '';
-            for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-                const f = [[0, 0], [14, 0], [0, 14]].map(([ox, oy]) => finder(x, y, ox, oy)).find(v => v !== null);
-                let on;
-                if (f !== undefined) on = f;
-                else if ((x === 7 || y === 7) && (x < 8 && y < 8) || (x === 13 && y < 8) || (y === 7 && x > 12) || (y === 13 && x < 8) || (x === 7 && y > 12)) on = false;
-                else { s = (s * 1103515245 + 12345) & 0x7fffffff; on = ((s >> 16) & 3) < 2 }
-                if (on) d += `M${x} ${y}h1v1h-1z`;
-            }
-            return d;
-        })();
-        const qrMarks = (x, y, size, fill) => `<path transform="translate(${x} ${y}) scale(${size / 21})" fill="${fill}" stroke="none" d="${QR_PATH}"/>`;
-
         // 固定電話のイラスト。lamp: off / on / ok / fail
-        // phone.png をSVGで描き起こしたもの。右上の小窓がランプ、左上の白いシールが同期用のQRコード(ring: 赤い点線で示す)
+        // phone.png をSVGで描き起こしたもの。右上の小窓がランプ。ring: trueで、同期に使う「＃」ボタンを赤い点線で示す
         const device = (lamp = 'off', h = 208, ring = true) => {
             const L = { off: ['#F3EFE6', 0], on: ['#FAF500', 1], ok: [OK, 1], fail: [GREY, 0] }[lamp];
             const keyAt = [[911, 645], [1180, 645], [1450, 645], [911, 886], [1180, 886], [1450, 886], [911, 1126], [1180, 1126], [1450, 1126], [911, 1366], [1180, 1366], [1450, 1366]];
@@ -1353,10 +1394,8 @@
  <g fill="#2A2420" stroke="${INK}" stroke-width="10"><ellipse cx="856" cy="1587" rx="50" ry="33"/><ellipse cx="1035" cy="1587" rx="50" ry="33"/></g>
  <g fill="#FFFFFF" stroke="${INK}" stroke-width="10"><ellipse cx="1233" cy="1587" rx="73" ry="45"/><ellipse cx="1472" cy="1587" rx="81" ry="45"/></g>
  <g stroke="${INK}" stroke-width="8"><path d="M1222 1578V1563H1256V1597H1243"/><rect x="1209" y="1578" width="34" height="34" rx="4"/><path d="M1440 1572H1458L1478 1555V1612L1458 1595H1440ZM1488 1570 1499 1587 1488 1604"/></g>
- <rect x="830" y="200" width="260" height="260" rx="18" fill="#FFFFFF" stroke="${INK}" stroke-width="10"/>
- ${qrMarks(855, 225, 210, INK)}
- ${ring ? `<rect x="800" y="170" width="320" height="320" rx="36" stroke="${ALERT}" stroke-width="18" stroke-dasharray="40 40"/>
- <path d="M1120 240H1730" stroke="${ALERT}" stroke-width="12"/>` : ''}
+ ${ring ? `<circle cx="1450" cy="1366" r="150" stroke="${ALERT}" stroke-width="18" stroke-dasharray="40 40"/>
+ <path d="M1600 1366H1730" stroke="${ALERT}" stroke-width="12"/>` : ''}
  </svg>`};
         const illus = (lamp, mark, ring) => `<div class="illus" style="position:relative;padding-top:52px">${device(lamp, 208, ring)}${mark || ''}</div>`;
 
@@ -1472,54 +1511,69 @@
 
         // ---------- 2. Sync ----------
         const stepRow = (n, t, d) => `<div class="step"><b>${n}</b><div style="display:flex;flex-direction:column"><span class="label-l">${t}</span><span class="body-s muted">${d}</span></div></div>`;
+        const hashLabel = '<span class="label-s" style="position:absolute;left:279px;top:196px">＃ボタン</span>';
         S.L3 = () => `<div class="screen">${status('20:16')}
  <div class="content">
   ${navBar('chevron-left', 'もどる', '電話機と同期', 'L2d')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('off', '<span class="label-s" style="position:absolute;left:279px;top:58px">QRコード</span>')}
+   ${illus('off', hashLabel)}
    <div class="steps">
-    ${stepRow(1, '電話機のQRコードを探す', '赤い点線のところに、シールで貼ってあります')}
-    ${stepRow(2, 'アプリの「QRコードを読み取る」を押す', 'カメラが開きます')}
-    ${stepRow(3, 'カメラをQRコードに向ける', '枠の中に入ると、自動で読み取って同期します')}
+    ${stepRow(1, 'アプリの「同期を始める」を押す', '電話機とつながる準備をします')}
+    ${stepRow(2, '電話機の受話器を上げて「＃」を押す', '受話器から6桁の認証コードが流れます')}
+    ${stepRow(3, '認証コードを入力して「送信」を押す', 'つながると、受話器からもお知らせします')}
    </div>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3s')}>${icon('qr-code', 20, RAISED)}QRコードを読み取る</button><button class="btn M ghost fillw link"${to('L3+')}>QRコードが読み取れないとき</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3w')}>同期を始める</button>${homebar()}</div>
 </div>`;
-        // L3s: カメラでQRコードを読み取る。枠を押すと、読み取れたものとしてL5へ進む(モック用)
-        const scanCorner = (pos) => { const [t, l] = pos; return `<i style="position:absolute;${t}:0;${l}:0;width:44px;height:44px;border-${t}:5px solid ${NTEXT};border-${l}:5px solid ${NTEXT};border-${t}-${l}-radius:18px"></i>` };
-        S.L3s = () => `<div class="screen night">${status('20:17', true)}
- <div class="content" style="height:798px">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 16px"><button class="iconbtn" aria-label="閉じる"${to('L3')}>${icon('x', 24, NTEXT)}</button><span class="title-m">QRコードを読み取る</span><button class="iconbtn" aria-label="ライトをつける">${icon('flashlight', 22, NTEXT)}</button></div>
-  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:0 24px 200px">
-   <button aria-label="QRコードを読み取る(モックでは押すと読み取り完了)"${to('L5')} style="position:relative;width:264px;height:264px;display:flex;align-items:center;justify-content:center;border-radius:20px;background:#4A4438">
-    <span style="display:flex;padding:14px;background:#FFFFFF;border-radius:10px;transform:rotate(-4deg);box-shadow:0 6px 18px rgba(0,0,0,.35)"><svg width="150" height="150" viewBox="0 0 21 21" aria-hidden="true">${qrMarks(0, 0, 21, INK)}</svg></span>
-    ${scanCorner(['top', 'left'])}${scanCorner(['top', 'right'])}${scanCorner(['bottom', 'left'])}${scanCorner(['bottom', 'right'])}
-   </button>
-   <div style="display:flex;flex-direction:column;gap:6px;text-align:center"><span class="label-l">電話機に貼ってあるQRコードを<br>枠の中に合わせてください</span><span class="body-s" style="color:${NTEXT2}">読み取れると、自動で同期が始まります</span></div>
-  </div>
- </div>
- <div class="foot"><button class="btn M ghost-night fillw link"${to('L3+')}>QRコードが読み取れないとき</button>${homebar()}</div>
-</div>`;
-        S['L3+'] = () => `<div class="screen">${status('20:16')}
+        // L3w: アプリの準備ができた。電話機の＃を押すと、受話器から認証コードが流れる
+        S.L3w = () => `<div class="screen">${status('20:16')}
  <div class="content">
-  ${navBar('chevron-left', 'もどる', 'QRコードが読み取れないとき', 'L3s')}
+  ${navBar('chevron-left', 'もどる', '電話機と同期', 'L3')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('off', '<span class="label-s" style="position:absolute;left:279px;top:58px">QRコード</span>')}
+   ${illus('off', hashLabel)}
+   <div style="display:flex;flex-direction:column;gap:8px"><h3 class="title-l">電話機の受話器を上げて<br>「＃」を押してください</h3><span class="body-m muted">受話器から6桁の認証コードが流れます。</span></div>
+   <span class="body-s muted">準備は10分で切れます。切れたときは、もう一度「同期を始める」から始めます。</span>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3k')}>認証コードを入力する</button><button class="btn M ghost fillw link"${to('L3+')}>認証コードが聞こえないとき</button>${homebar()}</div>
+</div>`;
+        // L3k: 受話器から聞こえた6桁を入力する。6桁そろうと「送信」が押せる(モックでは送信するとL5へ)
+        const codeBoxes = (v, err) => `<div class="code${err ? ' err' : ''}" data-code="${v}" role="group" aria-label="6桁の認証コード">${Array.from({ length: 6 }, (_, i) => `<i class="${!err && i === v.length ? 'cur' : ''}">${v[i] || ''}</i>`).join('')}</div>`;
+        const keypad = () => `<div class="keypad">${['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'].map(k => k === '' ? '<button class="blank" tabindex="-1" aria-hidden="true"></button>' : k === 'del' ? `<button data-key="del" aria-label="1文字消す">${icon('delete', 24)}</button>` : `<button data-key="${k}">${k}</button>`).join('')}</div>`;
+        const codeScreen = (time, v, err) => `<div class="screen">${status(time)}
+ <div class="content">
+  ${navBar('chevron-left', 'もどる', '認証コードの入力', 'L3w')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:16px">
+   <h3 class="title-l">受話器から聞こえた<br>6桁の数字を入力してください</h3>
+   ${codeBoxes(v, err)}
+   ${err ? `<div data-code-err role="alert" style="display:flex;gap:8px;align-items:flex-start">${icon('alert', 20, ALERT)}<div style="display:flex;flex-direction:column;gap:2px"><span class="label-l" style="color:var(--alert)">認証コードが違います</span><span class="body-s muted">電話機の「＃」をもう一度押すと、<br>認証コードがもう一度流れます。</span></div></div>` : `<span class="body-s muted">聞きのがしたときは、電話機の「＃」をもう一度押します。</span>`}
+   <button class="btn M ghost fillw link"${to('L3+')}>認証コードが聞こえないとき</button>
+  </div>
+ </div>
+ <div class="foot"><button class="btn L primary fillw" data-send${v.length < 6 ? ' disabled aria-disabled="true"' : ''}${to('L5')}>送信</button><div style="height:8px"></div>${keypad()}${homebar()}</div>
+</div>`;
+        S.L3k = () => codeScreen('20:17', '482', false);
+        S['L3k+'] = () => codeScreen('20:18', '482751', true);
+        S['L3+'] = () => `<div class="screen">${status('20:17')}
+ <div class="content">
+  ${navBar('chevron-left', 'もどる', '認証コードが聞こえないとき', 'L3k')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
+   ${illus('off', hashLabel)}
    <div class="steps">
-    ${stepRow(1, '明るくする', '部屋の明かりをつけるか、読み取り画面右上のライトをつけます')}
-    ${stepRow(2, '距離を変える', 'QRコードから15〜20cmほど離し、まっすぐ向けます')}
-    ${stepRow(3, 'シールの状態を確かめる', '汚れや反射、はがれがないか確かめ、軽くふいてからもう一度試します')}
+    ${stepRow(1, '受話器を耳にしっかり当てる', '認証コードは受話器から流れます。周りが静かなところで聞きます')}
+    ${stepRow(2, 'もう一度「＃」を押す', '準備が切れるまでは、何度でも聞き直せます')}
+    ${stepRow(3, '電源と電話線を確かめる', '抜けていないか確かめてから、「同期を始める」からやり直します')}
    </div>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3s')}>もう一度読み取る</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3k')}>認証コードを入力する</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
 </div>`;
         S.L3c = () => `<div class="screen">${status('20:17')}
  <div class="content">
   ${navBar('chevron-left', 'もどる', 'お問い合わせ', 'L3+')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">お問い合わせの種類</span><div class="chips" data-single>${['QRコードが読み取れない', '同期できない', 'その他'].map((t, i) => `<button class="chip ${i ? '' : 'sel'}">${t}</button>`).join('')}</div></div>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">お問い合わせの種類</span><div class="chips" data-single>${['認証コードが聞こえない', '同期できない', 'その他'].map((t, i) => `<button class="chip ${i ? '' : 'sel'}">${t}</button>`).join('')}</div></div>
    ${mailField()}
    <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">お問い合わせ内容</label><div class="field" style="padding:12px 16px;align-items:flex-start;min-height:144px"><span class="label-m muted">試したことや、電話機の状態を入力</span></div></div>
    <span class="body-s muted">ご入力のメールアドレスに返信します。</span>
@@ -1849,13 +1903,15 @@
             L2c: ['利用規約を読む', '上の線で読んだ割合を示します。最後までスクロールすると「同意する」が押せるようになり、L2dに移って同意した項目にチェックが入ります。AIとの通話であることと、会話が文字で残ることを見守る方に説明する約束は、第2条に記載します。'],
             L2p: ['プライバシーポリシーを読む', 'L2cと同じ画面構成です。何を取得し、何に使い、誰と共有するかを伝えます。体調や服薬の話は特に配慮が必要な情報なので、第4条で分けて説明します。'],
             L2d: ['新規登録(同意後)', 'L2c、L2pの「同意する」で、該当する項目にチェックが入ります。チェックボックスは押すたびにオンとオフが切り替わります。2つともチェックされているときだけ、Googleでの登録と「登録する」が押せます。登録するとL3の電話機との同期に進みます。'],
-            L3: ['電話機との同期', '電話機に貼ってあるQRコードをスマートフォンのカメラで読み取って同期します。絵の中でシールの場所を赤い点線で示し、探す、読み取りを押す、カメラを向ける、の順番で進めます。'],
-            L3s: ['QRコードの読み取り', 'カメラの画面です。枠の中にQRコードが入ると自動で読み取り、同期が終わるとL5に移ります(モックでは枠を押すとL5へ)。読み取れないときは「QRコードが読み取れないとき」からL3bに移ります。暗い部屋でも読めるよう、右上にライトを置きます。'],
+            L3: ['電話機との同期', '家族がアプリで準備を始め、電話機の「＃」を押し、受話器から流れた認証コードをアプリに入力して同期します。絵の中で「＃」の場所を赤い点線で示し、3つの手順を先に見せます。「同期を始める」でL3wに移ります。'],
+            L3w: ['電話機の「＃」を押す', 'アプリの準備ができた状態です。電話機の受話器を上げて「＃」を押すと、受話器から6桁の認証コードが2回流れます。準備は10分で切れます。', '認証コードを受話器で読み上げる', '電話機で「＃」を押して聞く'],
+            L3k: ['認証コードの入力', '受話器から聞こえた6桁を、画面の数字キーで入力します(モックでも押せます)。6桁そろうまで「送信」は押せません。正しければL5に移ります(モックでは送信するとL5へ)。違うときはL3kbを表示します。'],
+            'L3k+': ['認証コードが違うとき', '入力した6桁が違うときの画面です。枠を赤くし、色だけでなく言葉でも伝えます。数字キーを押すと入力し直せます。電話機の「＃」でもう一度聞き直せることも伝えます。'],
             L3c: ['お問い合わせ', 'L3bの「お問い合わせ」から開きます。種類を選び、メールアドレスと内容を入力して送ります。送信するとL3dに移ります。'],
             L3d: ['お問い合わせの送信後', '送信できたことと、返信の届き先を伝えます。「同期の手順にもどる」でL3に戻り、返信を待つ間も手順を試せます。'],
             'L3d+': ['お問い合わせの送信に失敗したとき', 'L3cで送信できなかったときの画面です。L3dと同じ構成で、お問い合わせが届いていないことをはっきり伝えます。「もう一度送信する」で送り直し、「入力画面にもどる」でL3cに戻ります。'],
-            'L3+': ['QRコードが読み取れないとき', 'L3とL3sの「QRコードが読み取れないとき」から開きます。読み取れないときに試すことを、簡単な順に3つ示します。'],
-            L5: ['同期完了', 'L3sで読み取って同期できると開きます。つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
+            'L3+': ['認証コードが聞こえないとき', 'L3wとL3kの「認証コードが聞こえないとき」から開きます。聞こえないときに試すことを、簡単な順に3つ示します。'],
+            L5: ['同期完了', 'L3kで正しい認証コードを送信すると開きます。つながった電話番号を見せます。電話機の受話器からも、つながったことをアナウンスします。', 'つながったことを受話器で知らせる', '受話器を置いて、セットアップへ進む'],
             L6: ['見守る方の名前', '入力は名前と呼び方だけです。呼び方はあとから変更できます。'],
             L7: ['好きな話題', '話し相手として会話を弾ませるための入力です。候補を押すだけで複数選べて、もう一度押すと外せます。候補にない話題は、左の＋で入力欄を増やして書けます。入力欄が2つ以上あるときは、右上の✕で消せます。08の設定からいつでも変更できます。', '選ばれた話題で話しかける', '話題を選ぶ'],
             L8: ['AIの声', '声を選び、再生ボタンで同じ言葉を聞き比べます。選んだ声はすべての電話で使います。あとから08の設定で変更できます。', '選ばれた声で話す', '聞き比べて声を選ぶ'],
@@ -1894,9 +1950,9 @@
 ${flow('1. ログイン前', 'はじめて開いたとき、ログイン', ['L1', 'L2', 'L2a'])}
 ${flow('1. ログイン前(続き)', '再設定メールの失敗、新規登録', ['L2a+', 'L2+', 'L2c'])}
 ${flow('1. ログイン前(続き)', '規約に1つずつ同意すると登録できる', ['L2p', 'L2d'])}
-${flow('2. 電話機と同期', '電話機に貼ってあるQRコードを読み取って同期する', ['L3', 'L3s', 'L5'])}
-${flow('2. 電話機と同期(続き)', '読み取れないとき', ['L3+', 'L3c'])}
-${flow('2. 電話機と同期(続き)', 'お問い合わせの送信結果', ['L3d', 'L3d+'])}
+${flow('2. 電話機と同期', 'アプリで準備を始め、電話機の「＃」を押して、受話器から流れた認証コードを入力する', ['L3', 'L3w', 'L3k'])}
+${flow('2. 電話機と同期(続き)', 'つながると受話器からもお知らせする。うまくいかないとき', ['L5', 'L3k+', 'L3+'])}
+${flow('2. 電話機と同期(続き)', 'お問い合わせと送信結果', ['L3c', 'L3d', 'L3d+'])}
 ${flow('3. セットアップ', '見守る方のことを登録する', ['L6', 'L7', 'L8'])}
 ${flow('4. ホーム画面', '様子を知って、伝える', ['00', '01', '01a'])}
 ${flow('4. ホーム画面(続き)', '伝言への返答、今日の様子、電話に出なかったとき', ['01+', '02', '07+'])}
@@ -1996,6 +2052,18 @@ ${flow('6. 予約電話', '決まった時間に電話する、出ないとき�
             }
             const single = t.closest('[data-single] .chip');
             if (single) single.parentElement.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === single));
+            // L3k: 数字キーで認証コードを入力する。6桁そろうと「送信」が押せる
+            const key = t.closest('[data-key]');
+            if (key) {
+                const scr = key.closest('.screen'), code = scr.querySelector('[data-code]');
+                let v = code.dataset.code;
+                if (code.classList.contains('err')) { code.classList.remove('err'); v = ''; const m = scr.querySelector('[data-code-err]'); if (m) m.style.display = 'none' }
+                v = key.dataset.key === 'del' ? v.slice(0, -1) : (v + key.dataset.key).slice(0, 6);
+                code.dataset.code = v;
+                [...code.children].forEach((c, i) => { c.textContent = v[i] || ''; c.classList.toggle('cur', i === v.length) });
+                const send = scr.querySelector('[data-send]'); send.disabled = v.length < 6;
+                if (send.disabled) send.setAttribute('aria-disabled', 'true'); else send.removeAttribute('aria-disabled');
+            }
             const go = t.closest('[data-go]');
             if (go && go.dataset.go === '07') { const from = go.closest('[data-cell]').dataset.cell; document.querySelectorAll('[data-cell="07"] [data-go]').forEach(b => { b.dataset.go = from }) }
             if (go && !go.disabled) goTo(go.dataset.go);
