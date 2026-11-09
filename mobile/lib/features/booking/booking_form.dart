@@ -6,6 +6,7 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
+import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
 // 01 と 06b が同じ部品を使う。通話内容をいつ出すかと、保存の中身は各画面が決める。
@@ -107,6 +108,97 @@ class BookingFormActions extends StatelessWidget {
           onTap: onCall,
         ),
       ],
+    );
+  }
+}
+
+// 01 と 06b の骨組み。モックの foot は画面の下端に固定されている。
+// キーボードの分だけ画面を縮めると、その foot がキーボードの上へ持ち上がり、
+// 短い画面では入力欄を押しつぶす。開いているあいだは foot を下端に残して
+// キーボードの下に隠し、中身はキーボードの上でスクロールする。
+// 閉じると、モックどおりボタンはホームバーの上に戻る。
+// スマホのブラウザも iOS も、キーボードは viewInsets.bottom で届く。
+// 開閉で入力欄の親を入れ替えると State が捨てられ、autofocus がキーボードを
+// 出し直してボタンを隠す。欄の親は開閉で変えない。
+// iOS は欄の外のタップでも、画面に収まる本文のドラッグでも閉じない。
+// 外を押すか、本文をドラッグすると閉じ、下のボタンに届く。
+class BookingFormLayout extends StatelessWidget {
+  const BookingFormLayout({
+    super.key,
+    required this.title,
+    required this.onLeadingTap,
+    required this.children,
+    required this.actions,
+  });
+
+  final String title;
+  final VoidCallback onLeadingTap;
+  final List<Widget> children;
+  final Widget actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    // モックの foot はボタンとホームバーの間も 8 空ける
+    final footer = Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: actions,
+    );
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: SafeArea(
+        child: GestureDetector(
+          // 欄やボタンのタップは子が受け取る。読み上げの対象にはしない
+          excludeFromSemantics: true,
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppNavBar(title: title, onLeadingTap: onLeadingTap),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: keyboard),
+                  // 本文が画面に収まると、そのままではドラッグが始まらない。
+                  // 始めさせて閉じる。動いたときは onDrag、端で止まったときは
+                  // OverscrollNotification。
+                  child: NotificationListener<OverscrollNotification>(
+                    onNotification: (notification) {
+                      if (notification.dragDetails != null) {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      }
+                      return false;
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 16,
+                        children: children,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // この子だけ開閉で種類が変わる。入力欄の親ではないので、欄の State は残る。
+              // 開いているあいだは高さを取らず、下端からはみ出してキーボードの下に描く
+              keyboard == 0
+                  ? footer
+                  : SizedBox(
+                      height: 0,
+                      child: OverflowBox(
+                        alignment: Alignment.bottomCenter,
+                        maxHeight: double.infinity,
+                        child: footer,
+                      ),
+                    ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
