@@ -4,7 +4,7 @@ import 'package:kazokuai/data/tutorial_repository.dart';
 
 // 使い方を見たかは、テストが直接決める
 class FakeTutorialRepository implements TutorialRepository {
-  FakeTutorialRepository({bool seen = false}) : seen = ValueNotifier(seen);
+  FakeTutorialRepository({bool? seen = false}) : seen = ValueNotifier(seen);
 
   @override
   final ValueNotifier<bool?> seen;

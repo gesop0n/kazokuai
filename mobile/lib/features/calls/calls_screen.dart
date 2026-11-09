@@ -12,6 +12,7 @@ import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/call_timeline.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/mini_calendar.dart';
+import 'package:kazokuai/features/calls/sample_calls_data.dart';
 import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
 import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
@@ -155,12 +156,15 @@ class _CallsScreenState extends ConsumerState<CallsScreen> {
     return ValueListenableBuilder(
       valueListenable: repository.log,
       builder: (context, log, _) {
-        // 読み終えるまでは空欄。電話がなければ、そのあとで「まだ電話がありません」と出す
+        // 読み終えるまでは空欄。電話がなければ、そのあとで「まだ電話がありません」と出す。
+        // 案内のあいだだけ、モックの見本を出して明るく残す。終わると消す
+        final sampling = TutorialAnchors.samplingOf(context);
         if (log == null) {
           _shown = null;
           return const SizedBox.expand();
         }
-        return _view(log);
+        final shown = log.days.isEmpty && sampling ? sampleCallLog : log;
+        return _view(shown);
       },
     );
   }

@@ -70,6 +70,8 @@ class _TutorialShellState extends ConsumerState<TutorialShell> {
       if (!mounted) return;
       _tryStart();
     });
+    // 記録の通知だけでは描画が起きないので、開始するフレームを自分で要求する
+    WidgetsBinding.instance.scheduleFrame();
   }
 
   // 見守る方のホームを初めて開いたときだけ。途中で閉じると、次は最初から
@@ -160,6 +162,7 @@ class _TutorialShellState extends ConsumerState<TutorialShell> {
     final showing = index != null && steps != null;
     return TutorialAnchors(
       registry: _registry,
+      sampling: showing,
       child: Stack(
         children: [
           ExcludeSemantics(

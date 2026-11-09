@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/data/tutorial_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
+import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/calls/mini_calendar.dart';
 import 'package:kazokuai/features/home/ask_card.dart';
@@ -15,7 +17,9 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
 import 'package:kazokuai/features/tutorial/tutorial_overlay.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 import '../../support/fake_auth_repository.dart';
 import '../../support/fake_calls_repository.dart';
@@ -35,6 +39,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required FakeTutorialRepository tutorial,
   HomeRepository? home,
+  CallsRepository? calls,
 }) async {
   _usePhone(tester);
   await tester.pumpWidget(
@@ -46,7 +51,10 @@ Future<void> _pump(
           sampleHome()
         else
           homeRepositoryProvider.overrideWithValue(home),
-        sampleCalls(),
+        if (calls == null)
+          sampleCalls()
+        else
+          callsRepositoryProvider.overrideWithValue(calls),
         tutorialRepositoryProvider.overrideWithValue(tutorial),
       ],
       child: const KazokuAiApp(),
@@ -255,5 +263,109 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('ハナさん'), findsNothing);
+  });
+
+  testWidgets('見ていないと分かったフレームで案内を始める', (tester) async {
+    final tutorial = FakeTutorialRepository(seen: null);
+    await _pump(tester, tutorial: tutorial);
+    expect(find.text('使い方 1/9'), findsNothing);
+
+    tutorial.seen.value = false;
+    expect(tester.binding.hasScheduledFrame, isTrue);
+    await tester.pumpAndSettle();
+    expect(find.text('使い方 1/9'), findsOneWidget);
+  });
+
+  testWidgets('電話がなくても案内のあいだは見本を明るく残し、終わると消す', (tester) async {
+    final tutorial = FakeTutorialRepository();
+    await _pump(
+      tester,
+      tutorial: tutorial,
+      home: FakeHomeRepository(
+        HomeView(
+          person: sampleHomeData.person,
+          now: sampleHomeData.now,
+          latestCall: null,
+          todayCall: null,
+        ),
+      ),
+      calls: FakeCallsRepository(
+        log: CallLog(today: DateTime(2026, 11, 5), days: const []),
+      ),
+    );
+
+    expect(find.text('まだ電話がありません'), findsNothing);
+    expect(find.text('朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。'), findsOneWidget);
+    _expectHoleFits(tester, find.byType(RecentCallCard));
+
+    await tester.tap(find.text('次へ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('次へ'));
+    await tester.pumpAndSettle();
+    expect(find.text('使い方 3/9'), findsOneWidget);
+    _expectHoleFits(tester, find.byType(TodayCard));
+
+    await tester.tap(find.text('次へ'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('次へ'));
+    await tester.pumpAndSettle();
+    expect(find.text('使い方 5/9'), findsOneWidget);
+    _expectHoleContains(tester, find.text('朝食と薬は済み。膝を気にしている'));
+
+    await tester.tap(find.text('スキップ'));
+    await tester.pumpAndSettle();
+    expect(find.byType(RecentCallCard), findsNothing);
+    expect(find.byType(TodayCard), findsNothing);
+    expect(find.text('まだ電話がありません'), findsOneWidget);
+    expect(find.text('朝食と薬は済み。膝を気にしている', skipOffstage: false), findsNothing);
+  });
+
+  testWidgets('説明する場所が遅れて出ても、明るく残す', (tester) async {
+    final registry = TutorialAnchorRegistry();
+    final visible = ValueNotifier(false);
+    addTearDown(visible.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TutorialAnchors(
+          registry: registry,
+          sampling: true,
+          child: Stack(
+            children: [
+              ValueListenableBuilder(
+                valueListenable: visible,
+                builder: (context, show, _) {
+                  if (!show) return const SizedBox.expand();
+                  return const Align(
+                    alignment: Alignment.topCenter,
+                    child: TutorialAnchor(
+                      part: TutorialPart.calendar,
+                      child: SizedBox(
+                        width: 200,
+                        height: 40,
+                        child: Text('過去7日間'),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              TutorialOverlay(
+                step: tutorialStepsFor('ハナさん')[3],
+                index: 3,
+                registry: registry,
+                onNext: () {},
+                onSkip: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(TutorialHole), findsNothing);
+    expect(find.text('使い方 4/9'), findsOneWidget);
+
+    visible.value = true;
+    await tester.pumpAndSettle();
+    _expectHoleContains(tester, find.text('過去7日間'));
   });
 }

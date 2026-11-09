@@ -55,6 +55,22 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
   @override
   void initState() {
     super.initState();
+    widget.registry.addListener(_onTarget);
+    _arm();
+  }
+
+  @override
+  void dispose() {
+    widget.registry.removeListener(_onTarget);
+    super.dispose();
+  }
+
+  // 読み込みが終わって説明する場所が載ったら、中央に置いた説明を測り直す
+  void _onTarget() {
+    if (!mounted || _hole != null) return;
+    _ticks = 0;
+    _stable = 0;
+    _revealed = false;
     _arm();
   }
 

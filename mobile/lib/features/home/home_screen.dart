@@ -97,6 +97,9 @@ class _LiveHome extends StatelessWidget {
       builder: (context, view, _) {
         if (view == null) return const SizedBox.expand();
         final latest = view.latestCall;
+        // 電話がまだなくても、案内のあいだはモックの見本を出して明るく残す。終わると消す
+        final sample = latest == null && TutorialAnchors.samplingOf(context);
+        final recent = latest ?? (sample ? sampleHomeData.latestCall : null);
         return _Frame(
           person: view.person,
           now: view.now,
@@ -111,16 +114,16 @@ class _LiveHome extends StatelessWidget {
                   reply: reply,
                   now: view.now,
                 ),
-              if (latest == null)
+              if (recent == null)
                 const _NoCalls()
               else
                 TutorialAnchor(
                   part: TutorialPart.recent,
                   child: RecentCallCard(
-                    call: latest,
-                    now: view.now,
+                    call: recent,
+                    now: latest == null ? sampleHomeData.now : view.now,
                     onOpenConversation: () =>
-                        _openConversation(context, latest),
+                        _openConversation(context, recent),
                   ),
                 ),
               TutorialAnchor(
@@ -138,7 +141,12 @@ class _LiveHome extends StatelessWidget {
                     : TutorialAnchor(
                         part: TutorialPart.today,
                         child: TodayCard(call: view.todayCall!),
-                      ),
+                      )
+              else if (sample)
+                TutorialAnchor(
+                  part: TutorialPart.today,
+                  child: TodayCard(call: sampleHomeData.latestCall),
+                ),
             ],
           ),
         );
