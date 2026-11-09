@@ -77,12 +77,12 @@ body { background: var(--color-paper); color: var(--color-ink); font-family: var
   color: var(--color-accent); margin-bottom: var(--space-sm); }
 h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 4vw, 30px);
   letter-spacing: -0.005em; line-height: 1.2; }
-.lede { max-width: 300px; font-size: 12px; line-height: 1.7; color: var(--color-neutral); padding-bottom: 2px; }
+.lede { max-width: 460px; font-size: 12px; line-height: 1.7; color: var(--color-neutral); padding-bottom: 2px; }
 @media (max-width: 680px) { .head { grid-template-columns: 1fr; align-items:start; } .lede { max-width:none; } }
 
 .scroller { overflow-x: auto; border: 1px solid var(--color-rule-2); border-radius: var(--radius-card); }
 /* CANVAS SIZE: set width/height here AND on svg.edges AND its viewBox — keep the three in sync */
-.canvas { position: relative; width: 1240px; height: 790px; background: var(--color-paper);
+.canvas { position: relative; width: 1380px; height: 790px; background: var(--color-paper);
   background-image:
     linear-gradient(var(--color-rule) 1px, transparent 1px),
     linear-gradient(90deg, var(--color-rule) 1px, transparent 1px);
@@ -145,7 +145,7 @@ h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(22px, 
 .node .name span, .node .role span { background: var(--color-veil); backdrop-filter: blur(1.5px);
   padding: 0 var(--space-xs); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
-svg.edges { position:absolute; inset:0; width:1240px; height:790px; pointer-events:none; }
+svg.edges { position:absolute; inset:0; width:1380px; height:790px; pointer-events:none; }
 .e  { stroke: var(--color-accent); stroke-width:1.6; fill:none; }   /* primary flow */
 .n  { stroke: var(--color-neutral); stroke-width:1.4; fill:none; }  /* internal */
 path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
@@ -173,17 +173,17 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
 
   <header class="head">
     <div>
-      <div class="kicker">ADR 0003 · 2026-11-07</div>
+      <div class="kicker">ADR 0003 · ADR 0011 · 2026-11-09</div>
       <h1>かぞくAI の構成</h1>
     </div>
-    <p class="lede">ADR 0003 で決めた構成。今は Raspberry Pi の代わりに Mac、Cloud Run の代わりに手元で動かすバックエンドで試している。</p>
+    <p class="lede">ブラウザは Firebase Hosting を開く。/api/** は Cloud Run に回る。電話機は Cloud Run に直接つなぐ。つながっている電話機は 1 つのインスタンスのメモリーに置く。Cloud Tasks はハッカソンのあと。</p>
   </header>
 
   <div class="scroller">
   <div class="canvas">
 
     <!-- GROUPS -->
-    <div class="group gcp" style="left:550px; top:50px; width:480px; height:430px;">
+    <div class="group gcp" style="left:550px; top:50px; width:600px; height:430px;">
       <div class="g-label"><img src="%%ICON_gcp%%" alt="">Google Cloud</div>
     </div>
     <div class="group gb" style="left:30px; top:270px; width:480px; height:210px;">
@@ -192,12 +192,12 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <div class="group ga" style="left:330px; top:540px; width:400px; height:210px;">
       <div class="g-label"><img src="%%ICON_gemini%%" alt="">Gemini</div>
     </div>
-    <div class="group gb" style="left:810px; top:540px; width:330px; height:210px;">
+    <div class="group gb" style="left:810px; top:540px; width:480px; height:210px;">
       <div class="g-label"><img class="plate" src="%%ICON_smartphone%%" alt="">家族</div>
     </div>
 
     <!-- EDGES ============================================================= -->
-    <svg class="edges" viewBox="0 0 1240 790" aria-hidden="true">
+    <svg class="edges" viewBox="0 0 1380 790" aria-hidden="true">
       <defs>
         <!-- context-stroke inherits the line's color, so theme switches (incl. dark)
              recolor arrowheads automatically. #open is for AWS diagrams -->
@@ -235,6 +235,10 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <text class="el" x="935" y="520">通知</text>
       <path class="n" d="M1014 630 H936" marker-end="url(#ar)"/>
       <text class="el" x="975" y="622" text-anchor="middle">使う</text>
+      <path class="n" d="M1060 436 V492 H670 V436" marker-end="url(#ar)"/>
+      <text class="el" x="980" y="484" text-anchor="middle">/api/**</text>
+      <path class="n" d="M1200 596 V520 H1100 V436" marker-end="url(#ar)"/>
+      <text class="el" x="1150" y="512" text-anchor="middle">開く</text>
     </svg>
 
     <!-- NODES -->
@@ -248,7 +252,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     </div>
     <div class="node" style="left:874px;top:110px">
       <div class="tile"><img src="%%ICON_secret%%" alt=""></div>
-      <div class="name"><span>Secret Manager</span></div><div class="role"><span>API キー</span></div>
+      <div class="name"><span>Secret Manager</span></div><div class="role"><span>API キー・合言葉</span></div>
     </div>
     <div class="node" style="left:54px;top:330px">
       <div class="tile"><img src="%%ICON_person%%" alt=""></div>
@@ -264,11 +268,15 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     </div>
     <div class="node" style="left:574px;top:330px">
       <div class="tile"><img src="%%ICON_run%%" alt=""></div>
-      <div class="name"><span>Cloud Run</span></div><div class="role"><span>Go · chi の API</span></div>
+      <div class="name"><span>Cloud Run</span></div><div class="role"><span>最大 1 インスタンス</span></div>
     </div>
     <div class="node" style="left:834px;top:330px">
       <div class="tile"><img src="%%ICON_firebase%%" alt=""></div>
       <div class="name"><span>Firebase</span></div><div class="role"><span>Auth・Firestore・FCM</span></div>
+    </div>
+    <div class="node" style="left:994px;top:330px">
+      <div class="tile"><img src="%%ICON_hosting%%" alt=""></div>
+      <div class="name"><span>Firebase Hosting</span></div><div class="role"><span>/api/** を回す</span></div>
     </div>
     <div class="node" style="left:354px;top:600px">
       <div class="tile"><img src="%%ICON_gemini%%" alt=""></div>
@@ -285,6 +293,10 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <div class="node" style="left:984px;top:600px">
       <div class="tile"><img src="%%ICON_person%%" alt=""></div>
       <div class="name"><span>家族</span></div><div class="role"><span>アプリで見る</span></div>
+    </div>
+    <div class="node" style="left:1134px;top:600px">
+      <div class="tile"><img src="%%ICON_browser%%" alt=""></div>
+      <div class="name"><span>ブラウザ</span></div><div class="role"><span>Hosting を開く</span></div>
     </div>
 
   </div>

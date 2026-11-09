@@ -38,3 +38,4 @@
 | [20261107_biz_udp_gothic](20261107_biz_udp_gothic.md) | アプリのフォントを BIZ UDPゴシックだけにする | Accepted |
 | [20261108_mock_narrowed_navigation](20261108_mock_narrowed_navigation.md) | モックで機能を絞ったあとの画面の移り方とデモの動き | Accepted |
 | [20261109_bluetooth_sync](20261109_bluetooth_sync.md) | 電話機との同期と Wi-Fi の設定を Bluetooth LE で行う | Accepted |
+| [20261109_cloud_run_one_instance](20261109_cloud_run_one_instance.md) | Cloud Run を 1 インスタンスにし、つながっている電話機をメモリーで持つ | Accepted |
