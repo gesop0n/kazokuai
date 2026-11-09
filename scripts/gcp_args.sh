@@ -152,5 +152,6 @@ export_gcp_project() {
   export GOOGLE_CLOUD_PROJECT="$project"
   export CLOUDSDK_CORE_PROJECT="$project"
   export GOOGLE_BILLING_PROJECT="$project"
-  unset TF_VAR_project_id TF_VAR_region TF_VAR_billing_account TF_VAR_container_image
+  # 変数の既定を使う。環境に残った TF_VAR でプロジェクトやサイトを変えない。
+  unset TF_VAR_project_id TF_VAR_region TF_VAR_billing_account TF_VAR_container_image TF_VAR_hosting_site_id
 }

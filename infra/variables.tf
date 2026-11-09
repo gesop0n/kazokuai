@@ -39,6 +39,17 @@ variable "container_image" {
   }
 }
 
+variable "hosting_site_id" {
+  type        = string
+  description = "Web 版を公開する Firebase Hosting のサイト ID。既定のサイト（プロジェクト ID）とは別である。"
+  default     = "kazokuai"
+
+  validation {
+    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?$", var.hosting_site_id)) && var.hosting_site_id != var.project_id
+    error_message = "hosting_site_id は 30 文字以内のホスト名ラベルにし、プロジェクト ID とは別にしてください。"
+  }
+}
+
 variable "deletion_protection" {
   type        = bool
   description = "Cloud Run を消さない。壊れたサービスを作り直す 1 回だけ false にする。"

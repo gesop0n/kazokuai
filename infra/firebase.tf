@@ -50,10 +50,22 @@ data "google_firebase_web_app_config" "web" {
 # google_identity_platform_config は署名の鍵を状態に書く。
 # 有効にする手順は infra/README.md にある。
 
+# 既定のサイト。サイト ID はプロジェクト ID で、状態へ取り込み済みである。
+# アドレス google_firebase_hosting_site.web は変えない。変えると、取り込み済みのサイトを消そうとする。
 resource "google_firebase_hosting_site" "web" {
   provider = google-beta
   project  = var.project_id
   site_id  = var.project_id
+  app_id   = google_firebase_web_app.web.app_id
+
+  depends_on = [google_project_service.api]
+}
+
+# Web 版を公開するサイト。既定のサイトは残し、ここへ出す。
+resource "google_firebase_hosting_site" "published" {
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.hosting_site_id
   app_id   = google_firebase_web_app.web.app_id
 
   depends_on = [google_project_service.api]
