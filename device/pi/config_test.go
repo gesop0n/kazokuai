@@ -17,8 +17,8 @@ func TestDefaultConfigMatchesTheHandsetWiring(t *testing.T) {
 	if cfg.SpeakerGain != 0.15 || cfg.SpeakerLimit != 0.1 {
 		t.Fatalf("音量 = %v 上限 %v, want 0.15 と 0.1", cfg.SpeakerGain, cfg.SpeakerLimit)
 	}
-	if cfg.GPIOChip != "gpiochip0" || cfg.HookGPIO != 5 || !cfg.LiftedWhenClosed {
-		t.Fatalf("フック = %s GPIO%d 閉じると上がる=%v", cfg.GPIOChip, cfg.HookGPIO, cfg.LiftedWhenClosed)
+	if cfg.GPIOChip != "gpiochip0" || cfg.HookGPIO != 5 || cfg.RingerGPIO != 18 || !cfg.LiftedWhenClosed {
+		t.Fatalf("GPIO = %s フック %d 呼び出し音 %d 閉じると上がる=%v", cfg.GPIOChip, cfg.HookGPIO, cfg.RingerGPIO, cfg.LiftedWhenClosed)
 	}
 	if cfg.Debounce != 50*time.Millisecond {
 		t.Fatalf("デバウンス = %s, want 50ms", cfg.Debounce)
@@ -33,6 +33,7 @@ func TestConfigReadsTheEnvironment(t *testing.T) {
 		"KAZOKUAI_SPEAKER_LIMIT":      "0.05",
 		"KAZOKUAI_GPIO_CHIP":          "gpiochip4",
 		"KAZOKUAI_HOOK_GPIO":          "6",
+		"KAZOKUAI_RINGER_GPIO":        "12",
 		"KAZOKUAI_LIFTED_WHEN_CLOSED": "false",
 		"KAZOKUAI_HOOK_DEBOUNCE":      "20ms",
 	}
@@ -43,7 +44,7 @@ func TestConfigReadsTheEnvironment(t *testing.T) {
 	if cfg.AudioDevice != "USB Audio" || cfg.MicChannel != 1 || cfg.SpeakerGain != 0.2 || cfg.SpeakerLimit != 0.05 {
 		t.Fatalf("音声 = %+v", cfg)
 	}
-	if cfg.GPIOChip != "gpiochip4" || cfg.HookGPIO != 6 || cfg.LiftedWhenClosed || cfg.Debounce != 20*time.Millisecond {
+	if cfg.GPIOChip != "gpiochip4" || cfg.HookGPIO != 6 || cfg.RingerGPIO != 12 || cfg.LiftedWhenClosed || cfg.Debounce != 20*time.Millisecond {
 		t.Fatalf("フック = %+v", cfg)
 	}
 }
@@ -67,5 +68,17 @@ func TestConfigRejectsABadVolume(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "KAZOKUAI_SPEAKER_LIMIT") {
 		t.Fatalf("上限 = %v", err)
+	}
+}
+
+func TestConfigRejectsABadRingerPin(t *testing.T) {
+	_, err := Load(func(key string) string {
+		if key == "KAZOKUAI_RINGER_GPIO" {
+			return "gpio18"
+		}
+		return ""
+	})
+	if err == nil || !strings.Contains(err.Error(), "KAZOKUAI_RINGER_GPIO") {
+		t.Fatalf("呼び出し音の GPIO = %v", err)
 	}
 }

@@ -2,7 +2,7 @@
 
 Raspberry Pi 4 Model B に Raspberry Pi OS Lite（64 ビット）を入れる。受話器のマイクと受話口は、1 つの USB オーディオのアダプターにつなぐ。フック、呼び出し音、キーパッドは GPIO である。ランプは付いていない。
 
-呼び出し音の音とキーパッドの読み取りは、それぞれの ticket で足す。それまでは、呼び出し音とランプはログだけを書く。
+キーパッドの読み取りは、あとの ticket で足す。呼び出し音は GPIO を入れたり切ったりして、本体のスピーカーを鳴らす。ランプはログだけを書く。
 
 ## 確認
 
@@ -14,6 +14,7 @@ Raspberry Pi 4 Model B に Raspberry Pi OS Lite（64 ビット）を入れる。
 | `device check speaker` | 受話器で 1 秒の音を鳴らす |
 | `device check mic` | 5 秒録って、受話器から流す |
 | `device check hook` | 受話器が上がっているか、置かれているかを出す |
+| `device check ringer` | 止めるまで、本体のスピーカーを鳴らす |
 
 `devices` で見た名前の、他の機器と重ならない一部を `KAZOKUAI_AUDIO_DEVICE` に入れる。番号は再起動や接続の順で変わるので、名前で選ぶ。
 
@@ -29,6 +30,7 @@ systemd が読む `/etc/kazokuai/device.env` に書く。空の項目は次の�
 | `KAZOKUAI_SPEAKER_LIMIT` | `0.1` | フルスケールに対する上限。0 より大きく 1 以下 |
 | `KAZOKUAI_GPIO_CHIP` | `gpiochip0` | GPIO のチップ |
 | `KAZOKUAI_HOOK_GPIO` | `5` | フックの BCM 番号 |
+| `KAZOKUAI_RINGER_GPIO` | `18` | 呼び出し音の BCM 番号 |
 | `KAZOKUAI_LIFTED_WHEN_CLOSED` | `true` | 上げると接点が閉じるなら true、開くなら false |
 | `KAZOKUAI_HOOK_DEBOUNCE` | `50ms` | フックが安定したとみなす時間 |
 
