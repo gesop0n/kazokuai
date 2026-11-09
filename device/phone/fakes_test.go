@@ -123,6 +123,7 @@ func (s *system) stopPhone(t *testing.T) {
 }
 
 // restartBackend は、バックエンドを止めてから空のメモリーで起動し直す。電話機がつなぎ直すまで待つ。
+// 通話中は reconnectPhone を使う。こちらは時計を待たずに進めるので、通話のタイマーも終わる。
 func (s *system) restartBackend(t *testing.T) {
 	t.Helper()
 	s.api.Stop()
@@ -136,6 +137,35 @@ func (s *system) restartBackend(t *testing.T) {
 		// タイマーは、切れてから作られる。進めても無ければ、次の周でまた進める。
 		s.clock.advance(time.Second)
 		time.Sleep(time.Millisecond)
+	}
+}
+
+// reconnectPhone は、バックエンドを止めてから空のメモリーで起動し直す。
+// 通話中のタイマーを終わらせないよう、時計は締めの合図より前までしか進めない。
+func (s *system) reconnectPhone(t *testing.T) {
+	t.Helper()
+	s.api.Stop()
+	s.api = server.New(s.config, emulators, s.gemini, s.gemini, s.clock)
+	s.swap.set(s.api)
+	s.waitReconnected(t)
+}
+
+// waitReconnected は、今のバックエンドへ電話機がつなぎ直すまで待つ。
+// 時計は最大 3 分しか進めない。それ以上進めると、通話中の締めの合図が鳴る。
+func (s *system) waitReconnected(t *testing.T) {
+	t.Helper()
+	deadline := time.Now().Add(waitTimeout)
+	var advanced time.Duration
+	const budget = 3 * time.Minute
+	for !s.api.Connected(hanakoID) {
+		if time.Now().After(deadline) {
+			t.Fatal("待っても電話機がつなぎ直さなかった")
+		}
+		if advanced < budget {
+			s.clock.advance(time.Second)
+			advanced += time.Second
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

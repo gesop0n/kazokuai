@@ -1,12 +1,14 @@
 package phone_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/firestore"
 
+	"github.com/gesop0n/kazokuai/backend/server"
 	"github.com/gesop0n/kazokuai/internal/firebasetest"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
@@ -133,6 +135,66 @@ func TestPhoneReconnectsAfterTheBackendRestarts(t *testing.T) {
 	if err := c.result(t); err != nil {
 		t.Fatalf("つなぎ直したあとの電話が %v で終わった", err)
 	}
+	waitState(t, c.id, protocol.StateEnded)
+}
+
+func TestFailureAfterPickupStaysFailed(t *testing.T) {
+	s := newSystem(t, hanako, time.Date(2026, 11, 9, 0, 0, 0, 0, time.UTC))
+	c := s.startCall(t)
+	session := s.gemini.waitForSession(t, 1)
+	waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+	s.phone.pickUp()
+	waitForText(t, session, "[電話がつながりました]")
+	waitState(t, c.id, protocol.StateTalking)
+
+	session.drop(errors.New("live connection lost"))
+	if err := c.result(t); err == nil {
+		t.Fatal("Live API が切れたのに、電話が成功で終わった")
+	}
+	failed := waitState(t, c.id, protocol.StateFailed)
+	if failed.Data()["state"] != protocol.StateFailed {
+		t.Errorf("状態 = %v, want %s", failed.Data()["state"], protocol.StateFailed)
+	}
+}
+
+func TestPhoneReconnectsWhileTalking(t *testing.T) {
+	s := newSystem(t, hanako, time.Date(2026, 11, 9, 1, 0, 0, 0, time.UTC))
+	c := s.startCall(t)
+	session := s.gemini.waitForSession(t, 1)
+	waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+	s.phone.pickUp()
+	waitForText(t, session, "[電話がつながりました]")
+	waitState(t, c.id, protocol.StateTalking)
+
+	s.reconnectPhone(t)
+	s.phone.putDown()
+	if err := c.result(t); err != nil {
+		t.Fatalf("つなぎ直したあとに受話器を置いたのに、電話が %v で終わった", err)
+	}
+	waitState(t, c.id, protocol.StateEnded)
+}
+
+func TestCallEndReachesTheRestartedBackend(t *testing.T) {
+	s := newSystem(t, hanako, time.Date(2026, 11, 9, 2, 0, 0, 0, time.UTC))
+	c := s.startCall(t)
+	session := s.gemini.waitForSession(t, 1)
+	waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+	s.phone.pickUp()
+	waitForText(t, session, "[電話がつながりました]")
+	waitState(t, c.id, protocol.StateTalking)
+
+	s.api.Stop()
+	waitUntil(t, "古いバックエンドから切れなかった", func() bool { return !s.api.Connected(hanakoID) })
+	// 電話機が切れた接続を離れてから、受話器を置く。
+	time.Sleep(50 * time.Millisecond)
+	s.phone.putDown()
+	if err := c.result(t); err != nil {
+		t.Fatalf("切れているあいだに受話器を置いたのに、電話が %v で終わった", err)
+	}
+
+	s.api = server.New(s.config, emulators, s.gemini, s.gemini, s.clock)
+	s.swap.set(s.api)
+	s.waitReconnected(t)
 	waitState(t, c.id, protocol.StateEnded)
 }
 

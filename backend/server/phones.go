@@ -124,7 +124,11 @@ func (b *phoneBook) send(personID string, msg protocol.PhoneMessage) error {
 	if err := link.conn.Write(ctx, websocket.MessageText, body); err != nil {
 		return err
 	}
-	link.callID = msg.CallID
+	// すでに追跡している電話があるときは、その ID を残す。
+	// あとから来た指示で置き換えると、接続が切れたときに、今の電話を「つながらなかった」にできない。
+	if link.callID == "" {
+		link.callID = msg.CallID
+	}
 	return nil
 }
 
@@ -201,21 +205,24 @@ func (s *server) applyState(personID, callID, state string) {
 }
 
 // failCall は、呼び出し中か通話中の電話を、つながらなかったにする。
-// すでに終わっている電話は変えない。
+// すでに終わっている電話は変えない。読み取りと書き込みは 1 つのトランザクションなので、
+// そのあいだに届いた終わりの状態を、つながらなかったで上書きしない。
 func (s *server) failCall(personID, callID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ref := s.callRef(personID, callID)
-	doc, err := ref.Get(ctx)
+	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(ref)
+		if err != nil {
+			return err
+		}
+		state, _ := doc.Data()["state"].(string)
+		if state != protocol.StateRinging && state != protocol.StateTalking {
+			return nil
+		}
+		return tx.Update(ref, []firestore.Update{{Path: "state", Value: protocol.StateFailed}})
+	})
 	if err != nil {
-		log.Printf("切れた電話 %s を読めなかった: %v", callID, err)
-		return
-	}
-	state, _ := doc.Data()["state"].(string)
-	if state != protocol.StateRinging && state != protocol.StateTalking {
-		return
-	}
-	if _, err := ref.Update(ctx, []firestore.Update{{Path: "state", Value: protocol.StateFailed}}); err != nil {
 		log.Printf("電話 %s を %s にできなかった: %v", callID, protocol.StateFailed, err)
 	}
 }

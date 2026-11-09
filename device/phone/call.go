@@ -47,9 +47,10 @@ type Device struct {
 // errNoAnswer は、呼び出しの上限を過ぎても受話器が上がらなかったときである。
 var errNoAnswer = errors.New("見守る方が出ませんでした")
 
-// place は、callID の電話を 1 回する。呼び出しを始め、受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
+// place は、callID の電話を 1 回する。受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
 // 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
-func (d *Device) place(ctx context.Context, link callLink, callID string) error {
+// エラーで戻った電話は、受話器が上がっていても、つながらなかったである。
+func (d *Device) place(ctx context.Context, link callLink, callID string) (err error) {
 	// 待っているあいだの Enter を、この電話の受話器上げにしない。
 	d.Phone.Hook.Prepare()
 	// Rest を最初に登録する。defer は逆順なので、状態と報告を送り終えてからフックを戻す。
@@ -59,7 +60,8 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) error 
 	// 送信はマイクを止め、まだ流していない音を捨て、接続を閉じ、ランプを消したあとに行われる。
 	// 送信は最大 reportTimeout 待つ。そのあいだ受話器の後始末を残すと、置いたあとも音声が流れ、ランプが点いたままになる。
 	var pending *protocol.CallReport
-	// 途中で失敗した電話は、つながらなかった。出なかったときと、受話器が上がったあとは、下の処理が書き換える。
+	// 途中で失敗した電話は、つながらなかった。出なかったときは下で書き換える。
+	// 受話器が上がって普通に終わったときだけ、終わったにする。
 	endState := protocol.StateFailed
 	defer func() {
 		// 電話の context が取り消されたあとも、最後の状態は届ける。
@@ -130,7 +132,10 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) error 
 			built.CallID = callID
 			built.WatchedPersonID = d.WatchedPerson
 			pending = &built
-			endState = protocol.StateEnded
+			// 失敗で戻った電話は、受話器が上がっていても、つながらなかったのままにする。
+			if err == nil {
+				endState = protocol.StateEnded
+			}
 		}
 		closeMic()
 		d.Phone.Handset.Hush()
@@ -576,7 +581,8 @@ func (d *Device) sendReport(report protocol.CallReport) error {
 // stateTimeout は、電話の状態を 1 通送るときに待つ上限である。
 const stateTimeout = 5 * time.Second
 
-// sendState は、電話の状態をバックエンドへ 1 通送る。失敗しても送り直さない。
+// sendState は、電話の状態をバックエンドへ 1 通送る。
+// その場で届かなくても、link が覚えていて、接続が戻ったときに送り直す。
 // 文字起こしのターミナルには書かない。
 func (d *Device) sendState(link callLink, callID, state string) {
 	ctx, cancel := context.WithTimeout(context.Background(), stateTimeout)
