@@ -109,6 +109,28 @@ func choose(deviceNames []string, want string) (int, error) {
 	}
 }
 
+// monitorPrefix は、PipeWire や PulseAudio が再生の音をそのまま録るために作る入力の名前の頭である。マイクではない。
+const monitorPrefix = "Monitor of "
+
+// chooseCapture は、録音の機器から want に一致するマイクを 1 つ選ぶ。モニターは外すので、
+// 「Unitek」のような 1 つの名前で、再生の機器とマイクの両方を選べる。
+func chooseCapture(deviceNames []string, want string) (int, error) {
+	var mics []string
+	var index []int
+	for i, name := range deviceNames {
+		if strings.HasPrefix(name, monitorPrefix) {
+			continue
+		}
+		mics = append(mics, name)
+		index = append(index, i)
+	}
+	got, err := choose(mics, want)
+	if err != nil {
+		return 0, err
+	}
+	return index[got], nil
+}
+
 func match(deviceNames []string, ok func(string) bool) []int {
 	var found []int
 	for i, name := range deviceNames {

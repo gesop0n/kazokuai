@@ -34,6 +34,30 @@ func TestChooseRejectsAMissingOrAmbiguousName(t *testing.T) {
 	}
 }
 
+// Raspberry Pi の PipeWire が並べた名前である。録音には、再生の音を写すモニターも並ぶ。
+func TestChooseCaptureSkipsMonitors(t *testing.T) {
+	playback := []string{"Audio Adapter (Unitek Y-247A) Analog Stereo", "Built-in Audio Stereo"}
+	capture := []string{
+		"Monitor of Audio Adapter (Unitek Y-247A) Analog Stereo",
+		"Audio Adapter (Unitek Y-247A) Mono",
+		"Monitor of Built-in Audio Stereo",
+	}
+
+	out, err := choose(playback, "Unitek")
+	if err != nil || playback[out] != "Audio Adapter (Unitek Y-247A) Analog Stereo" {
+		t.Fatalf("再生 = %q, %v", playback[out], err)
+	}
+	in, err := chooseCapture(capture, "Unitek")
+	if err != nil || capture[in] != "Audio Adapter (Unitek Y-247A) Mono" {
+		t.Fatalf("録音 = %q, %v", capture[in], err)
+	}
+
+	// 再生の機器の名前をそのまま渡しても、モニターは選ばない
+	if _, err := chooseCapture(capture, "Audio Adapter (Unitek Y-247A) Analog Stereo"); err == nil {
+		t.Fatal("モニターを選んだ")
+	}
+}
+
 func TestFormatDevicesListsPlaybackAndCapture(t *testing.T) {
 	got := FormatDevices(
 		[]Device{{Name: "USB Audio", Channels: 2}},
