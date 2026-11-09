@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,12 +181,14 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	if old := s.phones.replace(personID, link); old != nil {
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
+	s.logf("電話機がつながりました。見守る方: %s", personID)
 	defer s.disconnect(personID, link)
 	go keepalive.Run(ctx, s.clock, conn)
 
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
+			s.logf("電話機が切れました。見守る方: %s、理由: %s", personID, s.dropReason(err))
 			return
 		}
 		var msg protocol.PhoneMessage
@@ -194,6 +197,41 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 		}
 		s.applyState(personID, msg.CallID, msg.State)
 	}
+}
+
+// logf は、電話機のつながりを書く。Logger があればそこへ、無ければ標準のログへ書く。
+func (s *server) logf(format string, args ...any) {
+	if s.config.Logger != nil {
+		s.config.Logger.Printf(format, args...)
+		return
+	}
+	log.Printf(format, args...)
+}
+
+// dropReason は、切れた接続の理由である。合言葉は出さない。
+func (s *server) dropReason(err error) string {
+	if s.base.Err() != nil {
+		return "バックエンドが止まった"
+	}
+	var closed websocket.CloseError
+	if errors.As(err, &closed) && closed.Reason != "" {
+		return s.redact(closed.Reason)
+	}
+	if errors.As(err, &closed) && closed.Code == websocket.StatusNormalClosure {
+		return "電話機が閉じた"
+	}
+	if err == nil {
+		return "接続が切れた"
+	}
+	return s.redact(err.Error())
+}
+
+func (s *server) redact(text string) string {
+	secret := s.config.PhoneSecret
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[合言葉]")
 }
 
 // disconnect は、personID の接続が link のままなら外す。

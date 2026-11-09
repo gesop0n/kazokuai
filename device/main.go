@@ -7,7 +7,7 @@
 //
 // 見守る方の ID は、起動するときに渡す。受話器を開く前に確かめる。
 // バックエンドの URL は --backend で渡す。既定は http://localhost:8080 で、https は wss でつなぐ。
-// 合言葉は環境変数 PHONE_SECRET から読む。未設定なら開発用の合言葉を使う。どのリクエストにも付ける。
+// 合言葉は環境変数 PHONE_SECRET から読む。前後の空白は除く。未設定なら開発用の合言葉を使う。どのリクエストにも付ける。
 // 電話機の音声とフックは環境変数から読む。空なら受話器の配線の既定である。
 //
 //	mise run device -- --watched-person <見守る方の ID>
@@ -106,10 +106,10 @@ func parseCheck(args []string) (string, error) {
 	}
 }
 
-// phoneSecret は、環境変数の合言葉を返す。未設定なら開発用の合言葉である。
+// phoneSecret は、環境変数の合言葉を返す。前後の空白は除く。未設定なら開発用の合言葉である。
 func phoneSecret(env string) string {
-	if env != "" {
-		return env
+	if secret := strings.TrimSpace(env); secret != "" {
+		return secret
 	}
 	return protocol.DevPhoneSecret
 }

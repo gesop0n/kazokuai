@@ -1,10 +1,10 @@
 // backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話を受け、電話の報告からまとめを作るバックエンドのプログラムである。
 // 電話をかける見守る方は、電話機が接続するときに渡す。名前と呼び方は、トークンを作るたびに Firestore から読む。
-// Gemini の API キーは環境変数 GEMINI_API_KEY から読み、デバイスには渡さない。
+// Gemini の API キーは環境変数 GEMINI_API_KEY から読み、前後の空白を除いて使う。デバイスには渡さない。
 // 0.0.0.0:$PORT で待つ。PORT が無ければ 8080 である。
 // プロジェクトは環境変数 GOOGLE_CLOUD_PROJECT から読む。demo- のプロジェクトは Firebase のエミュレーターにつながり、
 // それ以外は渡したプロジェクトのサービスアカウントでつながる。手元では mise run backend が demo-kazokuai とエミュレーターを渡す。
-// 電話機の合言葉は環境変数 PHONE_SECRET から読む。demo- のプロジェクトで未設定なら、開発用の合言葉を使う。
+// 電話機の合言葉は環境変数 PHONE_SECRET から読む。前後の空白は除く。demo- のプロジェクトで未設定なら、開発用の合言葉を使う。
 // SIGTERM を受けると、電話機との接続を閉じてから止まる。
 //
 //	mise run backend
@@ -21,6 +21,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -79,9 +80,9 @@ func run(config server.Config) error {
 			protocol.DurationWords(config.WrapUpBefore),
 			protocol.DurationWords(config.MaxCall))
 	}
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		return errors.New("環境変数 GEMINI_API_KEY に Gemini の API キーを入れてください")
+	apiKey, err := readGeminiAPIKey(os.Getenv("GEMINI_API_KEY"))
+	if err != nil {
+		return err
 	}
 	projectID, err := server.ResolveProject()
 	if err != nil {
@@ -98,11 +99,7 @@ func run(config server.Config) error {
 		return err
 	}
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:      apiKey,
-		Backend:     genai.BackendGeminiAPI,
-		HTTPOptions: genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion},
-	})
+	client, err := newGeminiClient(ctx, apiKey, genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion})
 	if err != nil {
 		return err
 	}
@@ -120,6 +117,27 @@ func run(config server.Config) error {
 	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return serve(sigCtx, ln, handler)
+}
+
+// readGeminiAPIKey は、環境変数の Gemini の API キーを返す。前後の空白は除く。
+func readGeminiAPIKey(raw string) (string, error) {
+	key := strings.TrimSpace(raw)
+	if key == "" {
+		return "", errors.New("環境変数 GEMINI_API_KEY に Gemini の API キーを入れてください")
+	}
+	return key, nil
+}
+
+// newGeminiClient は、API キーで Gemini のクライアントを作る。
+func newGeminiClient(ctx context.Context, apiKey string, opts genai.HTTPOptions) (*genai.Client, error) {
+	if opts.APIVersion == "" {
+		opts.APIVersion = protocol.GeminiAPIVersion
+	}
+	return genai.NewClient(ctx, &genai.ClientConfig{
+		APIKey:      apiKey,
+		Backend:     genai.BackendGeminiAPI,
+		HTTPOptions: opts,
+	})
 }
 
 // listenAddr は、待ち受けるアドレスを返す。port が空なら 8080 である。どのインターフェースでも受ける。

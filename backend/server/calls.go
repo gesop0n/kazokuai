@@ -89,6 +89,7 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.phones.connected(personID) {
+		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
