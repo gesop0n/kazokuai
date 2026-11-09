@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 
+import '../../support/fake_call_script_repository.dart';
 import '../../support/layout_matrix.dart';
 
 // 文字の幅で変わる値は、同梱のフォントを読み込んで測る。
@@ -36,8 +38,18 @@ const _statusBar = 62.0;
 const _keyboardHeight = 336.0;
 
 Future<void> _pumpWithMessage(WidgetTester tester, LayoutCase layout) async {
-  await pumpScreenInLayout(tester, layout, const AskScreen());
+  await pumpScreenInLayout(
+    tester,
+    layout,
+    const AskScreen(),
+    overrides: [
+      callScriptRepositoryProvider.overrideWithValue(
+        FakeCallScriptRepository(script: _script),
+      ),
+    ],
+  );
   await tester.enterText(find.byType(TextField), _message);
+  await tester.pump(const Duration(seconds: 1));
   await tester.pump();
 }
 
@@ -116,6 +128,11 @@ void main() {
         tester,
         LayoutCase(_deviceSize.width, textScale),
         const AskScreen(),
+        overrides: [
+          callScriptRepositoryProvider.overrideWithValue(
+            FakeCallScriptRepository(script: _script),
+          ),
+        ],
       );
       tester.view
         ..physicalSize = _deviceSize
@@ -123,6 +140,7 @@ void main() {
         ..viewInsets = const FakeViewPadding(bottom: _keyboardHeight);
       addTearDown(tester.view.reset);
       await tester.enterText(find.byType(TextField), _message);
+      await tester.pump(const Duration(seconds: 1));
       await tester.pumpAndSettle();
     }
 

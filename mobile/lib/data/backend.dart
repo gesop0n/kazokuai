@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 
@@ -47,6 +48,41 @@ class Backend {
     }
     if (response.statusCode != 201) {
       throw const RegisterWatchedPersonException();
+    }
+  }
+
+  // 通話内容の案を頼む。作れなければ CallScriptException を投げる
+  Future<String> draftCallScript({
+    required String idToken,
+    required String message,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$_backendUrl/calls/script'),
+            headers: {
+              'Authorization': 'Bearer $idToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'message': message}),
+          )
+          .timeout(_timeout);
+    } on http.ClientException {
+      throw const CallScriptException();
+    } on TimeoutException {
+      throw const CallScriptException();
+    }
+    if (response.statusCode != 200) throw const CallScriptException();
+    try {
+      final decoded = jsonDecode(response.body);
+      final script = decoded is Map ? decoded['script'] : null;
+      if (script is! String || script.trim().isEmpty) {
+        throw const CallScriptException();
+      }
+      return script;
+    } on FormatException {
+      throw const CallScriptException();
     }
   }
 

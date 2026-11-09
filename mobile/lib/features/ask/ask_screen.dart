@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
 
-// 文は ADR 0002 のとおり固定で、入力の内容によって変えない
-const _callScript = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
+// 入力が止まってから、通話内容の案を頼むまでの時間
+const _draftPause = Duration(seconds: 1);
+
+enum _DraftPhase { hidden, making, ready, failed }
 
 class AskScreen extends ConsumerStatefulWidget {
   const AskScreen({super.key});
@@ -24,17 +29,73 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   DateTime _date = DateTime(2026, 11, 6);
   TimeOfDay _time = const TimeOfDay(hour: 8, minute: 30);
 
+  Timer? _draftTimer;
+  int _draftGeneration = 0;
+  String? _script;
+  _DraftPhase _phase = _DraftPhase.hidden;
+
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    _draftGeneration++;
     _messageController.dispose();
     super.dispose();
   }
 
+  // 文が変わったら、前の案は捨てて、止まってから頼み直す
+  void _onMessageChanged(String _) {
+    _draftTimer?.cancel();
+    _draftGeneration++;
+    final message = _messageController.text.trim();
+    setState(() {
+      _script = null;
+      _phase = _DraftPhase.hidden;
+    });
+    if (message.isEmpty) return;
+    _draftTimer = Timer(_draftPause, () => _requestDraft(message));
+  }
+
+  Future<void> _requestDraft(String message) async {
+    final generation = _draftGeneration;
+    setState(() => _phase = _DraftPhase.making);
+    try {
+      final script = await ref
+          .read(callScriptRepositoryProvider)
+          .draft(message: message);
+      if (!mounted || generation != _draftGeneration) return;
+      if (script.trim().isEmpty) throw const CallScriptException();
+      setState(() {
+        _script = script;
+        _phase = _DraftPhase.ready;
+      });
+    } on CallScriptException {
+      if (!mounted || generation != _draftGeneration) return;
+      setState(() {
+        _script = null;
+        _phase = _DraftPhase.failed;
+      });
+    }
+  }
+
+  String? get _cardText => switch (_phase) {
+    _DraftPhase.hidden => null,
+    _DraftPhase.making => '案を作っています',
+    _DraftPhase.ready => _script,
+    _DraftPhase.failed => '案を作れませんでした',
+  };
+
+  bool get _canSend =>
+      _phase == _DraftPhase.ready &&
+      _script != null &&
+      _messageController.text.trim().isNotEmpty;
+
   Future<void> _call(String message) async {
+    final script = _script;
+    if (script == null) return;
     try {
       await ref
           .read(immediateCallRepositoryProvider)
-          .start(message: message, script: _callScript);
+          .start(message: message, script: script);
     } on PhoneNotConnectedException {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -51,6 +112,8 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   }
 
   void _book(String message) {
+    final script = _script;
+    if (script == null) return;
     ref
         .read(bookedCallsProvider.notifier)
         .add(
@@ -62,7 +125,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
             _time.minute,
           ),
           message: message,
-          script: _callScript,
+          script: script,
         );
     context.goNamed(AppRoutes.booking);
   }
@@ -70,7 +133,8 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   @override
   Widget build(BuildContext context) {
     final message = _messageController.text.trim();
-    final hasMessage = message.isNotEmpty;
+    final cardText = _cardText;
+    final canSend = _canSend;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -86,9 +150,9 @@ class _AskScreenState extends ConsumerState<AskScreen> {
                   children: [
                     BookingMessageField(
                       controller: _messageController,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: _onMessageChanged,
                     ),
-                    if (hasMessage) const CallScriptCard(script: _callScript),
+                    if (cardText != null) CallScriptCard(script: cardText),
                     DateTimeFields(
                       date: _date,
                       time: _time,
@@ -104,8 +168,8 @@ class _AskScreenState extends ConsumerState<AskScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: BookingFormActions(
-                onBook: hasMessage ? () => _book(message) : null,
-                onCall: hasMessage ? () => _call(message) : null,
+                onBook: canSend ? () => _book(message) : null,
+                onCall: canSend ? () => _call(message) : null,
               ),
             ),
           ],
