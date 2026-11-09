@@ -169,6 +169,105 @@ func TestSummary(t *testing.T) {
 			t.Errorf("generateContent を %d 回呼んだ, want 3", got)
 		}
 	})
+
+	t.Run("伝言のある電話のまとめは、伝えたことと、発話にある返答を残す", func(t *testing.T) {
+		started := time.Date(2026, 11, 7, 11, 0, 0, 0, time.UTC)
+		s := newSystem(t, hanako, started)
+		s.gemini.setSummary(summaryResponse(`{
+			"headline": "伝言を伝えたそうです。",
+			"quote": {"text": "", "offsetMs": 0},
+			"meal": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"sleep": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"health": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"topic": "話し相手",
+			"points": [],
+			"told": "金曜の通院は、朝10時にお迎えに来る",
+			"reply": {"text": "  わかったよ。玄関で待ってるね。  ", "offsetMs": 87000}
+		}`))
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+		session.reply(finished(inputTranscription("わかったよ。玄関で待ってるね。")))
+		s.terminal.waitForLines(t, "見守る方: わかったよ。玄関で待ってるね。")
+		s.phone.putDown()
+		if err := c.result(t); err != nil {
+			t.Fatal(err)
+		}
+
+		summary := objectField(t, waitSummary(t, started), "summary")
+		if summary["told"] != "金曜の通院は、朝10時にお迎えに来る" {
+			t.Errorf("伝えたこと = %v", summary["told"])
+		}
+		reply := objectField(t, summary, "reply")
+		if reply["text"] != "  わかったよ。玄関で待ってるね。  " {
+			t.Errorf("返答 = %v, want 空白ごと残す", reply["text"])
+		}
+		if intField(t, reply, "offsetMs") != 87_000 {
+			t.Errorf("返答の時刻 = %v, want 87000 ミリ秒", reply["offsetMs"])
+		}
+
+		req := s.gemini.summaryRequests()[0]
+		sent := contentText(req.contents[0])
+		for _, want := range []string{testMessage, testScript, "わかったよ。玄関で待ってるね。"} {
+			if !strings.Contains(sent, want) {
+				t.Errorf("Gemini に送った会話に %q がない:\n%s", want, sent)
+			}
+		}
+		instruction := contentText(req.config.SystemInstruction)
+		for _, want := range []string{"伝えたこと", "返答", "一字一句"} {
+			if !strings.Contains(instruction, want) {
+				t.Errorf("Gemini への指示に %q がない:\n%s", want, instruction)
+			}
+		}
+		props, _ := req.config.ResponseJsonSchema.(map[string]any)["properties"].(map[string]any)
+		for _, name := range []string{"told", "reply"} {
+			if _, ok := props[name]; !ok {
+				t.Errorf("まとめの schema に %s がない", name)
+			}
+		}
+	})
+
+	t.Run("見守る方の発話にない返答は捨てる", func(t *testing.T) {
+		started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+		s := newSystem(t, hanako, started)
+		s.gemini.setSummary(summaryResponse(`{
+			"headline": "伝言を伝えたそうです。",
+			"quote": {"text": "「朝ごはんも食べたしね。」", "offsetMs": 0},
+			"meal": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"sleep": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"health": {"status": "話していない", "said": "", "quote": "", "concerning": false},
+			"topic": "話し相手",
+			"points": [],
+			"told": "金曜の通院は、朝10時にお迎えに来る",
+			"reply": {"text": "それはよかったです。", "offsetMs": 5000}
+		}`))
+		c := s.startCall(t)
+		session := s.gemini.waitForSession(t, 1)
+		s.phone.pickUp()
+		waitForText(t, session, "[電話がつながりました]")
+		session.reply(
+			finished(inputTranscription("朝ごはんも食べたしね。")),
+			finished(outputTranscription("それはよかったです。")),
+		)
+		s.terminal.waitForLines(t, "見守る方: 朝ごはんも食べたしね。", "かぞくAI: それはよかったです。")
+		s.phone.putDown()
+		if err := c.result(t); err != nil {
+			t.Fatal(err)
+		}
+
+		summary := objectField(t, waitSummary(t, started), "summary")
+		reply := objectField(t, summary, "reply")
+		if reply["text"] != "" {
+			t.Errorf("返答 = %v, want AI の言葉は捨てる", reply["text"])
+		}
+		if summary["told"] != "金曜の通院は、朝10時にお迎えに来る" {
+			t.Errorf("伝えたこと = %v, want 返答を捨てても残す", summary["told"])
+		}
+		if objectField(t, summary, "quote")["text"] != "「朝ごはんも食べたしね。」" {
+			t.Errorf("本人の言葉 = %v", summary["quote"])
+		}
+	})
 }
 
 func TestReportSendFailure(t *testing.T) {

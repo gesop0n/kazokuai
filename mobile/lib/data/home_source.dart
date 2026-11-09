@@ -9,6 +9,7 @@ const _notTalked = '話していない';
 
 // Firestore の見守る方と電話のドキュメントを、ホームの型にする。
 // 直近の電話は期間に関係なくいちばん新しいもの、今日の様子はその日の最後の電話。
+// 返答は、まとめが届いているいちばん新しい電話のもので、届いていなければ出さない。
 HomeView homeViewFrom({
   required Map<String, dynamic> person,
   required List<Map<String, dynamic>> calls,
@@ -16,18 +17,18 @@ HomeView homeViewFrom({
 }) {
   final name = _string(person['name']);
   final callName = _string(person['callName']);
-  final parsed = <Call>[];
+  final parsed = <_ParsedCall>[];
   for (final data in calls) {
     final call = _callFrom(data);
     if (call != null) parsed.add(call);
   }
-  parsed.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  parsed.sort((a, b) => b.call.startedAt.compareTo(a.call.startedAt));
 
   final today = _dateOnly(now);
   Call? todayCall;
   for (final call in parsed) {
-    if (_dateOnly(call.startedAt) == today) {
-      todayCall = call;
+    if (_dateOnly(call.call.startedAt) == today) {
+      todayCall = call.call;
       break;
     }
   }
@@ -39,30 +40,69 @@ HomeView homeViewFrom({
       initial: _initial(callName, name),
     ),
     now: now,
-    latestCall: parsed.isEmpty ? null : parsed.first,
+    latestCall: parsed.isEmpty ? null : parsed.first.call,
     todayCall: todayCall,
+    reply: _replyUntilLaterSummary(parsed),
   );
 }
 
-Call? _callFrom(Map<String, dynamic> data) {
+// 返答のある電話のうち最新のものを、それより新しい電話のまとめが届くまで出す。
+// 新しい順に見て、まとめが届いた最初の電話に返答がなければ出さない。
+Reply? _replyUntilLaterSummary(List<_ParsedCall> calls) {
+  for (final call in calls) {
+    if (!call.summaryArrived) continue;
+    return call.reply;
+  }
+  return null;
+}
+
+class _ParsedCall {
+  const _ParsedCall({
+    required this.call,
+    required this.summaryArrived,
+    required this.reply,
+  });
+
+  final Call call;
+  final bool summaryArrived;
+  final Reply? reply;
+}
+
+_ParsedCall? _callFrom(Map<String, dynamic> data) {
   final startedAt = _date(data['startedAt']);
   if (startedAt == null) return null;
   final state = _string(data['summaryState']);
   final made = state == _summaryMade;
   final summary = _map(data['summary']);
   final id = _string(data['id']);
-  return Call(
-    id: id.isEmpty ? null : id,
-    startedAt: startedAt,
-    duration: Duration(milliseconds: _int(data['durationMs'])),
-    summary: CallSummary(
-      headline: _headline(summary, state),
-      conditions: [
-        _condition(ConditionKind.meal, summary?['meal'], made: made),
-        _condition(ConditionKind.sleep, summary?['sleep'], made: made),
-        _condition(ConditionKind.health, summary?['health'], made: made),
-      ],
+  return _ParsedCall(
+    call: Call(
+      id: id.isEmpty ? null : id,
+      startedAt: startedAt,
+      duration: Duration(milliseconds: _int(data['durationMs'])),
+      summary: CallSummary(
+        headline: _headline(summary, state),
+        conditions: [
+          _condition(ConditionKind.meal, summary?['meal'], made: made),
+          _condition(ConditionKind.sleep, summary?['sleep'], made: made),
+          _condition(ConditionKind.health, summary?['health'], made: made),
+        ],
+      ),
     ),
+    summaryArrived: state == _summaryMade || state == _summaryNotMade,
+    reply: made ? _replyFrom(summary, startedAt) : null,
+  );
+}
+
+// 作れた電話の返答。文がなければ null。時刻は受話器を上げてからの経過
+Reply? _replyFrom(Map<String, dynamic>? summary, DateTime startedAt) {
+  final reply = _map(summary?['reply']);
+  final text = _string(reply?['text']);
+  if (text.trim().isEmpty) return null;
+  return Reply(
+    told: _string(summary?['told']),
+    text: text,
+    saidAt: startedAt.add(Duration(milliseconds: _int(reply?['offsetMs']))),
   );
 }
 

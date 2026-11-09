@@ -33,6 +33,10 @@ type summaryDraft struct {
 	Health   summaryToday   `json:"health" firestore:"health"`
 	Topic    string         `json:"topic" firestore:"topic" schema:"enum=体調,enum=話し相手,enum=操作案内"`
 	Points   []summaryPoint `json:"points" firestore:"points"`
+	// Told は、伝えたことである。AI が伝えたことを短く言い直した文。
+	Told string `json:"told" firestore:"told"`
+	// Reply は、返答である。見守る方の言葉をそのまま抜き出したものと、その時刻。
+	Reply summaryQuote `json:"reply" firestore:"reply"`
 }
 
 // summaryQuote は、本人の言葉と、受話器を上げてからの時刻である。
@@ -65,6 +69,15 @@ const summaryInstruction = `あなたは、見守る方と AI の電話から、
 # 本人の言葉
 - 本人の言葉は、見守る方の発話から一字一句そのまま抜き出してください。
 - 言い換えたり、AI の言葉を本人の言葉にしたりしないでください。
+
+# 伝えたことと返答
+- 伝言があるときは、伝えたことと返答を書いてください。
+- 伝えたことは、AI が伝言として伝えたことを、短く言い直した文です。
+- 返答は、伝言を聞いた見守る方の答えを、見守る方の発話から一字一句そのまま抜き出してください。
+- 返答の時刻は、その発話が始まった時刻です。
+- 言い換えたり、AI の言葉を返答にしたりしないでください。
+- 返答がなければ、返答の文を空にしてください。
+- 伝言がなければ、伝えたことと返答を空にしてください。
 
 # 気になる
 - 気になるは、見守る方が自分で、困っていることやいつもと違うことを話したときだけ付けてください。
@@ -117,7 +130,11 @@ func (s *server) summarizeOnce(ctx context.Context, ref *firestore.DocumentRef, 
 	if s.summarizer == nil {
 		return errors.New("まとめを作る Gemini がない")
 	}
-	response, err := s.summarizer.GenerateContent(ctx, s.summaryModel(), summaryContents(report), summaryConfig())
+	stored, err := readCallMessage(ctx, ref)
+	if err != nil {
+		return err
+	}
+	response, err := s.summarizer.GenerateContent(ctx, s.summaryModel(), summaryContents(report, stored), summaryConfig())
 	if err != nil {
 		return err
 	}
@@ -128,6 +145,10 @@ func (s *server) summarizeOnce(ctx context.Context, ref *firestore.DocumentRef, 
 	var draft summaryDraft
 	if err := json.Unmarshal([]byte(text), &draft); err != nil {
 		return fmt.Errorf("まとめの JSON を読めなかった: %w", err)
+	}
+	if !stored.hasMessage() {
+		draft.Told = ""
+		draft.Reply = summaryQuote{}
 	}
 	dropUnmatchedQuotes(&draft, report.Utterances)
 	if draft.Points == nil {
@@ -164,9 +185,37 @@ func (s *server) summaryModel() string {
 	return DefaultSummaryModel
 }
 
-func summaryContents(report protocol.CallReport) []*genai.Content {
+// callMessage は、電話の文書に残してある伝言である。
+type callMessage struct {
+	Message string `firestore:"message"`
+	Script  string `firestore:"script"`
+}
+
+func (m callMessage) hasMessage() bool {
+	return strings.TrimSpace(m.Message) != "" || strings.TrimSpace(m.Script) != ""
+}
+
+func readCallMessage(ctx context.Context, ref *firestore.DocumentRef) (callMessage, error) {
+	doc, err := ref.Get(ctx)
+	if err != nil {
+		return callMessage{}, err
+	}
+	var stored callMessage
+	if err := doc.DataTo(&stored); err != nil {
+		return callMessage{}, err
+	}
+	return stored, nil
+}
+
+func summaryContents(report protocol.CallReport, stored callMessage) []*genai.Content {
 	var b strings.Builder
-	b.WriteString("次の電話の会話から、家族に向けたまとめを作ってください。\n\n# 会話\n")
+	b.WriteString("次の電話の会話から、家族に向けたまとめを作ってください。\n\n# 伝言\n")
+	if !stored.hasMessage() {
+		b.WriteString("（伝言はない）\n")
+	} else {
+		fmt.Fprintf(&b, "伝えたいこと: %s\n通話内容: %s\n", strings.TrimSpace(stored.Message), strings.TrimSpace(stored.Script))
+	}
+	b.WriteString("\n# 会話\n")
 	if len(report.Utterances) == 0 {
 		b.WriteString("（発話はない）\n")
 	}
@@ -184,7 +233,7 @@ func summaryConfig() *genai.GenerateContentConfig {
 	}
 }
 
-// dropUnmatchedQuotes は、見守る方の発話にそのまま含まれない本人の言葉を空にする。
+// dropUnmatchedQuotes は、見守る方の発話にそのまま含まれない本人の言葉と返答を空にする。
 // かぎかっこと前後の空白は、比べるときだけ除く。
 func dropUnmatchedQuotes(draft *summaryDraft, utterances []protocol.Utterance) {
 	var watched []string
@@ -195,6 +244,9 @@ func dropUnmatchedQuotes(draft *summaryDraft, utterances []protocol.Utterance) {
 	}
 	if !quoteAppears(draft.Quote.Text, watched) {
 		draft.Quote.Text = ""
+	}
+	if !quoteAppears(draft.Reply.Text, watched) {
+		draft.Reply.Text = ""
 	}
 	for _, item := range []*summaryToday{&draft.Meal, &draft.Sleep, &draft.Health} {
 		if !quoteAppears(item.Quote, watched) {
