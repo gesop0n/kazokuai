@@ -14,7 +14,7 @@
       {
         "source": "/api/**",
         "run": {
-          "serviceId": "backend",
+          "serviceId": "kazokuai",
           "region": "asia-northeast1"
         }
       }

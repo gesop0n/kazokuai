@@ -51,6 +51,10 @@ GoRouter createAppRouter({
 }) {
   final rootNavigatorKey = GlobalKey<NavigatorState>();
 
+  // push で開いた画面も URL に出す。既定では URL が元の画面のままなので、
+  // 読み直すとホームに戻り、開いていた画面を失う。
+  GoRouter.optionURLReflectsImperativeAPIs = true;
+
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',

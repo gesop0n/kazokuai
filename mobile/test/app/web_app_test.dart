@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
+import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_edit_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
@@ -88,6 +90,32 @@ void main() {
 
     expect(find.byType(CallsScreen), findsOneWidget);
     expect(find.byType(WelcomeScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+  });
+
+  testWidgets('押し開いた画面を読み直しても、その画面が開く', (tester) async {
+    useScreen(tester, const Size(393, 852));
+    await pumpSignedInApp(tester);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('AIに伝えてもらう'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AskScreen), findsOneWidget);
+
+    // ブラウザが読み直すときに使う道。push のままだと、ここがホームのままになる。
+    final uri = GoRouter.of(tester.element(find.byType(AskScreen)))
+        .routeInformationProvider
+        .value
+        .uri;
+    expect(uri.path, '/ask');
+
+    tester.platformDispatcher.defaultRouteNameTestValue = uri.path;
+    addTearDown(tester.platformDispatcher.clearDefaultRouteNameTestValue);
+
+    await pumpSignedInApp(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AskScreen), findsOneWidget);
     expect(find.byType(HomeScreen), findsNothing);
   });
 
