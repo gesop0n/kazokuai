@@ -72,6 +72,8 @@ void main() {
       buttons.map((button) => button.size),
       containsAll(AppButtonSize.values),
     );
+    expect(find.text('はじめての方は新規登録'), findsOneWidget);
+    expect(find.text('パスワードを忘れた場合'), findsOneWidget);
     expect(buttons.where((button) => button.onTap == null), isNotEmpty);
     expect(
       tester

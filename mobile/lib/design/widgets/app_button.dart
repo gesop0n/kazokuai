@@ -56,7 +56,9 @@ enum AppButtonVariant {
     border: BorderSide(color: AppColors.lineStrong, width: 1.5),
   ),
   light(background: AppColors.nightText, foreground: AppColors.nightBase),
-  ghost(background: Colors.transparent, foreground: AppColors.inkSecondary);
+  ghost(background: Colors.transparent, foreground: AppColors.inkSecondary),
+  // モックの ghost-ink。背景はなく、文字は ink
+  ghostInk(background: Colors.transparent, foreground: AppColors.inkPrimary);
 
   const AppButtonVariant({
     required this.background,
@@ -83,6 +85,7 @@ class AppButton extends StatelessWidget {
     this.leadingIcon,
     this.leading,
     this.trailingIcon,
+    this.underlined = false,
   }) : assert(leadingIcon == null || leading == null);
 
   final String label;
@@ -93,6 +96,10 @@ class AppButton extends StatelessWidget {
   final Widget? leading;
   final AppIcons? trailingIcon;
 
+  // モックの text-underline-offset は Text の下線では位置を変えられない。
+  // 05 のまとめの時刻と同じく、文字の下端に線を引く
+  final bool underlined;
+
   @override
   Widget build(BuildContext context) {
     final leadingIcon = this.leadingIcon;
@@ -100,6 +107,11 @@ class AppButton extends StatelessWidget {
     final isEnabled = onTap != null;
     final foreground = isEnabled ? variant.foreground : AppColors.inkSecondary;
     final keepsBorder = isEnabled || variant == AppButtonVariant.secondary;
+    final labelText = Text(
+      label,
+      textAlign: TextAlign.center,
+      style: size.textStyle.copyWith(color: foreground),
+    );
     return AppPressable(
       onTap: onTap,
       foregroundColor: foreground,
@@ -121,11 +133,14 @@ class AppButton extends StatelessWidget {
             AppIcon(leadingIcon, size: size.iconSize, color: foreground),
           ?leading,
           Flexible(
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              style: size.textStyle.copyWith(color: foreground),
-            ),
+            child: underlined
+                ? DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(bottom: BorderSide(color: foreground)),
+                    ),
+                    child: labelText,
+                  )
+                : labelText,
           ),
           if (trailingIcon != null)
             AppIcon(trailingIcon, size: size.iconSize, color: foreground),

@@ -19,6 +19,9 @@ abstract interface class AuthRepository {
   // 作れなかったときは CreateAccountException を投げる
   Future<void> createAccount({required String email, required String password});
 
+  // 再設定のメールを送る。送れなかったときは、理由を分けずに PasswordResetException を投げる
+  Future<void> sendPasswordResetEmail({required String email});
+
   // ログアウトする。L6 の「もどる」が、ようこそ(L1)に戻るときに使う
   Future<void> signOut();
 }
@@ -55,6 +58,14 @@ class CreateAccountException implements Exception {
 
   @override
   String toString() => 'CreateAccountException($error)';
+}
+
+// 再設定のメールを送れなかった。画面は理由を分けない
+class PasswordResetException implements Exception {
+  const PasswordResetException();
+
+  @override
+  String toString() => 'PasswordResetException';
 }
 
 // テストでは偽物に差し替える

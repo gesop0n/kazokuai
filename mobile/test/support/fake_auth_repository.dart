@@ -9,6 +9,7 @@ class FakeAuthRepository implements AuthRepository {
     bool signedIn = false,
     Map<String, String> accounts = const {},
     this.unreachable = false,
+    this.resetFailures = 0,
   }) : signedIn = ValueNotifier(signedIn),
        accounts = Map<String, String>.of(accounts);
 
@@ -24,6 +25,12 @@ class FakeAuthRepository implements AuthRepository {
   // createAccount に渡された、いちばん新しいメールアドレスとパスワード
   String? submittedEmail;
   String? submittedPassword;
+
+  // sendPasswordResetEmail に渡されたメールアドレス。失敗したときも残る
+  final List<String> resetEmails = [];
+
+  // 0 より大きいあいだ、再設定のメールは送れない。送ろうとするたびに 1 減る
+  int resetFailures;
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -54,6 +61,15 @@ class FakeAuthRepository implements AuthRepository {
     }
     accounts[email] = password;
     signedIn.value = true;
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    resetEmails.add(email);
+    if (unreachable || resetFailures > 0) {
+      if (resetFailures > 0) resetFailures -= 1;
+      throw const PasswordResetException();
+    }
   }
 
   @override

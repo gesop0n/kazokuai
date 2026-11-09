@@ -64,7 +64,10 @@ Future<void> scrollDocumentTo(WidgetTester tester, double fraction) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> openRegister(WidgetTester tester) => tapText(tester, 'はじめる');
+Future<void> openRegister(WidgetTester tester) async {
+  await tapText(tester, '始める');
+  await tapText(tester, 'はじめての方は新規登録');
+}
 
 Future<void> openDocument(WidgetTester tester, String title) =>
     tapText(tester, title);
@@ -80,7 +83,7 @@ Future<void> readDocument(WidgetTester tester, String title) async {
 }
 
 void main() {
-  testWidgets('L1 の「はじめる」から新規登録が開き、2つとも未読である', (tester) async {
+  testWidgets('L2 の「はじめての方は新規登録」から新規登録が開き、2つとも未読である', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
 
     await openRegister(tester);
@@ -94,11 +97,11 @@ void main() {
     expect(find.text('2つとも読むと登録できます'), findsNothing);
   });
 
-  testWidgets('L2 の「新規登録へ」からも新規登録が開く', (tester) async {
+  testWidgets('L2 の「はじめての方は新規登録」で新規登録が開く', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
-    await tapText(tester, 'アカウントをお持ちの方はログイン');
+    await tapText(tester, '始める');
 
-    await tapText(tester, '新規登録へ');
+    await tapText(tester, 'はじめての方は新規登録');
 
     expect(find.text('新規登録'), findsOneWidget);
     expect(find.byType(LoginScreen), findsNothing);
@@ -106,8 +109,8 @@ void main() {
 
   testWidgets('新規登録からもどると、開いた画面に戻る', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
-    await tapText(tester, 'アカウントをお持ちの方はログイン');
-    await tapText(tester, '新規登録へ');
+    await tapText(tester, '始める');
+    await tapText(tester, 'はじめての方は新規登録');
 
     await tapLabel(tester, 'もどる');
 
