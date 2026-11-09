@@ -4,10 +4,29 @@ import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/app/unknown_route_screen.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
+
+// 道の index が予約の番号でないときは、編集画面を作らずに知らせる。
+// int.parse のままだと、/booking/edit/x でアプリが落ちる。
+class BookingEditRoute extends ConsumerWidget {
+  const BookingEditRoute({super.key, required this.index});
+
+  final String index;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final parsed = int.tryParse(index);
+    final count = ref.watch(bookedCallsProvider).length;
+    if (parsed == null || parsed < 0 || parsed >= count) {
+      return const UnknownRouteScreen();
+    }
+    return BookingEditScreen(index: parsed);
+  }
+}
 
 // 06 で押した予約を直す。部品と日付・時刻の選び方は 01 と同じ。
 class BookingEditScreen extends ConsumerStatefulWidget {

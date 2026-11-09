@@ -43,6 +43,13 @@ Future<void> pumpSignedInApp(
 
 void main() {
   testWidgets('見守る方の読み取りが失敗すると、知らせと読み直しのボタンが出る', (tester) async {
+    // 既定の試験面は 800 で、広い画面の列に入る。余白はスマホの幅で測る。
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(393, 600)
+      ..padding = FakeViewPadding.zero;
+    addTearDown(tester.view.reset);
+
     final watchedPerson = FakeWatchedPersonRepository(
       status: WatchedPersonStatus.unreadable,
     );

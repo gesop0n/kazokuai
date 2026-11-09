@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:kazokuai/data/app_config.dart';
 import 'package:kazokuai/data/backend.dart';
 import 'package:kazokuai/data/firebase_immediate_call_repository.dart';
 
@@ -36,7 +37,7 @@ final immediateCallRepositoryProvider = Provider<ImmediateCallRepository>((
   final client = http.Client();
   final repository = FirebaseImmediateCallRepository(
     auth: FirebaseAuth.instance,
-    backend: Backend(client),
+    backend: Backend(client, baseUrl: appConfig.backendUrl),
   );
   ref.onDispose(client.close);
   return repository;

@@ -54,7 +54,7 @@ GoRouter createAppRouter({
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/home',
-    // ログインしていない家族は L1 に、見守る方がいない家族は L6 に、それ以外はホームに移す
+    // ログインしていない家族は L1 に、見守る方がいない家族は L6 に、それ以外は開いている道に残す
     refreshListenable: Listenable.merge([auth.signedIn, watchedPerson.status]),
     redirect: (context, state) {
       final location = state.matchedLocation;
@@ -63,21 +63,23 @@ GoRouter createAppRouter({
         // この分岐が先なので、読み込み中の画面には進まない
         return location.startsWith(_signedOutPath) ? null : _signedOutPath;
       }
-      // 見守る方がいるかを読み終えるまで、読めなかったとき、見守る方がいない間は、ホームに進ませない
-      final waitingAt = switch (watchedPerson.status.value) {
-        WatchedPersonStatus.unknown ||
-        WatchedPersonStatus.unreadable => _loadingPath,
-        WatchedPersonStatus.none => _watchedPersonNamePath,
-        WatchedPersonStatus.registered => null,
-      };
-      if (waitingAt != null) {
-        return location == waitingAt ? null : waitingAt;
+      switch (watchedPerson.status.value) {
+        case WatchedPersonStatus.unknown:
+        case WatchedPersonStatus.unreadable:
+          // 読み終えるまで道を変えない。読み込み中はアプリが上に出す。
+          // /loading へ付け替えると、読み終えたあとホームへ戻り、読み直した画面を失う
+          return null;
+        case WatchedPersonStatus.none:
+          return location == _watchedPersonNamePath
+              ? null
+              : _watchedPersonNamePath;
+        case WatchedPersonStatus.registered:
+          final isBeforeHome =
+              location.startsWith(_signedOutPath) ||
+              location == _loadingPath ||
+              location == _watchedPersonNamePath;
+          return isBeforeHome ? '/home' : null;
       }
-      final isBeforeHome =
-          location.startsWith(_signedOutPath) ||
-          location == _loadingPath ||
-          location == _watchedPersonNamePath;
-      return isBeforeHome ? '/home' : null;
     },
     routes: [
       GoRoute(
@@ -194,7 +196,7 @@ GoRouter createAppRouter({
         path: '/booking/edit/:index',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
-            BookingEditScreen(index: int.parse(state.pathParameters['index']!)),
+            BookingEditRoute(index: state.pathParameters['index'] ?? ''),
       ),
       GoRoute(
         name: AppRoutes.retryRule,
