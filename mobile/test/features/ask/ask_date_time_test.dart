@@ -263,18 +263,28 @@ void main() {
       _expectWheelHits(tester, _minuteWheel());
     });
 
-    testWidgets('カレンダーの行はモックの高さで、日は 44pt 以上押せる', (tester) async {
+    testWidgets('カレンダーの日は重ならず、途中の週の下端もその日になる', (tester) async {
       await _pump(tester, log: _log());
       await _open(tester);
 
       final first = tester.getRect(find.bySemanticsLabel('11月1日'));
       final eighth = tester.getRect(find.bySemanticsLabel('11月8日'));
+      final fifteenth = tester.getRect(find.bySemanticsLabel('11月15日'));
       expect(first.width, greaterThanOrEqualTo(44));
       expect(first.height, greaterThanOrEqualTo(44));
-      // モックのマスは 40、行間は 2。隣の週の上端は 42 下。
-      expect(eighth.top - first.top, closeTo(42, 0.1));
+      expect(eighth.height, greaterThanOrEqualTo(44));
+      // 隣の週の矩形と重ならない。下端までその日を押せる。
+      expect(eighth.top, greaterThanOrEqualTo(first.bottom - 0.1));
+      expect(eighth.top - first.top, greaterThanOrEqualTo(44));
 
-      // 行の下 2pt はマスの外。最後の日には隣がないので、そこを押してもその日になる。
+      await tester.tapAt(eighth.bottomCenter - const Offset(0, 1));
+      await tester.pumpAndSettle();
+      expect(find.text('11/8(日) 8:30にする'), findsOneWidget);
+
+      await tester.tapAt(fifteenth.topCenter + const Offset(0, 1));
+      await tester.pumpAndSettle();
+      expect(find.text('11/15(日) 8:30にする'), findsOneWidget);
+
       final last = tester.getRect(find.bySemanticsLabel('11月30日'));
       await tester.tapAt(last.bottomCenter - const Offset(0, 1));
       await tester.pumpAndSettle();
@@ -339,6 +349,31 @@ void main() {
       await tester.tap(find.widgetWithText(AppButton, label));
       await tester.pumpAndSettle();
       expect(find.text(formatSheetTime(hour, 30)), findsOneWidget);
+      expect(find.text('8:30'), findsNothing);
+    });
+
+    testWidgets('回転の途中で同じ列を押し直すと、押した数字になる', (tester) async {
+      await _pump(tester, log: _log());
+      await _open(tester);
+
+      await _tapNumber(tester, _hourWheel(), '9');
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('11/6(金) 9:30にする'), findsOneWidget);
+
+      // 回転中の数字はポインターを受けない。当たるのは列の側なので、警告は出さない。
+      await tester.tap(
+        find.descendant(of: _hourWheel(), matching: find.text('7')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(find.text('11/6(金) 7:30にする'), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.text('11/6(金) 7:30にする'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 7:30にする'));
+      await tester.pumpAndSettle();
+      expect(find.text('7:30'), findsOneWidget);
       expect(find.text('8:30'), findsNothing);
     });
   });
