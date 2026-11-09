@@ -110,9 +110,14 @@ write_unit() {
   fi
 }
 
-# 設定ファイルは、サービスのユーザーが読めるようにする。合言葉は、他のユーザーからは読めない。
+# 設定ファイルは、サービスのユーザーが読めるようにする。
+# ディレクトリは通過できるようにする。umask が厳しくても、入れ直すたびに直す。
+# 合言葉は、他のユーザーからは読めない。
 share_env_file() {
+  local dir
+  dir=$(dirname "$env_file")
   if [[ -n "$prefix" ]]; then
+    chmod 0755 "$dir"
     chmod 0640 "$env_file"
     return
   fi
@@ -120,6 +125,7 @@ share_env_file() {
   group=$(id -gn "$service_user")
   run_priv chown "root:${group}" "$env_file"
   run_priv chmod 0640 "$env_file"
+  run_priv chmod 0755 "$dir"
 }
 
 warn_gpio() {

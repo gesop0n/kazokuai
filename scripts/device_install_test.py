@@ -345,6 +345,34 @@ class DeviceInstallTest(unittest.TestCase):
         help_result = self.run_install("--help")
         self.assertEqual(help_result.returncode, 2, help_result.stderr)
 
+    def test_settings_directory_stays_traversable_under_a_tight_umask(self):
+        binary = Path(self.tmp.name) / "kazokuai-device"
+        binary.write_bytes(ARM64_ELF)
+        env_dir = self.dest / "etc" / "kazokuai"
+        env_file = env_dir / "device.env"
+        old = os.umask(0o077)
+        try:
+            result = self.run_install(str(binary))
+        finally:
+            os.umask(old)
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(stat.S_IMODE(env_dir.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o640)
+
+        env_dir.chmod(0o700)
+        env_file.write_text(
+            "KAZOKUAI_BACKEND=http://10.0.0.8:8080\n"
+            "KAZOKUAI_WATCHED_PERSON=test-person\n"
+            "PHONE_SECRET=kept-value\n",
+            encoding="utf-8",
+        )
+        again = self.run_install(str(binary))
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(stat.S_IMODE(env_dir.stat().st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o640)
+        self.assertIn("kept-value", env_file.read_text(encoding="utf-8"))
+
     def test_example_env_has_defaults_and_no_secret_or_id(self):
         text = ENV_EXAMPLE.read_text(encoding="utf-8")
         values = assignments(text)

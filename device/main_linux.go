@@ -45,7 +45,7 @@ func openPhone(out io.Writer) (phone.Phone, func(), error) {
 }
 
 func runCheck(part string) error {
-	getenv, err := pi.ReadSettings(pi.SettingsPath, os.Getenv)
+	getenv, err := pi.ReadSettings(pi.SettingsPath, os.LookupEnv)
 	if err != nil {
 		return err
 	}

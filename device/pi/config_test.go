@@ -65,7 +65,7 @@ func TestDeviceCheckReadsTheSettingsFileAndTheEnvironmentWins(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fileOnly, err := ReadSettings(path, func(string) string { return "" })
+	fileOnly, err := ReadSettings(path, unsetEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,11 +77,11 @@ func TestDeviceCheckReadsTheSettingsFileAndTheEnvironmentWins(t *testing.T) {
 		t.Fatalf("ファイル = 機器 %q フック %d 閉じると上がる %v", cfg.AudioDevice, cfg.HookGPIO, cfg.LiftedWhenClosed)
 	}
 
-	overridden, err := ReadSettings(path, func(key string) string {
+	overridden, err := ReadSettings(path, func(key string) (string, bool) {
 		if key == "KAZOKUAI_AUDIO_DEVICE" {
-			return "Handset"
+			return "Handset", true
 		}
-		return ""
+		return "", false
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestDeviceCheckReadsTheSettingsFileAndTheEnvironmentWins(t *testing.T) {
 }
 
 func TestDeviceCheckUsesDefaultsWhenTheSettingsFileIsMissing(t *testing.T) {
-	getenv, err := ReadSettings(filepath.Join(t.TempDir(), "missing.env"), func(string) string { return "" })
+	getenv, err := ReadSettings(filepath.Join(t.TempDir(), "missing.env"), unsetEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,10 +122,95 @@ func TestDeviceCheckReportsAnUnreadableSettingsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
-	if _, err := ReadSettings(path, func(string) string { return "" }); err == nil {
+	if _, err := ReadSettings(path, unsetEnv); err == nil {
 		t.Fatal("読めない設定ファイルを、無いものとして扱った")
 	}
 }
+
+func TestDeviceCheckEmptyEnvironmentOverridesTheFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "device.env")
+	body := "KAZOKUAI_AUDIO_DEVICE=Unitek\nKAZOKUAI_LIFTED_WHEN_CLOSED=true\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, envValue := range []string{"", "  "} {
+		getenv, err := ReadSettings(path, func(key string) (string, bool) {
+			if key == "KAZOKUAI_LIFTED_WHEN_CLOSED" {
+				return envValue, true
+			}
+			return "", false
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := Load(getenv)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.AudioDevice != "Unitek" || cfg.LiftedWhenClosed {
+			t.Fatalf("環境 %q = 機器 %q 閉じると上がる %v", envValue, cfg.AudioDevice, cfg.LiftedWhenClosed)
+		}
+	}
+}
+
+func TestDeviceCheckReadsSystemdEscapes(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "device.env")
+	body := "" +
+		"# コメントは読み飛ばす\n" +
+		"; これも読み飛ばす\n" +
+		"等号が無い\n" +
+		"KAZOKUAI_AUDIO_DEVICE=Audio\\ Adapter\n" +
+		"SLASH=a\\\\b\n" +
+		"QUOTED=\"Unitek\"\n" +
+		"SINGLE='Audio\\ Adapter'\n" +
+		"DQ=\"say \\\"hi\\\"\"\n" +
+		"KEEP=\"\\n\"\n" +
+		"CONT=Audio\\\n Adapter\n" +
+		"PADDED=  spaced  \n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	getenv, err := ReadSettings(path, unsetEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(getenv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AudioDevice != "Audio Adapter" {
+		t.Fatalf("機器 = %q", cfg.AudioDevice)
+	}
+	got := map[string]string{
+		"SLASH":  getenv("SLASH"),
+		"QUOTED": getenv("QUOTED"),
+		"SINGLE": getenv("SINGLE"),
+		"DQ":     getenv("DQ"),
+		"KEEP":   getenv("KEEP"),
+		"CONT":   getenv("CONT"),
+		"PADDED": getenv("PADDED"),
+		"等号が無い":  getenv("等号が無い"),
+	}
+	want := map[string]string{
+		"SLASH":  `a\b`,
+		"QUOTED": "Unitek",
+		"SINGLE": `Audio\ Adapter`,
+		"DQ":     `say "hi"`,
+		"KEEP":   `\n`,
+		"CONT":   "Audio Adapter",
+		"PADDED": "spaced",
+		"等号が無い":  "",
+	}
+	for key, value := range want {
+		if got[key] != value {
+			t.Fatalf("%s = %q, want %q", key, got[key], value)
+		}
+	}
+}
+
+func unsetEnv(string) (string, bool) { return "", false }
 
 func TestConfigRejectsABadVolume(t *testing.T) {
 	_, err := Load(func(key string) string {
