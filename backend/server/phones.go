@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"cloud.google.com/go/firestore"
 	"github.com/coder/websocket"
@@ -208,22 +210,46 @@ func (s *server) logf(format string, args ...any) {
 	log.Printf(format, args...)
 }
 
-// dropReason は、切れた接続の理由である。合言葉は出さない。
+// dropReason は、切れた接続の理由である。合言葉は出さず、改行も 1 行に収める。
 func (s *server) dropReason(err error) string {
+	reason := "接続が切れた"
 	if s.base.Err() != nil {
-		return "バックエンドが止まった"
+		reason = "バックエンドが止まった"
+	} else if err != nil {
+		var closed websocket.CloseError
+		switch {
+		case errors.As(err, &closed) && closed.Reason != "":
+			reason = closed.Reason
+		case errors.As(err, &closed) && closed.Code == websocket.StatusNormalClosure:
+			reason = "電話機が閉じた"
+		default:
+			reason = err.Error()
+		}
 	}
-	var closed websocket.CloseError
-	if errors.As(err, &closed) && closed.Reason != "" {
-		return s.redact(closed.Reason)
+	return oneLine(s.redact(reason))
+}
+
+// oneLine は、改行と制御文字を見える形に変えて、ログが 1 行のままになるようにする。
+func oneLine(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+	for _, r := range text {
+		switch r {
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if unicode.IsControl(r) {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
 	}
-	if errors.As(err, &closed) && closed.Code == websocket.StatusNormalClosure {
-		return "電話機が閉じた"
-	}
-	if err == nil {
-		return "接続が切れた"
-	}
-	return s.redact(err.Error())
+	return b.String()
 }
 
 func (s *server) redact(text string) string {
