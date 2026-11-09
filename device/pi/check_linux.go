@@ -12,10 +12,12 @@ import (
 )
 
 // RunCheck は、`device check` の部品を電話機の上で動かす。
-func RunCheck(ctx context.Context, part string, cfg Config, out io.Writer) error {
+// getenv は、設定ファイルを読んだあとの環境である。キーパッドもこれを使う。
+func RunCheck(ctx context.Context, part string, cfg Config, getenv func(string) string, out io.Writer) error {
 	return runCheck(ctx, part, hardware{
-		out: out,
-		cfg: cfg,
+		out:    out,
+		cfg:    cfg,
+		getenv: getenv,
 		list: func() (string, error) {
 			playback, capture, err := handset.Devices()
 			if err != nil {

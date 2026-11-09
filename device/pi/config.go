@@ -2,6 +2,7 @@ package pi
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,11 @@ type Config struct {
 	Debounce         time.Duration
 }
 
-// DefaultConfig は、Raspberry Pi 4 の受話器の配線に合わせた既定である。
+// SettingsPath は、電話機の設定ファイルである。device check は、これがあれば読む。
+const SettingsPath = "/etc/kazokuai/device.env"
+
+// DefaultConfig は、この電話機の配線に合わせた既定である。
+// 受話器を上げると接点が開く。tel-base の既定とは逆である。
 func DefaultConfig() Config {
 	return Config{
 		MicChannel:       0,
@@ -31,9 +36,67 @@ func DefaultConfig() Config {
 		GPIOChip:         "gpiochip0",
 		HookGPIO:         5,
 		RingerGPIO:       18,
-		LiftedWhenClosed: true,
+		LiftedWhenClosed: false,
 		Debounce:         50 * time.Millisecond,
 	}
+}
+
+// ReadSettings は、device check が使う環境である。
+// path の設定ファイルがあれば読み、getenv の空でない値で上書きする。
+// ファイルが無いときは getenv だけを使う。読めないときは、既定に落とさない。
+func ReadSettings(path string, getenv func(string) string) (func(string) string, error) {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	file := map[string]string{}
+	if path != "" {
+		parsed, err := readEnvFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("設定ファイルを読めません: %w", err)
+		}
+		if err == nil {
+			file = parsed
+		}
+	}
+	return func(key string) string {
+		if v := strings.TrimSpace(getenv(key)); v != "" {
+			return v
+		}
+		return file[key]
+	}, nil
+}
+
+// readEnvFile は、systemd の EnvironmentFile と同じく、空行と # か ; の行を読み飛ばす。
+// 値が対の引用符で囲まれていれば、その引用符を外す。
+func readEnvFile(path string) (map[string]string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	values := map[string]string{}
+	for _, line := range strings.Split(string(data), "\n") {
+		trimmed := strings.TrimSpace(strings.TrimRight(line, "\r"))
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, ";") {
+			continue
+		}
+		key, value, ok := strings.Cut(trimmed, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if len(value) >= 2 {
+			q := value[0]
+			if (q == '"' || q == '\'') && value[len(value)-1] == q {
+				value = value[1 : len(value)-1]
+			}
+		}
+		if key == "" {
+			continue
+		}
+		values[key] = value
+	}
+	return values, nil
 }
 
 // Load は、環境変数で上書きした設定を返す。空の変数は既定のままにする。

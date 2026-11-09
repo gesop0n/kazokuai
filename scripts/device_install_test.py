@@ -49,9 +49,12 @@ class DeviceInstallTest(unittest.TestCase):
         self.go_log = root / "go.log"
         self.systemctl_log = root / "systemctl.log"
         self.sudo_log = root / "sudo.log"
+        self.loginctl_log = root / "loginctl.log"
         self._fake_go()
         self._fake_systemctl()
         self._fake_sudo()
+        self._fake_loginctl()
+        self._fake_id()
         gcc = self.bin / "gcc"
         gcc.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         gcc.chmod(gcc.stat().st_mode | stat.S_IEXEC)
@@ -108,21 +111,106 @@ class DeviceInstallTest(unittest.TestCase):
         )
         path.chmod(path.stat().st_mode | stat.S_IEXEC)
 
+    def _fake_loginctl(self):
+        path = self.bin / "loginctl"
+        path.write_text(
+            "#!/bin/sh\n"
+            f"printf '%s\\n' \"$@\" >> {sh_quote(self.loginctl_log)}\n"
+            f"printf '%s\\n' --- >> {sh_quote(self.loginctl_log)}\n"
+            "exit 0\n",
+            encoding="utf-8",
+        )
+        path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
+    def _fake_id(self):
+        path = self.bin / "id"
+        path.write_text(
+            "#!/bin/sh\n"
+            "uid=${DEVICE_INSTALL_UID:-1000}\n"
+            "name=${DEVICE_INSTALL_NAME:-tana}\n"
+            "groups=${DEVICE_INSTALL_GROUPS:-tana gpio}\n"
+            "if [ \"$1\" = \"-u\" ] && [ -z \"$2\" ]; then\n"
+            "  printf '%s\\n' \"$uid\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = \"-un\" ]; then\n"
+            "  printf '%s\\n' \"$name\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = \"-u\" ] && [ -n \"$2\" ]; then\n"
+            "  case \"$2\" in\n"
+            "    other) printf '%s\\n' 1001 ;;\n"
+            "    *) printf '%s\\n' \"$uid\" ;;\n"
+            "  esac\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = \"-nG\" ] && [ -n \"$2\" ]; then\n"
+            "  printf '%s\\n' \"$groups\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "if [ \"$1\" = \"-gn\" ] && [ -n \"$2\" ]; then\n"
+            "  printf '%s\\n' \"$name\"\n"
+            "  exit 0\n"
+            "fi\n"
+            "echo \"id fake: $*\" >&2\n"
+            "exit 1\n",
+            encoding="utf-8",
+        )
+        path.chmod(path.stat().st_mode | stat.S_IEXEC)
+
     def env(self):
         env = os.environ.copy()
         env["PATH"] = f"{self.bin}{os.pathsep}/bin{os.pathsep}/usr/bin"
         env["DEVICE_INSTALL_ROOT"] = str(self.dest)
         env.pop("CC", None)
+        for key in (
+            "SUDO_USER",
+            "KAZOKUAI_SERVICE_USER",
+            "DEVICE_INSTALL_GROUPS",
+            "DEVICE_INSTALL_UID",
+            "DEVICE_INSTALL_NAME",
+        ):
+            env.pop(key, None)
         return env
 
-    def run_install(self, *args):
+    def run_install(self, *args, extra_env=None):
+        env = self.env()
+        if extra_env:
+            for key, value in extra_env.items():
+                if value is None:
+                    env.pop(key, None)
+                else:
+                    env[key] = value
         return subprocess.run(
             ["bash", str(INSTALL), *args],
-            env=self.env(),
+            env=env,
             capture_output=True,
             text=True,
             check=False,
         )
+
+    def write_ready(self):
+        env_dir = self.dest / "etc" / "kazokuai"
+        env_dir.mkdir(parents=True)
+        env_file = env_dir / "device.env"
+        env_file.write_text(
+            "KAZOKUAI_BACKEND=http://10.0.0.8:8080\n"
+            "KAZOKUAI_WATCHED_PERSON=test-person\n"
+            "PHONE_SECRET=kept-value\n",
+            encoding="utf-8",
+        )
+        binary = Path(self.tmp.name) / "prebuilt"
+        binary.write_bytes(ARM64_ELF + b"prebuilt")
+        return env_file, binary
+
+    def installed_unit(self):
+        return (
+            self.dest / "etc" / "systemd" / "system" / "kazokuai-device.service"
+        ).read_text(encoding="utf-8")
+
+    def assert_lingers(self, user="tana"):
+        log = self.loginctl_log.read_text(encoding="utf-8")
+        self.assertEqual(log, f"enable-linger\n{user}\n---\n")
 
     def test_given_binary_skips_build_and_does_not_start_without_person(self):
         binary = Path(self.tmp.name) / "kazokuai-device"
@@ -137,14 +225,16 @@ class DeviceInstallTest(unittest.TestCase):
         installed = self.dest / "usr" / "local" / "bin" / "kazokuai-device"
         self.assertEqual(installed.read_bytes(), ARM64_ELF)
         self.assertTrue(os.access(installed, os.X_OK))
-        unit = (self.dest / "etc" / "systemd" / "system" / "kazokuai-device.service").read_text(
-            encoding="utf-8"
-        )
-        self.assertEqual(unit, UNIT.read_text(encoding="utf-8"))
+        unit = self.installed_unit()
+        self.assertEqual(unit, expected_unit())
+        self.assertNotIn("\nUser=", UNIT.read_text(encoding="utf-8"))
         self.assertIn("EnvironmentFile=/etc/kazokuai/device.env", unit)
         self.assertIn("Restart=on-failure", unit)
         self.assertIn("WantedBy=multi-user.target", unit)
         self.assertIn("/usr/local/bin/kazokuai-device", unit)
+        self.assertIn("User=tana", unit)
+        self.assertIn("Environment=XDG_RUNTIME_DIR=/run/user/1000", unit)
+        self.assert_lingers()
         env_text = (self.dest / "etc" / "kazokuai" / "device.env").read_text(encoding="utf-8")
         self.assertEqual(env_text, ENV_EXAMPLE.read_text(encoding="utf-8"))
         self.assertIn("見守る方の ID", result.stderr)
@@ -163,24 +253,17 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertFalse(self.systemctl_log.exists())
 
     def test_starts_service_when_watched_person_is_set_and_keeps_env(self):
-        env_dir = self.dest / "etc" / "kazokuai"
-        env_dir.mkdir(parents=True)
-        env_file = env_dir / "device.env"
-        original = (
-            "KAZOKUAI_BACKEND=http://10.0.0.8:8080\n"
-            "KAZOKUAI_WATCHED_PERSON=test-person\n"
-            "PHONE_SECRET=kept-value\n"
-        )
-        env_file.write_text(original, encoding="utf-8")
-        binary = Path(self.tmp.name) / "prebuilt"
-        binary.write_bytes(ARM64_ELF + b"prebuilt")
+        env_file, binary = self.write_ready()
+        original = env_file.read_text(encoding="utf-8")
 
         result = self.run_install(str(binary))
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(env_file.read_text(encoding="utf-8"), original)
+        self.assertEqual(env_file.stat().st_mode & 0o777, 0o640)
         self.assertFalse(self.go_log.exists())
         self.assertFalse(self.sudo_log.exists())
+        self.assertNotIn("usermod", result.stderr)
         log = self.systemctl_log.read_text(encoding="utf-8")
         self.assertEqual(
             log,
@@ -190,6 +273,52 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertNotIn("kept-value", log)
         installed = self.dest / "usr" / "local" / "bin" / "kazokuai-device"
         self.assertEqual(installed.read_bytes(), ARM64_ELF + b"prebuilt")
+        self.assertEqual(self.installed_unit(), expected_unit())
+        self.assert_lingers()
+
+    def test_setting_overrides_sudo_user(self):
+        _, binary = self.write_ready()
+
+        result = self.run_install(
+            str(binary),
+            extra_env={"KAZOKUAI_SERVICE_USER": "tana", "SUDO_USER": "other"},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.installed_unit(), expected_unit("tana", "1000"))
+        self.assert_lingers("tana")
+
+    def test_sudo_user_is_the_service_user_when_the_setting_is_empty(self):
+        _, binary = self.write_ready()
+
+        result = self.run_install(str(binary), extra_env={"SUDO_USER": "other"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.installed_unit(), expected_unit("other", "1001"))
+        self.assert_lingers("other")
+
+    def test_warns_when_the_service_user_is_not_in_gpio(self):
+        _, binary = self.write_ready()
+
+        result = self.run_install(str(binary), extra_env={"DEVICE_INSTALL_GROUPS": "tana"})
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("sudo usermod -aG gpio tana", result.stderr)
+        self.assertIn("gpio", result.stderr)
+        self.assertFalse(self.sudo_log.exists())
+        self.assert_lingers()
+        self.assertIn("restart\nkazokuai-device.service", self.systemctl_log.read_text(encoding="utf-8"))
+
+    def test_refuses_to_run_the_service_as_root(self):
+        _, binary = self.write_ready()
+
+        result = self.run_install(str(binary), extra_env={"KAZOKUAI_SERVICE_USER": "root"})
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("KAZOKUAI_SERVICE_USER", result.stderr)
+        self.assertFalse((self.dest / "etc" / "systemd" / "system" / "kazokuai-device.service").exists())
+        self.assertFalse(self.loginctl_log.exists())
+        self.assertFalse(self.systemctl_log.exists())
 
     def test_refuses_non_arm64_binary(self):
         binary = Path(self.tmp.name) / "amd64"
@@ -242,11 +371,20 @@ class DeviceInstallTest(unittest.TestCase):
                 "KAZOKUAI_GPIO_CHIP": "gpiochip0",
                 "KAZOKUAI_HOOK_GPIO": "5",
                 "KAZOKUAI_RINGER_GPIO": "18",
-                "KAZOKUAI_LIFTED_WHEN_CLOSED": "true",
+                "KAZOKUAI_LIFTED_WHEN_CLOSED": "false",
                 "KAZOKUAI_HOOK_DEBOUNCE": "50ms",
             },
         )
         self.assertNotIn("dev-phone-secret", text)
+
+
+def expected_unit(user="tana", uid="1000"):
+    text = UNIT.read_text(encoding="utf-8")
+    old = "Type=simple\n"
+    new = old + f"User={user}\nEnvironment=XDG_RUNTIME_DIR=/run/user/{uid}\n"
+    if old not in text:
+        raise AssertionError("Type=simple がありません")
+    return text.replace(old, new, 1)
 
 
 def assignments(text):

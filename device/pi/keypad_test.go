@@ -157,6 +157,22 @@ func TestKeypadCheckRejectsABadMapBeforeOpeningPins(t *testing.T) {
 	}
 }
 
+func TestKeypadCheckUsesTheSettingsFromTheFile(t *testing.T) {
+	err := runCheck(context.Background(), "keypad", hardware{
+		out: &bytes.Buffer{},
+		cfg: DefaultConfig(),
+		getenv: func(key string) string {
+			if key == "KAZOKUAI_KEYPAD_KEYS" {
+				return "1,2"
+			}
+			return ""
+		},
+	})
+	if err == nil || !strings.Contains(err.Error(), "KAZOKUAI_KEYPAD_KEYS") {
+		t.Fatalf("配置 = %v", err)
+	}
+}
+
 func TestKeypadDefaultsMatchTelBase(t *testing.T) {
 	cfg := loadedKeypad(t, func(string) string { return "" })
 	if !sameInts(cfg.Rows, []int{17, 27, 22, 23}) || !sameInts(cfg.Cols, []int{24, 25, 4}) {
