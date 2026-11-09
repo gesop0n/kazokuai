@@ -98,6 +98,11 @@ description = "Mac で電話機を起動する。合言葉は PHONE_SECRET、未
 dir = "{{config_root}}"
 run = "go run ./device"
 
+["spoken:clips"]
+description = "同期で受話器が話す音声を Gemini で作り直す。GEMINI_API_KEY が要る。できた WAV は device/spoken/clips に書き、コミットする"
+dir = "{{config_root}}"
+run = "go run ./device/spoken/cmd/generate"
+
 [emulators]
 description = "Firebase の Auth と Firestore のエミュレーターを起動する。エミュレーターの画面は http://localhost:4000"
 dir = "{{config_root}}/firebase"
