@@ -1,10 +1,14 @@
 // device は電話機のプログラムである。起動するとバックエンドにつながり続け、今すぐ通話の指示で電話をする。
 //
-// 今は Mac で動かす。受話器の音声は既定のマイクとスピーカー、フックは Enter キー、
+// macOS では、受話器の音声は既定のマイクとスピーカー、フックは Enter キー、
 // 呼び出し音とランプはターミナルの文字である。イヤホンを付けて使う。
+// Linux では、電話機の受話器とフックを使い、呼び出し音とランプはログだけを書く。
+// 部品の確認は、電話機の上で `device check devices|speaker|mic|hook` である。
+//
 // 見守る方の ID は、起動するときに渡す。受話器を開く前に確かめる。
 // バックエンドの URL は --backend で渡す。既定は http://localhost:8080 で、https は wss でつなぐ。
 // 合言葉は環境変数 PHONE_SECRET から読む。未設定なら開発用の合言葉を使う。どのリクエストにも付ける。
+// 電話機の音声とフックは環境変数から読む。空なら受話器の配線の既定である。
 //
 //	mise run device -- --watched-person <見守る方の ID>
 //	mise run device -- --watched-person <見守る方の ID> --backend https://kazokuai-….run.app
@@ -23,7 +27,6 @@ import (
 
 	"google.golang.org/genai"
 
-	"github.com/gesop0n/kazokuai/device/mac"
 	"github.com/gesop0n/kazokuai/device/phone"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
@@ -36,6 +39,13 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "check" {
+		part, err := parseCheck(args[1:])
+		if err != nil {
+			return err
+		}
+		return runCheck(part)
+	}
 	person, backendURL, err := parseArgs(args)
 	if err != nil {
 		return err
@@ -43,25 +53,20 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	handset, err := mac.OpenHandset()
+	opened, cleanup, err := openPhone(os.Stdout)
 	if err != nil {
 		return err
 	}
-	defer handset.Close()
+	defer cleanup()
 
 	device := &phone.Device{
 		Backend:       backendURL,
 		Secret:        phoneSecret(os.Getenv("PHONE_SECRET")),
 		WatchedPerson: person,
 		Gemini:        liveAPI{},
-		Phone: phone.Phone{
-			Handset: handset,
-			Hook:    mac.NewHook(os.Stdin, os.Stdout),
-			Ringer:  mac.Ringer{Out: os.Stdout},
-			Lamp:    mac.Lamp{Out: os.Stdout},
-		},
-		Out:   os.Stdout,
-		Clock: realClock{},
+		Phone:         opened,
+		Out:           os.Stdout,
+		Clock:         realClock{},
 	}
 	if err := device.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("電話機が終わりました: %w", err)
@@ -85,6 +90,20 @@ func parseArgs(args []string) (person, backend string, err error) {
 		return "", "", errors.New("バックエンドの URL が要ります。--backend で渡してください")
 	}
 	return *id, *backendURL, nil
+}
+
+// parseCheck は、`device check` の部品名を読む。機器を開く前に、名前が違えば戻る。
+func parseCheck(args []string) (string, error) {
+	const usage = "確認する部品を1つ指定してください: devices, speaker, mic, hook"
+	if len(args) != 1 {
+		return "", errors.New(usage)
+	}
+	switch args[0] {
+	case "devices", "speaker", "mic", "hook":
+		return args[0], nil
+	default:
+		return "", fmt.Errorf("確認できない部品です: %s。%s", args[0], usage)
+	}
 }
 
 // phoneSecret は、環境変数の合言葉を返す。未設定なら開発用の合言葉である。
