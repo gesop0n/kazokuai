@@ -47,22 +47,20 @@ class BookedCallsNotifier extends Notifier<List<BookedCall>> {
     ),
   ];
 
-  // 日時の順の場所に足す。同じ日時の予約がすでにあるときは、その後ろに入る
+  // 日時の順の場所に足す
   void add({
     required DateTime at,
     required String message,
     required String script,
   }) {
-    final booking = BookedCall(at: at, message: message, script: script);
-    final index = state.indexWhere((call) => call.at.isAfter(at));
-    state = index < 0
-        ? [...state, booking]
-        : [...state.sublist(0, index), booking, ...state.sublist(index)];
+    state = _insertByTime(
+      state,
+      BookedCall(at: at, message: message, script: script),
+    );
   }
 
   // 伝えたいことと日時を入れ替える。通話内容はそのまま。
-  // 日時が同じなら並びは動かさない。変わるときは日時の順の場所へ移し、
-  // 同じ日時の予約がすでにあるときは、その後ろに入る。
+  // 日時が同じなら並びは動かさない。変わるときは日時の順の場所へ移す。
   void update(int index, {required DateTime at, required String message}) {
     final current = state[index];
     final updated = BookedCall(
@@ -80,10 +78,14 @@ class BookedCallsNotifier extends Notifier<List<BookedCall>> {
       for (var i = 0; i < state.length; i++)
         if (i != index) state[i],
     ];
-    final insertAt = rest.indexWhere((call) => call.at.isAfter(at));
-    state = insertAt < 0
-        ? [...rest, updated]
-        : [...rest.sublist(0, insertAt), updated, ...rest.sublist(insertAt)];
+    state = _insertByTime(rest, updated);
+  }
+
+  // 同じ日時の予約がすでにあるときは、その後ろに入る
+  List<BookedCall> _insertByTime(List<BookedCall> calls, BookedCall booking) {
+    final index = calls.indexWhere((call) => call.at.isAfter(booking.at));
+    if (index < 0) return [...calls, booking];
+    return [...calls.sublist(0, index), booking, ...calls.sublist(index)];
   }
 }
 
