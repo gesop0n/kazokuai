@@ -196,11 +196,7 @@ class _CallSubscription extends ValueNotifier<CallDetail?>
 
   void start() {
     if (_closed) return;
-    _cancel();
-    _callReady = false;
-    _utterancesReady = false;
-    _call = null;
-    _utterances = null;
+    pause();
     final personId = _repository._personId;
     if (personId == null) return;
     final ref = _repository._firestore
