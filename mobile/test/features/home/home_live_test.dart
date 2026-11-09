@@ -3,12 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
 import 'package:kazokuai/features/home/ask_card.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
+import 'package:kazokuai/features/home/reply_card.dart';
 import 'package:kazokuai/features/home/today_card.dart';
 
 import '../../support/fake_home_repository.dart';
@@ -132,6 +134,131 @@ void main() {
     expect(find.byType(AskCard), findsOneWidget);
   });
 
+  testWidgets('伝言への返答は、直近の電話の上に、伝えたことと返答を出す', (tester) async {
+    await _pump(
+      tester,
+      _view(
+        latest: _call(
+          at: DateTime(2026, 11, 5, 9, 2),
+          minutes: 6,
+          headline: '朝ごはんを食べたそうです。',
+        ),
+        todaySameAsLatest: true,
+        reply: Reply(
+          told: '金曜の通院は、朝10時にお迎えに来る',
+          text: 'わかったよ。玄関で待ってるね。',
+          saidAt: DateTime(2026, 11, 5, 10, 29),
+        ),
+      ),
+    );
+
+    expect(find.text('ハナさんからのお返事'), findsOneWidget);
+    expect(find.text('今日 10:29'), findsOneWidget);
+    expect(find.text('伝えたこと'), findsOneWidget);
+    expect(find.text('金曜の通院は、朝10時にお迎えに来る'), findsOneWidget);
+    expect(find.text('ハナさん'), findsOneWidget);
+    expect(find.text('わかったよ。玄関で待ってるね。'), findsOneWidget);
+    expect(find.text('今日 9:02 ・ 6分'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(ReplyCard)).dy,
+      lessThan(tester.getTopLeft(find.byType(RecentCallCard)).dy),
+    );
+
+    expect(
+      tester.widget<Text>(find.text('ハナさんからのお返事')).style,
+      AppTextStyles.titleM,
+    );
+    expect(
+      tester.widget<Text>(find.text('今日 10:29')).style,
+      AppTextStyles.monoS.copyWith(color: AppColors.inkSecondary),
+    );
+    expect(
+      tester.widget<Text>(find.text('伝えたこと')).style,
+      AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
+    );
+    expect(
+      tester.widget<Text>(find.text('金曜の通院は、朝10時にお迎えに来る')).style,
+      AppTextStyles.bodyM,
+    );
+    expect(
+      tester.widget<Text>(find.text('ハナさん')).style,
+      AppTextStyles.labelS.copyWith(color: AppColors.speakerParent),
+    );
+    expect(
+      tester.widget<Text>(find.text('わかったよ。玄関で待ってるね。')).style,
+      AppTextStyles.titleM,
+    );
+
+    final line = tester.getTopLeft(
+      find.descendant(
+        of: find.byType(ReplyCard),
+        matching: find.byWidgetPredicate((widget) {
+          if (widget is! Container) return false;
+          final decoration = widget.decoration;
+          if (decoration is! BoxDecoration) return false;
+          final border = decoration.border;
+          if (border is! Border) return false;
+          return border.top.color == AppColors.line &&
+              border.left.style == BorderStyle.none;
+        }),
+      ),
+    );
+    expect(tester.getTopLeft(find.text('伝えたこと')).dy, lessThan(line.dy));
+    expect(line.dy, lessThan(tester.getTopLeft(find.text('ハナさん')).dy));
+  });
+
+  testWidgets('別の呼び方と別の日なら、見出しと時刻が変わる', (tester) async {
+    await _pump(
+      tester,
+      HomeView(
+        person: const WatchedPerson(
+          name: '佐藤タロウ',
+          callName: 'タロウさん',
+          initial: 'タ',
+        ),
+        now: DateTime(2026, 11, 6, 8),
+        latestCall: _call(
+          at: DateTime(2026, 11, 5, 10, 28),
+          minutes: 2,
+          headline: '伝言を伝えたそうです。',
+        ),
+        todayCall: null,
+        reply: Reply(
+          told: '明日うかがう',
+          text: '待ってるよ',
+          saidAt: DateTime(2026, 11, 5, 10, 29),
+        ),
+      ),
+    );
+
+    expect(find.text('タロウさんからのお返事'), findsOneWidget);
+    expect(find.text('昨日 10:29'), findsOneWidget);
+    expect(find.text('ハナさんからのお返事'), findsNothing);
+    expect(
+      tester.widget<Text>(find.text('タロウさん')).style?.color,
+      AppColors.speakerParent,
+    );
+  });
+
+  testWidgets('返答がなければ、返答のカードは出さない', (tester) async {
+    await _pump(
+      tester,
+      _view(
+        latest: _call(
+          at: DateTime(2026, 11, 5, 9, 2),
+          minutes: 6,
+          headline: '朝ごはんを食べたそうです。',
+        ),
+        todaySameAsLatest: true,
+      ),
+    );
+
+    expect(find.byType(ReplyCard), findsNothing);
+    expect(find.textContaining('からのお返事'), findsNothing);
+    expect(find.text('伝えたこと'), findsNothing);
+    expect(find.byType(RecentCallCard), findsOneWidget);
+  });
+
   testWidgets('電話がまだなければ、空のカードを出さずに短く知らせ、伝えるカードは残す', (tester) async {
     await _pump(tester, _view());
 
@@ -156,12 +283,18 @@ Future<void> _pump(WidgetTester tester, HomeView view) {
   );
 }
 
-HomeView _view({Call? latest, Call? today, bool todaySameAsLatest = false}) {
+HomeView _view({
+  Call? latest,
+  Call? today,
+  bool todaySameAsLatest = false,
+  Reply? reply,
+}) {
   return HomeView(
     person: const WatchedPerson(name: '田中ハナ', callName: 'ハナさん', initial: 'ハ'),
     now: _now,
     latestCall: latest,
     todayCall: today ?? (todaySameAsLatest ? latest : null),
+    reply: reply,
   );
 }
 

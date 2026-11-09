@@ -13,6 +13,7 @@ import 'package:kazokuai/features/home/home_header.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
+import 'package:kazokuai/features/home/reply_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
 
@@ -102,6 +103,12 @@ class _LiveHome extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,
             children: [
+              if (view.reply case final reply?)
+                ReplyCard(
+                  callName: view.person.callName,
+                  reply: reply,
+                  now: view.now,
+                ),
               if (latest == null)
                 const _NoCalls()
               else
