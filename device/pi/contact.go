@@ -65,9 +65,5 @@ func (c *contact) level(raw int, now time.Time) (phone.HookEvent, bool) {
 }
 
 func (c *contact) lifted(raw int) bool {
-	closed := raw == 0
-	if c.liftedWhenClosed {
-		return closed
-	}
-	return !closed
+	return contactLifted(raw, c.liftedWhenClosed)
 }

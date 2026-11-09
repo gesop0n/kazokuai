@@ -19,6 +19,7 @@ func TestLiftingTheHandsetAnswersAndPuttingItDownEnds(t *testing.T) {
 	h.Prepare()
 	defer h.Rest()
 	<-h.started
+	h.Events()
 
 	line.Set(0)
 	if got := recv(t, h); got != phone.PickedUp {
@@ -59,10 +60,37 @@ func TestOpenMeansLiftedWhenConfigured(t *testing.T) {
 	h.Prepare()
 	defer h.Rest()
 	<-h.started
+	h.Events()
 
 	line.Set(1)
 	if got := recv(t, h); got != phone.PickedUp {
 		t.Fatalf("開いた = %v, want 受話器を上げた", got)
+	}
+}
+
+func TestLiftBeforeThePhoneListensDoesNotAnswer(t *testing.T) {
+	line := newFakeLine(1)
+	var out bytes.Buffer
+	h := newHook(line, Config{LiftedWhenClosed: true}, clock.Real{}, &out)
+	h.Prepare()
+	defer h.Rest()
+	<-h.started
+
+	line.Set(0)
+	events := h.Events()
+	select {
+	case ev := <-events:
+		t.Fatalf("呼び出しの前に上げた受話器で %v を送った", ev)
+	default:
+	}
+	if strings.Contains(out.String(), "受話器を上げました。") {
+		t.Fatalf("表示 =\n%s", out.String())
+	}
+
+	line.Set(1)
+	line.Set(0)
+	if got := recv(t, h); got != phone.PickedUp {
+		t.Fatalf("呼び出しのあとに置いて上げた = %v", got)
 	}
 }
 

@@ -100,7 +100,8 @@ func checkMic(ctx context.Context, hw hardware) error {
 		return nil
 	}
 	fmt.Fprintf(hw.out, "ピーク: %.4f\n", peak(recording))
-	h.Play(recording)
+	// マイクは 16 kHz、スピーカーは 24 kHz である。そのまま流すと、5 秒が約 3.3 秒になり、声が高くなる。
+	h.Play(toSpeakerRate(recording))
 	return waitUntilQuiet(ctx, h, hw.record+time.Second, hw.tail)
 }
 
@@ -192,6 +193,47 @@ func tone(rate int, duration time.Duration) []byte {
 		binary.LittleEndian.PutUint16(buf[i*2:], uint16(int16(sample)))
 	}
 	return buf
+}
+
+// toSpeakerRate は、マイクの 16 kHz をスピーカーの 24 kHz に直す。録音と同じ時間、同じ高さで鳴る。
+func toSpeakerRate(pcm []byte) []byte {
+	in := len(pcm) / 2
+	if in == 0 {
+		return nil
+	}
+	outN := in * phone.SpeakerSampleRate / phone.MicSampleRate
+	if outN == 0 {
+		return nil
+	}
+	buf := make([]byte, outN*2)
+	denom := phone.SpeakerSampleRate
+	for i := 0; i < outN; i++ {
+		numer := i * phone.MicSampleRate
+		i0 := numer / denom
+		frac := numer % denom
+		s0 := int(pcmSample(pcm, i0, in))
+		s1 := int(pcmSample(pcm, i0+1, in))
+		v := s0*(denom-frac) + s1*frac
+		binary.LittleEndian.PutUint16(buf[i*2:], uint16(int16(divRound(v, denom))))
+	}
+	return buf
+}
+
+func pcmSample(pcm []byte, index, n int) int16 {
+	if index >= n {
+		index = n - 1
+	}
+	if index < 0 {
+		index = 0
+	}
+	return int16(binary.LittleEndian.Uint16(pcm[index*2:]))
+}
+
+func divRound(v, denom int) int {
+	if v >= 0 {
+		return (v + denom/2) / denom
+	}
+	return -((-v + denom/2) / denom)
 }
 
 func peak(pcm []byte) float64 {
