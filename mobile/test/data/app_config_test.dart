@@ -87,12 +87,16 @@ void main() {
     );
   });
 
-  test('/api の下で、今すぐ通話と見守る方の登録を呼ぶ', () async {
+  test('/api の下で、今すぐ通話と見守る方の登録と通話内容の案を呼ぶ', () async {
     final paths = <String>[];
     final backend = Backend(
       MockClient((request) async {
         paths.add(request.url.toString());
-        return http.Response(jsonEncode({'id': 'call-1'}), 201);
+        final script = request.url.path == '/api/calls/script';
+        return http.Response(
+          jsonEncode(script ? {'script': 'draft'} : {'id': 'call-1'}),
+          script ? 200 : 201,
+        );
       }),
       baseUrl: '/api',
     );
@@ -107,7 +111,15 @@ void main() {
       name: '田中 ハナ',
       callName: 'ハナさん',
     );
+    expect(
+      await backend.draftCallScript(idToken: 'token', message: '伝えたいこと'),
+      'draft',
+    );
 
-    expect(paths, ['/api/calls/now', '/api/watched-persons']);
+    expect(paths, [
+      '/api/calls/now',
+      '/api/watched-persons',
+      '/api/calls/script',
+    ]);
   });
 }

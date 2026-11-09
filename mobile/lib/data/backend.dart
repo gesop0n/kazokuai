@@ -56,7 +56,7 @@ class Backend {
     try {
       response = await _client
           .post(
-            Uri.parse('$_backendUrl/calls/script'),
+            _uri('/calls/script'),
             headers: {
               'Authorization': 'Bearer $idToken',
               'Content-Type': 'application/json',
