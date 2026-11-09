@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,6 +22,11 @@ import (
 
 // 時刻は日本時間。アプリは端末の現地時間で出す。審査は日本である。
 var tokyo = time.FixedZone("Asia/Tokyo", 9*60*60)
+
+// seedProject は、このテストだけのエミュレーターのプロジェクトである。
+// go test はパッケージを並べて動かし、ほかのパッケージは demo-kazokuai に家族と電話を書く。
+// 審査員のアカウントも見守る方も同じプロジェクトに置くと、その書き込みと一覧がぶつかる。
+const seedProject = "demo-kazokuai-seed"
 
 func TestValidateRequest(t *testing.T) {
 	ok := Request{
@@ -113,7 +119,10 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	other, err := firebasetest.SignUp(ctx)
+	// 別の家族は、ほかのパッケージが使う Auth ではなく、このプロジェクトに作る。
+	other, err := accounts.CreateUser(ctx, (&auth.UserToCreate{}).
+		Email("other-"+strings.ToLower(rand.Text())+"@example.com").
+		Password("other-pass-1"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +186,7 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 func seedJudge(t *testing.T, ctx context.Context, store *firestore.Client, accounts *auth.Client, email, password string) Result {
 	t.Helper()
 	req := Request{
-		ProjectID:     "demo-kazokuai",
+		ProjectID:     seedProject,
 		Email:         email,
 		Password:      password,
 		FirestoreHost: os.Getenv("FIRESTORE_EMULATOR_HOST"),
@@ -401,7 +410,7 @@ func openEmulator(t *testing.T) (*firestore.Client, *auth.Client) {
 		t.Fatal(firebasetest.Hint)
 	}
 	ctx := t.Context()
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: "demo-kazokuai"})
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: seedProject})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,14 +428,23 @@ func openEmulator(t *testing.T) (*firestore.Client, *auth.Client) {
 
 func signInStatus(t *testing.T, email, password string) int {
 	t.Helper()
+	// エミュレーターの API キーは、起動したプロジェクト(demo-kazokuai)にだけ届く。
+	// 審査員は seedProject にいるので、そのプロジェクトを指定できる owner でログインする。
 	body, err := json.Marshal(map[string]any{
 		"email": email, "password": password, "returnSecureToken": true,
+		"targetProjectId": seedProject,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	url := "http://" + os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") + "/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=emulator"
-	resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer owner")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
