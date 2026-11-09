@@ -11,6 +11,7 @@ import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/settings/settings_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_call_progress_repository.dart';
@@ -185,16 +186,14 @@ void main() {
     expect(find.bySemanticsLabel('もどる'), findsOneWidget);
   });
 
-  testWidgets('設定で「準備中です」と表示する', (tester) async {
+  testWidgets('歯車で 08 を開き、タブバーは隠れる', (tester) async {
     await pumpApp(tester);
 
     await tester.tap(find.bySemanticsLabel('田中ハナさんの設定'));
     await tester.pumpAndSettle();
-    expect(find.text('準備中です'), findsOneWidget);
 
-    // 表示の時間は、出てくる動きが終わってから数える
-    await tester.pump(const Duration(seconds: 2));
-    await tester.pumpAndSettle();
+    expect(find.byType(SettingsScreen), findsOneWidget);
+    expect(find.byType(AppTabBar), findsNothing);
     expect(find.text('準備中です'), findsNothing);
   });
 

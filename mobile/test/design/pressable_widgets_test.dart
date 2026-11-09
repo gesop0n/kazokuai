@@ -418,9 +418,7 @@ void main() {
           material.shape,
           RoundedRectangleBorder(
             borderRadius: AppRadius.borderRadius,
-            side: variant == AppButtonVariant.secondary
-                ? const BorderSide(color: AppColors.lineStrong, width: 1.5)
-                : BorderSide.none,
+            side: variant.border,
           ),
         );
         expect(

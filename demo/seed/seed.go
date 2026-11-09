@@ -13,6 +13,9 @@ import (
 // watchedPersonID は、見本の見守る方のドキュメント ID である。作り直しても変わらない。
 const watchedPersonID = "tanaka-hana"
 
+// judgeDisplayName は、08e の「あなたのお名前」である。Firebase Auth の表示名に入れる。
+const judgeDisplayName = "田中 太郎"
+
 // Request は、見本を書く先と、審査員のアカウントである。パスワードはログに出さない。
 type Request struct {
 	ProjectID     string
@@ -105,6 +108,7 @@ func upsertJudge(ctx context.Context, accounts *auth.Client, email, password str
 		created, err := accounts.CreateUser(ctx, (&auth.UserToCreate{}).
 			Email(email).
 			Password(password).
+			DisplayName(judgeDisplayName).
 			EmailVerified(true))
 		if err != nil {
 			return nil, fmt.Errorf("審査員のアカウントを作れなかった: %w", err)
@@ -113,9 +117,10 @@ func upsertJudge(ctx context.Context, accounts *auth.Client, email, password str
 	}
 	updated, err := accounts.UpdateUser(ctx, user.UID, (&auth.UserToUpdate{}).
 		Password(password).
+		DisplayName(judgeDisplayName).
 		EmailVerified(true))
 	if err != nil {
-		return nil, fmt.Errorf("審査員のパスワードを戻せなかった: %w", err)
+		return nil, fmt.Errorf("審査員のアカウントを戻せなかった: %w", err)
 	}
 	return updated, nil
 }

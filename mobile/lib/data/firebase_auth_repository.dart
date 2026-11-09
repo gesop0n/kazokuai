@@ -9,10 +9,15 @@ class FirebaseAuthRepository implements AuthRepository {
   // currentUser は Firebase.initializeApp のあとすぐに読める。
   // ログインしたままの家族を、起動した直後からログインしているとみなせる
   FirebaseAuthRepository(this._auth)
-    : _signedIn = ValueNotifier(_auth.currentUser != null) {
-    _subscription = _auth.authStateChanges().listen(
-      (user) => _signedIn.value = user != null,
-    );
+    : _signedIn = ValueNotifier(_auth.currentUser != null),
+      _account = ValueNotifier(
+        _auth.currentUser == null ? null : _familyAccount(_auth.currentUser!),
+      ) {
+    // ログインの切り替わりに加え、表示名を保存したあとも届く
+    _subscription = _auth.userChanges().listen((user) {
+      _signedIn.value = user != null;
+      _account.value = user == null ? null : _familyAccount(user);
+    });
   }
 
   // メールアドレスの列挙を防ぐ設定のプロジェクトでは、どちらが違っても invalid-credential が返る
@@ -25,10 +30,14 @@ class FirebaseAuthRepository implements AuthRepository {
 
   final FirebaseAuth _auth;
   final ValueNotifier<bool> _signedIn;
+  final ValueNotifier<FamilyAccount?> _account;
   late final StreamSubscription<User?> _subscription;
 
   @override
   ValueListenable<bool> get signedIn => _signedIn;
+
+  @override
+  ValueListenable<FamilyAccount?> get account => _account;
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -78,8 +87,38 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() => _auth.signOut();
 
+  @override
+  Future<void> updateName(String name) async {
+    final user = _auth.currentUser;
+    if (user == null) throw const UpdateNameException();
+    try {
+      await user.updateDisplayName(name);
+      await user.reload();
+    } on FirebaseAuthException {
+      throw const UpdateNameException();
+    }
+    final refreshed = _auth.currentUser;
+    if (refreshed != null) _account.value = _familyAccount(refreshed);
+  }
+
   void dispose() {
     _subscription.cancel();
     _signedIn.dispose();
+    _account.dispose();
   }
+}
+
+FamilyAccount _familyAccount(User user) => FamilyAccount(
+  name: user.displayName ?? '',
+  email: user.email ?? '',
+  signInMethod: _signInMethod(user),
+  registeredOn: user.metadata.creationTime,
+);
+
+// Google で入っているときは、それをログイン方法にする。なければメールアドレス
+SignInMethod _signInMethod(User user) {
+  for (final info in user.providerData) {
+    if (info.providerId == 'google.com') return SignInMethod.google;
+  }
+  return SignInMethod.emailAndPassword;
 }

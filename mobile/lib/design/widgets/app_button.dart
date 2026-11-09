@@ -57,7 +57,15 @@ enum AppButtonVariant {
   light(background: AppColors.nightText, foreground: AppColors.nightBase),
   ghost(background: Colors.transparent, foreground: AppColors.inkSecondary),
   // モックの ghost-ink。背景はなく、文字は ink
-  ghostInk(background: Colors.transparent, foreground: AppColors.inkPrimary);
+  ghostInk(background: Colors.transparent, foreground: AppColors.inkPrimary),
+  // 08d の「ログアウトする」。primary の形で、背景は alert
+  alert(background: AppColors.stateAlert, foreground: AppColors.onStateAlert),
+  // 08e の「ログアウト」。secondary の枠で、文字とアイコンは alert
+  alertSecondary(
+    background: AppColors.paperRaised,
+    foreground: AppColors.stateAlert,
+    border: BorderSide(color: AppColors.lineStrong, width: 1.5),
+  );
 
   const AppButtonVariant({
     required this.background,
@@ -72,7 +80,7 @@ enum AppButtonVariant {
 
 // 親が幅を決めればその幅に広がり、決めなければ中身の幅になる。
 // onTap が null のときは押せず、背景は buttonDisabled、文字は inkSecondary になる。
-// 副ボタンだけは、モックの .btn.secondary:disabled のとおり枠線を残す。
+// 枠のあるボタンは、押せないときもモックの .btn.secondary:disabled のとおり枠線を残す。
 // leading は AppIcons にない、色を変えずに出す画像(Google のロゴ)に使う。
 class AppButton extends StatelessWidget {
   const AppButton({
@@ -105,7 +113,8 @@ class AppButton extends StatelessWidget {
     final trailingIcon = this.trailingIcon;
     final isEnabled = onTap != null;
     final foreground = isEnabled ? variant.foreground : AppColors.inkSecondary;
-    final keepsBorder = isEnabled || variant == AppButtonVariant.secondary;
+    // 枠のあるボタンは、押せないときもモックの secondary:disabled と同じく枠を残す
+    final keepsBorder = isEnabled || variant.border.width > 0;
     final labelText = Text(
       label,
       textAlign: TextAlign.center,
