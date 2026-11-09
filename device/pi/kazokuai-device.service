@@ -1,0 +1,16 @@
+[Unit]
+Description=かぞくAIの電話機
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/kazokuai/device.env
+ExecStart=/usr/local/bin/kazokuai-device --watched-person ${KAZOKUAI_WATCHED_PERSON} --backend ${KAZOKUAI_BACKEND}
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=0
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
