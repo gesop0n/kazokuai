@@ -13,63 +13,76 @@ import (
 // Hook は Enter キーのフックである。
 // 電話のたびに受話器を下ろした状態から始め、待っているあいだの Enter は次の電話に持ち越さない。
 type Hook struct {
-	out     io.Writer
-	events  chan phone.HookEvent
-	presses chan struct{}
+	out    io.Writer
+	events chan phone.HookEvent
 
-	mu     sync.Mutex
-	cancel context.CancelFunc
-	up     bool
+	mu      sync.Mutex
+	cond    *sync.Cond
+	cancel  context.CancelFunc
+	stopped chan struct{} // 今の監視が終わると閉じる
+	up      bool
+	pending bool // まだ上げ下げに使っていない Enter が 1 つある
 }
 
 // NewHook は、in の 1 行を Enter として受ける。上げたときと置いたときを out に書く。
 // 上げ下げを知らせるのは、Prepare から Rest までのあいだだけである。
 func NewHook(in io.Reader, out io.Writer) *Hook {
 	h := &Hook{
-		out:     out,
-		events:  make(chan phone.HookEvent),
-		presses: make(chan struct{}, 1),
+		out:    out,
+		events: make(chan phone.HookEvent),
 	}
-	go func() {
-		lines := bufio.NewScanner(in)
-		for lines.Scan() {
-			// 1 つ残っているあいだの Enter は捨てる。呼び出しの前に押した分を、あとで受話器上げにしない。
-			select {
-			case h.presses <- struct{}{}:
-			default:
-			}
-		}
-	}()
+	h.cond = sync.NewCond(&h.mu)
+	go h.read(in)
 	return h
+}
+
+// read は、in の 1 行を Enter として 1 つだけ覚える。まだ使っていない Enter があるあいだの行は捨てる。
+func (h *Hook) read(in io.Reader) {
+	lines := bufio.NewScanner(in)
+	for lines.Scan() {
+		h.mu.Lock()
+		h.pending = true
+		h.cond.Broadcast()
+		h.mu.Unlock()
+	}
 }
 
 // Prepare は、受話器を下ろした状態からこの電話の上げ下げを知らせ始める。
 // 待っていた Enter は捨てるので、次の電話には出ない。
 func (h *Hook) Prepare() {
 	h.Rest()
-	select {
-	case <-h.presses:
-	default:
-	}
 	ctx, cancel := context.WithCancel(context.Background())
+	stopped := make(chan struct{})
 	h.mu.Lock()
-	h.cancel = cancel
+	h.pending = false
 	h.up = false
+	h.cancel = cancel
+	h.stopped = stopped
 	h.mu.Unlock()
-	go h.watch(ctx)
+	go func() {
+		defer close(stopped)
+		h.watch(ctx)
+	}()
 }
 
 // Rest は、この電話の上げ下げを知らせるのをやめる。
+// 前の監視が終わるまで待つ。終わっていない監視が次の Enter を取ると、その電話に出られない。
 func (h *Hook) Rest() {
 	h.mu.Lock()
 	cancel := h.cancel
+	stopped := h.stopped
 	h.cancel = nil
+	h.stopped = nil
 	h.up = false
-	h.mu.Unlock()
 	if cancel != nil {
 		cancel()
 	}
-	// 前の電話の上げ下げが、次の電話のループに残らないように 1 つ捨てる。
+	h.cond.Broadcast()
+	h.mu.Unlock()
+	if stopped != nil {
+		<-stopped
+	}
+	// 前の電話の上げ下げが、次の電話の受け取りに残らないように 1 つ捨てる。
 	select {
 	case <-h.events:
 	default:
@@ -78,16 +91,15 @@ func (h *Hook) Rest() {
 
 func (h *Hook) watch(ctx context.Context) {
 	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-h.presses:
-		}
 		h.mu.Lock()
+		for !h.pending && ctx.Err() == nil {
+			h.cond.Wait()
+		}
 		if ctx.Err() != nil {
 			h.mu.Unlock()
 			return
 		}
+		h.pending = false
 		h.up = !h.up
 		up := h.up
 		h.mu.Unlock()

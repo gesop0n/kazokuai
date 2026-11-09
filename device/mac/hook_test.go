@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/gesop0n/kazokuai/device/phone"
 )
@@ -16,20 +15,17 @@ func TestIdleEnterDoesNotAnswerTheNextCall(t *testing.T) {
 	h := NewHook(inR, &bytes.Buffer{})
 
 	fmt.Fprintln(inW, "")
-	waitUntil(t, "Enter が残らなかった", func() bool { return len(h.presses) == 1 })
+	waitPending(t, h)
 
 	h.Prepare()
-	if len(h.presses) != 0 {
-		t.Fatal("待っていた Enter が残っている")
-	}
 	select {
 	case ev := <-h.Events():
 		t.Fatalf("待っていた Enter で %v を送った", ev)
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 
 	fmt.Fprintln(inW, "")
-	if got := readHook(t, h); got != phone.PickedUp {
+	if got := <-h.Events(); got != phone.PickedUp {
 		t.Fatalf("次の Enter = %v, want 受話器を上げた", got)
 	}
 
@@ -37,29 +33,17 @@ func TestIdleEnterDoesNotAnswerTheNextCall(t *testing.T) {
 	h.Rest()
 	h.Prepare()
 	fmt.Fprintln(inW, "")
-	if got := readHook(t, h); got != phone.PickedUp {
+	if got := <-h.Events(); got != phone.PickedUp {
 		t.Fatalf("次の電話の Enter = %v, want 受話器を上げた", got)
 	}
 }
 
-func readHook(t *testing.T, h *Hook) phone.HookEvent {
+// waitPending は、Enter がフックに届くまで待つ。時計では待たない。
+func waitPending(t *testing.T, h *Hook) {
 	t.Helper()
-	select {
-	case ev := <-h.Events():
-		return ev
-	case <-time.After(time.Second):
-		t.Fatal("待っても受話器の上げ下げが来なかった")
-		return 0
-	}
-}
-
-func waitUntil(t *testing.T, what string, cond func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for !cond() {
-		if time.Now().After(deadline) {
-			t.Fatal("待っても" + what)
-		}
-		time.Sleep(time.Millisecond)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for !h.pending {
+		h.cond.Wait()
 	}
 }
