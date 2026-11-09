@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -287,6 +288,51 @@ func TestPhoneThatNamesAnotherPersonIsRefused(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestPhoneKeyConnectionLogsTheLinkedPerson(t *testing.T) {
+	const secret = "phone-secret-do-not-log"
+	const key = "alpha-key"
+	var logs lockedBuffer
+	logger := log.New(&logs, "", log.LstdFlags)
+	srv, handler := newLoggingServer(t, secret, logger, nil)
+	person, token := registerHanako(t, srv.URL)
+	id := testPhoneID(t)
+	if resp := registerPhone(t, srv.URL, secret, id, key); resp.status != http.StatusCreated {
+		t.Fatalf("登録 = %d %s", resp.status, resp.body)
+	}
+	if _, err := emulators.Firestore.Collection("phones").Doc(id).Update(t.Context(), []firestore.Update{
+		{Path: "watchedPersonId", Value: person},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	conn := dialPhoneKey(t, srv.URL, id, key, "")
+	readPhone(conn)
+	waitConnected(t, handler, person, true)
+	waitForLog(t, &logs, "電話機がつながりました。見守る方: "+person)
+	if strings.Contains(logs.String(), secret) || strings.Contains(logs.String(), key) {
+		t.Fatal("つながったログに合言葉か鍵がある")
+	}
+
+	if err := conn.Close(websocket.StatusNormalClosure, "切った-"+secret); err != nil {
+		t.Fatal(err)
+	}
+	waitConnected(t, handler, person, false)
+	waitForLog(t, &logs, "電話機が切れました。見守る方: "+person)
+	waitForLog(t, &logs, "理由: 切った-[合言葉]")
+	if strings.Contains(logs.String(), secret) || strings.Contains(logs.String(), key) {
+		t.Fatal("切れたログに合言葉か鍵がある")
+	}
+
+	resp := postJSON(t, srv.URL, "/calls/now", "Bearer "+token, `{"message": "金曜の通院", "script": "ハナさん、美咲さんからです。"}`)
+	if resp.status != http.StatusConflict || !strings.Contains(string(resp.body), protocol.PhoneNotConnected) {
+		t.Fatalf("今すぐ通話 = %d %s, want 409 phone_not_connected", resp.status, resp.body)
+	}
+	waitForLog(t, &logs, "今すぐ通話を断りました。電話機がつながっていません。見守る方: "+person)
+	if strings.Contains(logs.String(), secret) || strings.Contains(logs.String(), key) {
+		t.Fatal("断ったログに合言葉か鍵がある")
+	}
 }
 
 func testPhoneID(t *testing.T) string {

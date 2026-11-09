@@ -40,6 +40,8 @@ type Config struct {
 	ProjectID string
 	// PhoneSecret は、電話機の合言葉である。登録するときの合言葉で、古い道の /token、/calls、WebSocket も、これが無いと断る。
 	PhoneSecret string
+	// Logger は、電話機のつながりと、電話機がいない今すぐ通話を書く。nil なら標準のログである。
+	Logger *log.Logger
 }
 
 // DefaultSummaryModel は、まとめに使うモデルの既定値である。

@@ -48,8 +48,10 @@ func ResolveProjectFrom(projectID, firestoreHost, authHost string) (string, erro
 	return projectID, nil
 }
 
-// SecretFor は、電話機の合言葉を決める。環境変数にあればそれを使い、無ければ demo- のプロジェクトだけ開発用の合言葉にする。
+// SecretFor は、電話機の合言葉を決める。環境変数にあれば、前後の空白を除いてそれを使う。
+// 無ければ demo- のプロジェクトだけ開発用の合言葉にする。
 func SecretFor(projectID, envSecret string) (string, error) {
+	envSecret = strings.TrimSpace(envSecret)
 	if envSecret != "" {
 		return envSecret, nil
 	}

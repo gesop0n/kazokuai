@@ -9,7 +9,7 @@ import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/data/home_source.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 
-// ホームに出す見守る方と電話を Firestore から読む。アプリは Firestore に何も書かない。
+// ホームに出す見守る方と電話を Firestore から読む。ホームは Firestore に書かない。
 // いるかどうかの監視は変えず、ホームに必要な名前と電話だけをここで読む
 class FirebaseHomeRepository
     with WidgetsBindingObserver

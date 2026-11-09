@@ -8,6 +8,8 @@ import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/home/home_format.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 // 1 日分の見出しと行。
 class CallDaySection extends StatelessWidget {
@@ -17,12 +19,16 @@ class CallDaySection extends StatelessWidget {
     required this.today,
     required this.headingKey,
     required this.onOpenCall,
+    this.anchorFirstRow = false,
   });
 
   final CallLogDay day;
   final DateTime today;
   final Key headingKey;
   final void Function(AnsweredCallEntry entry) onOpenCall;
+
+  // 使い方は、いちばん上の日の最初の行だけを明るくする
+  final bool anchorFirstRow;
 
   @override
   Widget build(BuildContext context) {
@@ -35,16 +41,22 @@ class CallDaySection extends StatelessWidget {
           heading: formatDayHeading(day.date, today),
           total: formatDayTotal(day),
         ),
-        for (final entry in day.entries)
-          switch (entry) {
-            AnsweredCallEntry() => _CallRow(
-              entry: entry,
-              onTap: () => onOpenCall(entry),
-            ),
-            MissedCallEntry() => _MissedRow(entry: entry),
-          },
+        for (final (index, entry) in day.entries.indexed)
+          _row(entry, anchor: anchorFirstRow && index == 0),
       ],
     );
+  }
+
+  Widget _row(CallLogEntry entry, {required bool anchor}) {
+    final row = switch (entry) {
+      AnsweredCallEntry() => _CallRow(
+        entry: entry,
+        onTap: () => onOpenCall(entry),
+      ),
+      MissedCallEntry() => _MissedRow(entry: entry),
+    };
+    if (!anchor) return row;
+    return TutorialAnchor(part: TutorialPart.callRow, child: row);
   }
 }
 

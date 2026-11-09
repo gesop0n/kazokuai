@@ -1,13 +1,16 @@
 package server_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -65,10 +68,20 @@ func TestResolveProjectFrom(t *testing.T) {
 }
 
 func TestSecretFor(t *testing.T) {
-	t.Run("環境変数にあればそれを使う", func(t *testing.T) {
-		got, err := server.SecretFor("kazokuai-prod", "production-secret")
+	t.Run("環境変数にあれば、前後の空白を除いてそれを使う", func(t *testing.T) {
+		got, err := server.SecretFor("kazokuai-prod", " \nproduction-secret\r\n")
 		if err != nil || got != "production-secret" {
 			t.Fatalf("got %q, %v", got, err)
+		}
+	})
+
+	t.Run("空白だけなら未設定と同じ", func(t *testing.T) {
+		got, err := server.SecretFor("demo-kazokuai", " \n")
+		if err != nil || got != "dev-phone-secret" {
+			t.Fatalf("demo = %q, %v", got, err)
+		}
+		if _, err := server.SecretFor("kazokuai-prod", " \n"); err == nil || !strings.Contains(err.Error(), "PHONE_SECRET") {
+			t.Fatalf("本番の空白だけ = %v", err)
 		}
 	})
 
@@ -85,6 +98,168 @@ func TestSecretFor(t *testing.T) {
 			t.Fatalf("got %v", err)
 		}
 	})
+}
+
+func TestPhoneSecretWithTrailingNewlineStillPasses(t *testing.T) {
+	secret, err := server.SecretFor("kazokuai-prod", " \nshared-secret\r\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secret != "shared-secret" {
+		t.Fatalf("読んだ合言葉 = %q, want shared-secret", secret)
+	}
+	srv := newDemoServer(t, "kazokuai-prod", secret, nil)
+	resp := call(t, srv.URL, http.MethodPost, "/token", secret, `{}`)
+	if resp.status != http.StatusBadRequest {
+		t.Fatalf("合言葉の確かめ = %d, want 400（合言葉では断らない）: %s", resp.status, resp.body)
+	}
+}
+
+func TestPhoneConnectionLogs(t *testing.T) {
+	const secret = "phone-secret-do-not-log"
+	var logs lockedBuffer
+	logger := log.New(&logs, "", log.LstdFlags)
+	srv, handler := newLoggingServer(t, secret, logger, nil)
+	person, token := registerHanako(t, srv.URL)
+
+	conn := dialPhone(t, srv.URL, person, secret)
+	readPhone(conn)
+	waitConnected(t, handler, person, true)
+	waitForLog(t, &logs, "電話機がつながりました。見守る方: "+person)
+	if strings.Contains(logs.String(), secret) {
+		t.Fatal("つながったログに合言葉がある")
+	}
+
+	if err := conn.Close(websocket.StatusNormalClosure, "切った-"+secret); err != nil {
+		t.Fatal(err)
+	}
+	waitConnected(t, handler, person, false)
+	waitForLog(t, &logs, "電話機が切れました。見守る方: "+person)
+	waitForLog(t, &logs, "理由: 切った-[合言葉]")
+	if strings.Contains(logs.String(), secret) {
+		t.Fatal("切れたログに合言葉がある")
+	}
+
+	resp := postJSON(t, srv.URL, "/calls/now", "Bearer "+token, `{"message": "金曜の通院", "script": "ハナさん、美咲さんからです。"}`)
+	if resp.status != http.StatusConflict || !strings.Contains(string(resp.body), protocol.PhoneNotConnected) {
+		t.Fatalf("今すぐ通話 = %d %s, want 409 phone_not_connected", resp.status, resp.body)
+	}
+	waitForLog(t, &logs, "今すぐ通話を断りました。電話機がつながっていません。見守る方: "+person)
+	if strings.Contains(logs.String(), secret) {
+		t.Fatal("断ったログに合言葉がある")
+	}
+}
+
+func TestRefusedCallLogsThePersonWhenThePhoneDropsDuringCreation(t *testing.T) {
+	const secret = "phone-secret-do-not-log"
+	var logs lockedBuffer
+	logger := log.New(&logs, "", 0)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	letGo := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(letGo)
+	clk := &holdClock{Clock: clock.Real{}, entered: entered, release: release}
+	srv, handler := newLoggingServer(t, secret, logger, clk)
+	person, token := registerHanako(t, srv.URL)
+	conn := dialPhone(t, srv.URL, person, secret)
+	readPhone(conn)
+	waitConnected(t, handler, person, true)
+
+	done := make(chan response, 1)
+	go func() {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL+"/calls/now", strings.NewReader(`{"message": "金曜の通院", "script": "ハナさん、美咲さんからです。"}`))
+		if err != nil {
+			done <- response{status: -1, body: []byte(err.Error())}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+token)
+		got, err := http.DefaultClient.Do(req)
+		if err != nil {
+			done <- response{status: -1, body: []byte(err.Error())}
+			return
+		}
+		defer got.Body.Close()
+		body, err := io.ReadAll(got.Body)
+		if err != nil {
+			done <- response{status: got.StatusCode, body: []byte(err.Error())}
+			return
+		}
+		done <- response{status: got.StatusCode, body: body}
+	}()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("電話を作り始める前に止まった")
+	}
+	if err := conn.Close(websocket.StatusNormalClosure, "作成中に切れた"); err != nil {
+		t.Fatal(err)
+	}
+	waitConnected(t, handler, person, false)
+	letGo()
+
+	var resp response
+	select {
+	case resp = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("今すぐ通話が戻らなかった")
+	}
+	if resp.status != http.StatusConflict || !strings.Contains(string(resp.body), protocol.PhoneNotConnected) {
+		t.Fatalf("今すぐ通話 = %d %s, want 409 phone_not_connected", resp.status, resp.body)
+	}
+	if callCount(t, person) != 0 {
+		t.Fatalf("届かなかった電話が残っている")
+	}
+	waitForLog(t, &logs, "今すぐ通話を断りました。電話機がつながっていません。見守る方: "+person)
+	if strings.Contains(logs.String(), secret) {
+		t.Fatal("断ったログに合言葉がある")
+	}
+}
+
+func TestDropLogStaysOneLineWhenTheReasonHasALineBreak(t *testing.T) {
+	const secret = "phone-secret-do-not-log"
+	var logs lockedBuffer
+	logger := log.New(&logs, "", 0)
+	srv, handler := newLoggingServer(t, secret, logger, nil)
+	person, _ := registerHanako(t, srv.URL)
+	conn := dialPhone(t, srv.URL, person, secret)
+	readPhone(conn)
+	waitConnected(t, handler, person, true)
+
+	if err := conn.Close(websocket.StatusNormalClosure, "Wi-Fi disconnected\r\n"+secret); err != nil {
+		t.Fatal(err)
+	}
+	waitConnected(t, handler, person, false)
+	waitForLog(t, &logs, "電話機が切れました。見守る方: "+person)
+
+	text := logs.String()
+	lines := strings.Split(strings.TrimRight(text, "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("ログの行数 = %d, want つながったときと切れたときの 2 行:\n%s", len(lines), text)
+	}
+	if !strings.Contains(lines[1], person) || !strings.Contains(lines[1], `Wi-Fi disconnected\r\n[合言葉]`) {
+		t.Fatalf("切れた行 = %q", lines[1])
+	}
+	if strings.Contains(text, secret) {
+		t.Fatal("切れたログに合言葉がある")
+	}
+}
+
+// holdClock は、最初の Now で入り、release が閉じるまで電話の作成を止める。
+type holdClock struct {
+	clock.Clock
+	once    sync.Once
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (c *holdClock) Now() time.Time {
+	c.once.Do(func() {
+		close(c.entered)
+		<-c.release
+	})
+	return c.Clock.Now()
 }
 
 func TestPhoneSecretGatesTheDeviceRoutes(t *testing.T) {
@@ -360,6 +535,52 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 		}
 		conn.CloseNow()
 	})
+}
+
+func newLoggingServer(t *testing.T, secret string, logger *log.Logger, clk clock.Clock) (*httptest.Server, *server.Handler) {
+	t.Helper()
+	handler := server.New(server.Config{
+		ProjectID:   "demo-kazokuai",
+		PhoneSecret: secret,
+		Logger:      logger,
+	}, emulators, nil, nil, clk)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(func() {
+		handler.Stop()
+		srv.Close()
+	})
+	return srv, handler
+}
+
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+func waitForLog(t *testing.T, logs *lockedBuffer, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if strings.Contains(logs.String(), want) {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ログに %q がない:\n%s", want, logs.String())
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func newDemoServer(t *testing.T, project, secret string, clk clock.Clock) *httptest.Server {
