@@ -13,12 +13,13 @@ const _talking = '通話中';
 // 見守る方の電話が呼び出し中か通話中かを Firestore から読む。アプリは Firestore に何も書かない
 class FirebaseCallProgressRepository implements CallProgressRepository {
   FirebaseCallProgressRepository({
-    required FirebaseAuth auth,
+    required this._auth,
     required this._firestore,
   }) {
-    _authSubscription = auth.authStateChanges().listen(_watch);
+    _authSubscription = _auth.authStateChanges().listen(_watch);
   }
 
+  final FirebaseAuth _auth;
   final FirebaseFirestore _firestore;
   final _inProgress = CallProgress(false);
   late final StreamSubscription<User?> _authSubscription;
@@ -28,6 +29,39 @@ class FirebaseCallProgressRepository implements CallProgressRepository {
 
   @override
   CallProgress get inProgress => _inProgress;
+
+  // 拒否が届く前に終わった通知を受け取っていると、そのあとの通知はない。
+  // サーバーの今の状態を読み、終わっていれば false を届ける。
+  @override
+  Future<bool?> refresh() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _inProgress.read(false);
+      return false;
+    }
+    try {
+      final people = await _firestore
+          .collection('watchedPersons')
+          .where('familyUids', arrayContains: user.uid)
+          .limit(1)
+          .get(const GetOptions(source: Source.server));
+      if (people.docs.isEmpty) {
+        _inProgress.read(false);
+        return false;
+      }
+      final calls = await people.docs.first.reference
+          .collection('calls')
+          .where('state', whereIn: const [_ringing, _talking])
+          .limit(1)
+          .get(const GetOptions(source: Source.server));
+      final busy = calls.docs.isNotEmpty;
+      _inProgress.read(busy);
+      return busy;
+    } catch (error, stack) {
+      _report(error, stack);
+      return null;
+    }
+  }
 
   void _watch(User? user) {
     _stop();

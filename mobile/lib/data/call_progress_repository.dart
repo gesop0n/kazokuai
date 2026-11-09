@@ -11,6 +11,10 @@ abstract interface class CallProgressRepository {
   // まだ読み終えていないときと、電話の最中でないときは false。
   // 読み取りが届くたびに知らせる。値が同じでも、01 は断ったあとの確認に使う
   ValueListenable<bool> get inProgress;
+
+  // 今の状態を読み直す。呼び出し中か通話中なら true、終わっているか無ければ false。
+  // 読めなければ null。null のとき、01 は今の表示を変えない
+  Future<bool?> refresh();
 }
 
 // 電話の最中かの読み取り。届くたびに知らせ、値が同じでも通知する

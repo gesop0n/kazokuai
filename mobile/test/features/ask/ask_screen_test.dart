@@ -994,5 +994,38 @@ void main() {
       expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
       expect(find.byType(AskScreen), findsOneWidget);
     });
+
+    testWidgets('終わった通知が拒否より先でも「今すぐ通話」に戻る', (tester) async {
+      final progress = FakeCallProgressRepository();
+      final gate = Completer<void>();
+      final calls = FakeImmediateCallRepository(
+        inProgress: true,
+        gate: gate.future,
+      );
+      await _pumpAppAndOpenAsk(tester, calls: calls, progress: progress);
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pump();
+
+      progress.inProgress.read(true);
+      await tester.pump();
+      expect(find.text('通話中です'), findsOneWidget);
+
+      progress.inProgress.read(false);
+      await tester.pump();
+      expect(find.text('今すぐ通話'), findsOneWidget);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('今すぐ通話'), findsOneWidget);
+      expect(find.text('通話中です'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(find.byType(AskScreen), findsOneWidget);
+      expect(calls.started, isEmpty);
+    });
   });
 }

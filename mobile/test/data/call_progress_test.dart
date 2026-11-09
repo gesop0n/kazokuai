@@ -115,6 +115,30 @@ void main() {
       repository.dispose();
     }
   });
+
+  testWidgets('読み直しは、通話中なら true、終わったあとなら false', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    final repository = _open(firestore);
+    try {
+      await tester.pump();
+      final calls = firestore
+          .collection('watchedPersons')
+          .doc('hanako')
+          .collection('calls');
+      await calls.doc('now').set({'state': '通話中'});
+
+      expect(await repository.refresh(), isTrue);
+      expect(repository.inProgress.value, isTrue);
+
+      await calls.doc('now').update({'state': '終わった'});
+
+      expect(await repository.refresh(), isFalse);
+      expect(repository.inProgress.value, isFalse);
+    } finally {
+      repository.dispose();
+    }
+  });
 }
 
 FirebaseCallProgressRepository _open(
@@ -142,6 +166,9 @@ class _Auth extends Fake implements FirebaseAuth {
 
   @override
   Stream<User?> authStateChanges() => Stream<User?>.value(_user);
+
+  @override
+  User? get currentUser => _user;
 }
 
 class _User extends Fake implements User {

@@ -37,7 +37,8 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   _DraftPhase _phase = _DraftPhase.hidden;
   late final ValueListenable<bool> _progress;
 
-  // バックエンドに断られてから、次の読み取りが届くまでの表示
+  // バックエンドに断られてから、電話がまだ最中だと分かるまでの表示。
+  // 断ったあとに読み直して、終わっていればすぐ戻す
   bool _refusedWhileBusy = false;
 
   @override
@@ -128,8 +129,15 @@ class _AskScreenState extends ConsumerState<AskScreen> {
           ),
         );
     } on CallInProgressException {
-      if (!mounted || _progress.value) return;
+      if (!mounted) return;
       setState(() => _refusedWhileBusy = true);
+      // 終わった通知が拒否より先だと、このあとに通知は来ない。
+      // 読み直して終わっていれば戻す。まだ読み終えていないときは戻さない。
+      final stillBusy = await ref
+          .read(callProgressRepositoryProvider)
+          .refresh();
+      if (!mounted || stillBusy != false) return;
+      setState(() => _refusedWhileBusy = false);
     } on ImmediateCallException {
       // つながらない以外の失敗は、画面に留まる。文面は、このチケットでは求めない。
     }
