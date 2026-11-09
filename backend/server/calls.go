@@ -55,16 +55,10 @@ var errCallInProgress = errors.New("電話の最中")
 
 // startCall は、ID トークンを確かめた家族の見守る方に、今すぐ電話をかける。
 // 電話機がつながっていないときと、電話の最中は、電話の文書を作らない。
+// 文書を作ったあとで結び付きが替わっていたときは、その文書を消して届かない。
 func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
-	idToken, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || idToken == "" {
-		http.Error(w, "Authorization ヘッダーに、家族の ID トークンを Bearer で入れてください", http.StatusUnauthorized)
-		return
-	}
-	token, err := s.firebase.Auth.VerifyIDToken(r.Context(), idToken)
-	if err != nil {
-		log.Printf("家族の ID トークンを確かめられなかった: %v", err)
-		http.Error(w, "家族の ID トークンを確かめられなかった", http.StatusUnauthorized)
+	uid, ok := s.familyUID(w, r)
+	if !ok {
 		return
 	}
 	var req startCallBody
@@ -78,7 +72,7 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "伝えたいことと通話内容を入れてください", http.StatusBadRequest)
 		return
 	}
-	personID, err := findFamilyPerson(r.Context(), s.firebase.Firestore, token.UID)
+	personID, err := findFamilyPerson(r.Context(), s.firebase.Firestore, uid)
 	if errors.Is(err, errNotFamily) {
 		http.Error(w, "この見守る方の家族ではないので、電話を始められません", http.StatusForbidden)
 		return
@@ -115,26 +109,50 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 	}
 	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: ref.ID}
 	if linked {
-		err = s.phones.sendPhone(phoneID, personID, msg)
-	} else {
-		err = s.phones.send(personID, msg)
-	}
-	if err != nil {
-		// 指示が届かなかった電話は、残さない。家族には、つながらなかったと伝える。
-		if _, delErr := ref.Delete(r.Context()); delErr != nil {
-			log.Printf("届かなかった電話 %s を消せなかった: %v", ref.ID, delErr)
+		// 文書を作るあいだに電話機が替わっていることがある。届ける直前に、今の結び付きと一致するときだけ送る。
+		s.linkMu.Lock()
+		nowID, nowLinked, err := s.linkedPhoneID(r.Context(), personID)
+		if err != nil {
+			s.linkMu.Unlock()
+			log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
+			s.discardCall(r.Context(), ref)
+			http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
+			return
 		}
+		if !nowLinked || nowID != phoneID || !s.phones.hasPhone(nowID) {
+			s.linkMu.Unlock()
+			s.discardCall(r.Context(), ref)
+			s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
+			writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
+			return
+		}
+		err = s.phones.sendPhone(nowID, personID, msg)
+		if err != nil {
+			s.linkMu.Unlock()
+			s.discardCall(r.Context(), ref)
+			s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
+			writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
+			return
+		}
+		// 電話が始まったら、その電話機の認証コードは捨てる。有効なあいだの「＃」で同じコードを返さない。
+		s.syncs.dropCode(nowID)
+		s.linkMu.Unlock()
+	} else if err = s.phones.send(personID, msg); err != nil {
+		s.discardCall(r.Context(), ref)
 		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
-	// 電話が始まったら、その電話機の認証コードは捨てる。有効なあいだの「＃」で同じコードを返さない。
-	if linked {
-		s.syncs.dropCode(phoneID)
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(startedCall{ID: ref.ID})
+}
+
+// discardCall は、電話機に届かなかった電話の文書を消す。
+func (s *server) discardCall(ctx context.Context, ref *firestore.DocumentRef) {
+	if _, err := ref.Delete(ctx); err != nil {
+		log.Printf("届かなかった電話 %s を消せなかった: %v", ref.ID, err)
+	}
 }
 
 // beginCall は、見守る方の電話が呼び出し中でも通話中でもなければ、

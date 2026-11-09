@@ -3,15 +3,19 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/gesop0n/kazokuai/backend/server"
+	"github.com/gesop0n/kazokuai/internal/clock"
 	"github.com/gesop0n/kazokuai/internal/clock/clocktest"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
@@ -540,6 +544,168 @@ func TestSyncNotifiesPhone(t *testing.T) {
 	}
 }
 
+// TestReviewConcurrentSyncConsumesPreparationOnce は、同じ準備に有効な認証コードを同時に送っても、結び付けが 1 件だけ成功することを確かめる。
+func TestReviewConcurrentSyncConsumesPreparationOnce(t *testing.T) {
+	when := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	base := clocktest.New(when)
+	clk := &linkStallClock{base: base, delay: 400 * time.Millisecond}
+	srv, _ := newAuthServer(t, clk)
+	family := signUp(t)
+	registered := register(t, srv.URL, "Bearer "+family.IDToken, `{"name":"山田花子","callName":"ハナさん"}`)
+	if registered.status != http.StatusCreated {
+		t.Fatalf("登録 = %d, want 201: %s", registered.status, registered.body)
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(registered.body, &created); err != nil || created.ID == "" {
+		t.Fatalf("登録の本文 = %s", registered.body)
+	}
+	firstID := testPhoneID(t) + "-a"
+	secondID := testPhoneID(t) + "-b"
+	registerKeyedPhone(t, srv.URL, firstID)
+	registerKeyedPhone(t, srv.URL, secondID)
+	prepareSync(t, srv.URL, family.IDToken)
+	codes := []string{
+		syncCodeOf(t, askSyncCode(t, srv.URL, firstID)),
+		syncCodeOf(t, askSyncCode(t, srv.URL, secondID)),
+	}
+	ids := []string{firstID, secondID}
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	results := make([]response, len(codes))
+	errs := make([]error, len(codes))
+	ctx := t.Context()
+	for i := range codes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			results[i], errs[i] = postSyncCode(ctx, srv.URL, family.IDToken, codes[i])
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	okCount := 0
+	var winner string
+	for i, resp := range results {
+		if errs[i] != nil {
+			t.Fatal(errs[i])
+		}
+		switch resp.status {
+		case http.StatusOK:
+			okCount++
+			if got := linkedPersonID(t, resp); got != created.ID {
+				t.Fatalf("結び付けた見守る方 = %s, want %s", got, created.ID)
+			}
+			winner = ids[i]
+		case http.StatusConflict:
+			if errorCode(t, resp) != protocol.SyncPrepEnded {
+				t.Fatalf("断った理由 = %s, want %s", errorCode(t, resp), protocol.SyncPrepEnded)
+			}
+		default:
+			t.Fatalf("認証コードの送信 = %d %s", resp.status, resp.body)
+		}
+	}
+	if okCount != 1 {
+		t.Fatalf("結び付けの成功 = %d, want 1", okCount)
+	}
+	linked := 0
+	for _, id := range ids {
+		got, _ := phoneDoc(t, id)["watchedPersonId"].(string)
+		if got == "" {
+			continue
+		}
+		linked++
+		if id != winner || got != created.ID {
+			t.Fatalf("結び付いた電話機 = %s %s, want %s %s", id, got, winner, created.ID)
+		}
+	}
+	if linked != 1 {
+		t.Fatalf("結び付いた電話機の数 = %d, want 1", linked)
+	}
+}
+
+// TestReviewReplacementCannotReceiveStaleCall は、電話の文書を作る直前に電話機を置き換えても、外した電話機へ電話が届かないことを確かめる。
+func TestReviewReplacementCannotReceiveStaleCall(t *testing.T) {
+	when := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	base := clocktest.New(when)
+	gate := newGateClock(base)
+	srv, handler := newAuthServer(t, gate)
+	t.Cleanup(gate.Release)
+	family := signUp(t)
+	firstID := testPhoneID(t) + "-a"
+	secondID := testPhoneID(t) + "-b"
+	registerKeyedPhone(t, srv.URL, firstID)
+	registerKeyedPhone(t, srv.URL, secondID)
+	personID := linkPhoneWithCode(t, srv.URL, family.IDToken, firstID)
+	first := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey, "")
+	firstMsgs := collectMessages(t, first)
+	awaitMessage(t, firstMsgs, protocol.PhoneTypeSynced)
+	waitConnected(t, handler, personID, true)
+
+	gate.Arm()
+	type callResult struct {
+		resp response
+		err  error
+	}
+	done := make(chan callResult, 1)
+	go func() {
+		resp, err := postJSONBody(context.Background(), srv.URL+protocol.StartCallPath, "Bearer "+family.IDToken, `{"message":"金曜の通院","script":"ハナさん、美咲さんからです。"}`)
+		done <- callResult{resp: resp, err: err}
+	}()
+	select {
+	case <-gate.Hit():
+	case <-time.After(2 * time.Second):
+		t.Fatal("電話の作成が止まらなかった")
+	}
+
+	prepareSync(t, srv.URL, family.IDToken)
+	code := syncCodeOf(t, askSyncCode(t, srv.URL, secondID))
+	resp := sendSyncCode(t, srv.URL, protocol.SyncCodePath, family.IDToken, code)
+	if got := linkedPersonID(t, resp); got != personID {
+		t.Fatalf("結び付けた見守る方 = %s, want %s", got, personID)
+	}
+	awaitMessage(t, firstMsgs, protocol.PhoneTypeNotSynced)
+	gate.Release()
+
+	var got callResult
+	select {
+	case got = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("今すぐ通話が戻らなかった")
+	}
+	if got.err != nil {
+		t.Fatal(got.err)
+	}
+	if got.resp.status == http.StatusCreated {
+		t.Fatalf("今すぐ通話 = 201 %s, want 409", got.resp.body)
+	}
+	if got.resp.status != http.StatusConflict || !strings.Contains(string(got.resp.body), protocol.PhoneNotConnected) {
+		t.Fatalf("今すぐ通話 = %d %s, want 409 %s", got.resp.status, got.resp.body, protocol.PhoneNotConnected)
+	}
+	awaitNoMessage(t, firstMsgs)
+
+	docs, err := emulators.Firestore.Collection("watchedPersons").Doc(personID).Collection("calls").Documents(t.Context()).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, doc := range docs {
+		state, _ := doc.Data()["state"].(string)
+		if state == protocol.StateRinging || state == protocol.StateTalking {
+			t.Fatalf("電話 %s の状態 = %s", doc.Ref.ID, state)
+		}
+	}
+	if id, _ := phoneDoc(t, firstID)["watchedPersonId"].(string); id != "" {
+		t.Fatalf("先の電話機 = %s, want 空", id)
+	}
+	if phoneDoc(t, secondID)["watchedPersonId"] != personID {
+		t.Fatalf("あとの電話機 = %v, want %s", phoneDoc(t, secondID)["watchedPersonId"], personID)
+	}
+}
+
 func newSyncServer(t *testing.T, when time.Time) (*httptest.Server, *clocktest.Clock) {
 	t.Helper()
 	srv, _, clk := newSyncServerWith(t, when)
@@ -719,4 +885,115 @@ func awaitNoMessage(t *testing.T, msgs <-chan protocol.PhoneMessage) {
 		t.Fatalf("知らせが届いた: %s", msg.Type)
 	case <-timer.C:
 	}
+}
+
+func postSyncCode(ctx context.Context, backend, token, code string) (response, error) {
+	body, err := json.Marshal(map[string]string{"code": code})
+	if err != nil {
+		return response{}, err
+	}
+	return postJSONBody(ctx, backend+protocol.SyncCodePath, "Bearer "+token, string(body))
+}
+
+func postJSONBody(ctx context.Context, url, authorization, body string) (response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		return response{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if authorization != "" {
+		req.Header.Set("Authorization", authorization)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return response{}, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return response{}, err
+	}
+	return response{status: resp.StatusCode, body: data, header: resp.Header}, nil
+}
+
+// linkStallClock は、linkPhone が時刻を読む最初の 1 回だけ待つ。
+// 確認を抜けたあとの結び付けを遅らせ、もう一方が先に確定できるかを見る。
+type linkStallClock struct {
+	base  *clocktest.Clock
+	once  sync.Once
+	delay time.Duration
+}
+
+func (c *linkStallClock) Now() time.Time {
+	if callerIsLinkPhone() {
+		c.once.Do(func() { time.Sleep(c.delay) })
+	}
+	return c.base.Now()
+}
+
+func (c *linkStallClock) NewTimer(d time.Duration) clock.Timer {
+	return c.base.NewTimer(d)
+}
+
+func callerIsLinkPhone() bool {
+	var pcs [32]uintptr
+	n := runtime.Callers(1, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+	for {
+		frame, more := frames.Next()
+		if strings.Contains(frame.Function, ".linkPhone") {
+			return true
+		}
+		if !more {
+			return false
+		}
+	}
+}
+
+// gateClock は、Arm のあとの最初の Now を、Release まで止める。
+type gateClock struct {
+	base    *clocktest.Clock
+	mu      sync.Mutex
+	armed   bool
+	hit     chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func newGateClock(base *clocktest.Clock) *gateClock {
+	return &gateClock{
+		base:    base,
+		hit:     make(chan struct{}),
+		release: make(chan struct{}),
+	}
+}
+
+func (c *gateClock) Arm() {
+	c.mu.Lock()
+	c.armed = true
+	c.mu.Unlock()
+}
+
+func (c *gateClock) Hit() <-chan struct{} { return c.hit }
+
+func (c *gateClock) Release() {
+	c.once.Do(func() { close(c.release) })
+}
+
+func (c *gateClock) Now() time.Time {
+	c.mu.Lock()
+	armed := c.armed
+	if armed {
+		c.armed = false
+	}
+	c.mu.Unlock()
+	if armed {
+		close(c.hit)
+		<-c.release
+	}
+	return c.base.Now()
+}
+
+func (c *gateClock) NewTimer(d time.Duration) clock.Timer {
+	return c.base.NewTimer(d)
 }
