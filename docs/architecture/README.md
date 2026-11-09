@@ -2,6 +2,8 @@
 
 `kazokuai.src.html` is the source of the diagram, written for the `stack-diagram` skill. `kazokuai.html`, `kazokuai.png`, and `kazokuai-dark.png` are built from it: rebuild them instead of editing them.
 
+The diagram shows what the repository builds and runs today, and the 電話機's Raspberry Pi, which the device program is built for. Any other component that is only planned, in an ADR or a spec, joins the diagram in the PR that builds it.
+
 ## Updating the diagram
 
 Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `stack-diagram` skill.
@@ -11,9 +13,7 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
 
    ```bash
    python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" \
-     "browser:lucide/globe" "raspberrypi:raspberry-pi" gemini flutter firebase "gcp:google-cloud" \
-     "run:gcp/cloud-run" "tasks:gcp/cloud-tasks" "scheduler:gcp/cloud-scheduler" "secret:gcp/secret-manager" \
-     "hosting:firebase"
+     "raspberrypi:raspberry-pi" gemini flutter firebase "gcp:google-cloud" "run:gcp/cloud-run" "secret:gcp/secret-manager" "hosting:firebase"
    cp <skill>/assets/generic/user.svg <icons>/person.svg
    ```
 
