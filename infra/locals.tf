@@ -1,5 +1,7 @@
 locals {
-  billing_account = startswith(var.billing_account, "billingAccounts/") ? var.billing_account : "billingAccounts/${var.billing_account}"
+  # provider 8.10.0 は URL を billingAccounts/{{billing_account}}/budgets と組む。
+  # 接頭辞を残すと billingAccounts/billingAccounts/... になり、予算を作れない。
+  billing_account = trimprefix(var.billing_account, "billingAccounts/")
 
   # Cloud Run のサービス名。Hosting の /api/** は、公開のときにこの名前へ回す。
   service_name = "kazokuai"

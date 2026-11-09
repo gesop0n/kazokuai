@@ -22,7 +22,7 @@ mise run infra:plan -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXX
 mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX --image=IMAGE --state-bucket=BUCKET
 ```
 
-`--region` を省くと `asia-northeast1` になる。`--billing-account` は `billingAccounts/` が付いていてもよい。
+`--region` を省くと `asia-northeast1` になる。`--billing-account` は `billingAccounts/` が付いていてもよい。予算の資源には ID だけを渡す。provider が接頭辞を付ける。
 
 `--project` が無いと、環境変数に別のプロジェクトがあっても、terraform は起動しない。apply は確認を求める。`-auto-approve` は付けない。
 
