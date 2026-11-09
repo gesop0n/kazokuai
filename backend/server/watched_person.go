@@ -53,15 +53,8 @@ var errAlreadyRegistered = errors.New("この家族には、すでに見守る�
 
 // registerWatchedPerson は、ID トークンを確かめた家族を家族の一覧に入れて、見守る方を作る。
 func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
-	idToken, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	uid, ok := s.familyUID(w, r)
 	if !ok {
-		http.Error(w, "Authorization ヘッダーに、家族の ID トークンを Bearer で入れてください", http.StatusUnauthorized)
-		return
-	}
-	token, err := s.firebase.Auth.VerifyIDToken(r.Context(), idToken)
-	if err != nil {
-		log.Printf("家族の ID トークンを確かめられなかった: %v", err)
-		http.Error(w, "家族の ID トークンを確かめられなかった", http.StatusUnauthorized)
 		return
 	}
 	var req registration
@@ -72,7 +65,7 @@ func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
 	person := watchedPerson{
 		Name:       strings.TrimSpace(req.Name),
 		CallName:   strings.TrimSpace(req.CallName),
-		FamilyUIDs: []string{token.UID},
+		FamilyUIDs: []string{uid},
 	}
 	if person.Name == "" || person.CallName == "" {
 		http.Error(w, "見守る方の名前と呼び方を入れてください", http.StatusBadRequest)

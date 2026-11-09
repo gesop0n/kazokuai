@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -134,6 +135,9 @@ type server struct {
 	phones     *phoneBook
 	// syncs は、同期の準備と認証コードと、その回数である。プロセスが終わると消える。
 	syncs *syncBook
+	// linkMu は、結び付きの確認から消費までと、電話を届ける直前の読み直しを重ねない。
+	// 同じ準備で二人分を結び付けたり、外した電話機へ電話を届けたりしないためである。
+	linkMu sync.Mutex
 	// clock は、トークンの期限と、ping と、切れた接続の猶予と、同期の期限を進める。nil なら実時間である。
 	clock clock.Clock
 	// base は、このサーバーが止まるまで生きている context である。電話機の接続はこれに従う。

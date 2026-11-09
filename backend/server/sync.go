@@ -313,6 +313,10 @@ func (s *server) sendSyncCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := strings.TrimSpace(req.Code)
+	// 準備の確認から、結び付け、認証コードを捨て、準備を終えるまでをまとめて行う。
+	// 同じ準備で別の電話機のコードが割り込むと、両方成功して後の電話機が先の電話機を置き換える。
+	s.linkMu.Lock()
+	defer s.linkMu.Unlock()
 	now := s.now()
 	if !s.syncs.prepOpen(uid, now) {
 		writeAPIError(w, http.StatusConflict, protocol.SyncPrepEnded)
@@ -333,7 +337,7 @@ func (s *server) sendSyncCode(w http.ResponseWriter, r *http.Request) {
 		s.answerWrongCode(w, uid, now)
 		return
 	}
-	result, err := s.linkPhone(r.Context(), uid, phoneID, now)
+	result, err := s.linkPhone(r.Context(), uid, phoneID)
 	if errors.Is(err, errPhoneTaken) {
 		s.answerWrongCode(w, uid, now)
 		return
@@ -403,7 +407,7 @@ type linkResult struct {
 // 見守る方がいなければ、名前と呼び方が空の見守る方を作る。
 // 別の電話機が付いていれば、それを同期していない電話機に戻し、その電話を「つながらなかった」で終える。
 // 同じ電話機なら、何も変えない。
-func (s *server) linkPhone(ctx context.Context, uid, phoneID string, now time.Time) (linkResult, error) {
+func (s *server) linkPhone(ctx context.Context, uid, phoneID string) (linkResult, error) {
 	store := s.firebase.Firestore
 	phoneRef := store.Collection(phonesCollection).Doc(phoneID)
 	people := store.Collection(watchedPersons)
@@ -411,6 +415,8 @@ func (s *server) linkPhone(ctx context.Context, uid, phoneID string, now time.Ti
 	var result linkResult
 	err := store.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		result = linkResult{}
+		// 読み取る前に時刻を取る。結び付けの時刻は、この試みの時刻である。
+		at := s.now()
 		phoneSnap, err := tx.Get(phoneRef)
 		if err != nil {
 			return err
@@ -471,20 +477,20 @@ func (s *server) linkPhone(ctx context.Context, uid, phoneID string, now time.Ti
 				"callName":   "",
 				"familyUids": []string{uid},
 				"phoneId":    phoneID,
-				"syncedAt":   now,
+				"syncedAt":   at,
 			}); err != nil {
 				return err
 			}
 			result.created = true
 		} else if err := tx.Update(personRef, []firestore.Update{
 			{Path: "phoneId", Value: phoneID},
-			{Path: "syncedAt", Value: now},
+			{Path: "syncedAt", Value: at},
 		}); err != nil {
 			return err
 		}
 		if err := tx.Update(phoneRef, []firestore.Update{
 			{Path: "watchedPersonId", Value: personRef.ID},
-			{Path: "syncedAt", Value: now},
+			{Path: "syncedAt", Value: at},
 		}); err != nil {
 			return err
 		}
