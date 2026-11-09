@@ -37,8 +37,6 @@ class PiReleaseTest(unittest.TestCase):
         text = README.read_text(encoding="utf-8")
         for phrase in [
             "Raspberry Pi Imager",
-            "dtoverlay=pwm",
-            "/boot/firmware/config.txt",
             "17 / 27 / 22 / 23",
             "24 / 25 / 4",
             "PAM8012",
@@ -59,6 +57,9 @@ class PiReleaseTest(unittest.TestCase):
         ]:
             self.assertIn(phrase, text, phrase)
         self.assertNotIn("dev-phone-secret", text)
+        self.assertNotIn("dtoverlay", text)
+        self.assertNotIn("PWM", text)
+        self.assertNotIn("pwm", text)
 
     def test_publish_creates_prerelease_named_by_short_sha(self):
         with tempfile.TemporaryDirectory() as tmp:
