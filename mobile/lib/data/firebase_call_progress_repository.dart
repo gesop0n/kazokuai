@@ -20,14 +20,14 @@ class FirebaseCallProgressRepository implements CallProgressRepository {
   }
 
   final FirebaseFirestore _firestore;
-  final _inProgress = ValueNotifier(false);
+  final _inProgress = CallProgress(false);
   late final StreamSubscription<User?> _authSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _personSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callsSubscription;
   String? _personId;
 
   @override
-  ValueListenable<bool> get inProgress => _inProgress;
+  CallProgress get inProgress => _inProgress;
 
   void _watch(User? user) {
     _stop();
@@ -46,7 +46,7 @@ class FirebaseCallProgressRepository implements CallProgressRepository {
     if (snapshot.docs.isEmpty) {
       if (snapshot.metadata.isFromCache) return;
       _stopCalls();
-      _inProgress.value = false;
+      _inProgress.read(false);
       return;
     }
     final doc = snapshot.docs.first;
@@ -62,7 +62,8 @@ class FirebaseCallProgressRepository implements CallProgressRepository {
   void _onCalls(QuerySnapshot<Map<String, dynamic>> snapshot) {
     // 空のキャッシュだけで、電話の最中でないとは決めない
     if (snapshot.docs.isEmpty && snapshot.metadata.isFromCache) return;
-    _inProgress.value = snapshot.docs.any(_isInProgress);
+    // 終わったあとも値が false のままなら、代入では画面に届かない
+    _inProgress.read(snapshot.docs.any(_isInProgress));
   }
 
   void _stopCalls() {

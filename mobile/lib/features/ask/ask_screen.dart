@@ -37,7 +37,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   _DraftPhase _phase = _DraftPhase.hidden;
   late final ValueListenable<bool> _progress;
 
-  // バックエンドに断られてから、Firestore が呼び出し中か通話中と読むまでの表示
+  // バックエンドに断られてから、次の読み取りが届くまでの表示
   bool _refusedWhileBusy = false;
 
   @override
@@ -47,10 +47,10 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     _progress.addListener(_onCallProgress);
   }
 
-  // Firestore が電話の最中と読んだあとは、その読み取りに任せる。
-  // 終わったときの false が、断られたときの表示を残さないようにする
+  // 拒否よりあとに届いた読み取りに任せる。
+  // 呼び出し中を一度も読まなくても、終わったと分かれば表示を戻す
   void _onCallProgress() {
-    if (!_progress.value || !_refusedWhileBusy || !mounted) return;
+    if (!_refusedWhileBusy || !mounted) return;
     setState(() => _refusedWhileBusy = false);
   }
 

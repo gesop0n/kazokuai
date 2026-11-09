@@ -90,6 +90,31 @@ void main() {
       repository.dispose();
     }
   });
+
+  testWidgets('終わった電話の読み取りは、最中でなくても届く', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    final repository = _open(firestore);
+    var notices = 0;
+    repository.inProgress.addListener(() => notices++);
+    try {
+      await tester.pump();
+      final afterOpen = notices;
+
+      await firestore
+          .collection('watchedPersons')
+          .doc('hanako')
+          .collection('calls')
+          .doc('done')
+          .set({'state': '終わった'});
+      await tester.pump();
+
+      expect(repository.inProgress.value, isFalse);
+      expect(notices, greaterThan(afterOpen));
+    } finally {
+      repository.dispose();
+    }
+  });
 }
 
 FirebaseCallProgressRepository _open(
