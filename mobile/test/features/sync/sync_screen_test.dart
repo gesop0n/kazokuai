@@ -312,6 +312,42 @@ void main() {
     expect(find.byType(SyncScreen), findsOneWidget);
   });
 
+  testWidgets('もどって同期を始め直すと、終わった知らせと前の入力を消す', (tester) async {
+    final sync = FakeSyncRepository()
+      ..sendError = const SyncPrepEndedException();
+    final watched = FakeWatchedPersonRepository(
+      status: WatchedPersonStatus.none,
+    );
+    await openCode(tester, sync, watched);
+    await enterDigits(tester, '123456');
+    await tester.tap(find.widgetWithText(AppButton, '送信'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('同期の準備が終わりました'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('もどる'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('もどる'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('電話機との同期を始めます。'), findsOneWidget);
+
+    sync.sendError = null;
+    await tester.tap(find.widgetWithText(AppButton, '同期を始める'));
+    await tester.pumpAndSettle();
+
+    expect(sync.starts, 2);
+
+    await tester.tap(find.widgetWithText(AppButton, '認証コードを入力する'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('同期の準備が終わりました'), findsNothing);
+    expect(find.bySemanticsLabel('6桁の認証コード'), findsOneWidget);
+    expect(find.bySemanticsLabel('6桁の認証コード、123456'), findsNothing);
+    expect(find.bySemanticsLabel('1'), findsOneWidget);
+    expect(find.widgetWithText(AppButton, '送信'), findsOneWidget);
+  });
+
   testWidgets('認証コードを送れなくても、数字キーと送信は残る', (tester) async {
     final sync = FakeSyncRepository()..sendError = const SyncFailedException();
     final watched = FakeWatchedPersonRepository(

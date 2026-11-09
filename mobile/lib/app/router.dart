@@ -86,10 +86,8 @@ GoRouter createAppRouter({
           // /loading へ付け替えると、読み終えたあとホームへ戻り、読み直した画面を失う
           return null;
         case WatchedPersonStatus.none:
-          // 新規登録は同期から始める。完了の画面へ進んだ直後も、ここを許す
-          return location == _syncPath || location == _syncDonePath
-              ? null
-              : _syncPath;
+          // 見守る方がいないあいだは L3 だけ。完了の画面は、同期で状態が変わってから開く
+          return location == _syncPath ? null : _syncPath;
         case WatchedPersonStatus.unnamed:
           // 認証コードを受け付けた直後は、名前の知らせより先に完了の画面を出す
           if (location == _watchedPersonNamePath || location == _syncDonePath) {
