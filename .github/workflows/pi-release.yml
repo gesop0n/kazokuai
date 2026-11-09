@@ -1,0 +1,31 @@
+name: pi-release
+
+# pi-release は main から早送りするだけにする。直接コミットしない。
+# この push で、電話機の linux/arm64 を debian:bookworm の中でビルドし、プレリリースに載せる。
+# Ubuntu 24.04 の glibc は Raspberry Pi OS (bookworm) より新しいので、ランナーの上では直接ビルドしない。
+on:
+  push:
+    branches: [pi-release]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: debian:bookworm で linux/arm64 をビルドする
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -e "BUILD_UID=$(id -u)" \
+            -e "BUILD_GID=$(id -g)" \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            debian:bookworm \
+            bash device/pi/bookworm-build.sh
+      - name: プレリリースを出す
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash device/pi/publish_release.sh

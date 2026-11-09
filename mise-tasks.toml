@@ -3,7 +3,7 @@
 
 [check]
 description = "PR を出す前に通すチェック。CI でも同じものを動かす"
-depends = ["check:mobile", "check:scripts", "check:go", "check:rules", "check:infra"]
+depends = ["check:mobile", "check:scripts", "check:go", "check:rules", "check:infra", "check:actions"]
 
 ["check:mobile"]
 description = "Flutter のアプリのフォーマット、静的解析、テスト、Web のビルド"
@@ -45,6 +45,16 @@ run = [
   "terraform -chdir=infra init -backend=false -input=false -lockfile=readonly",
   "terraform -chdir=infra validate",
 ]
+
+["check:actions"]
+description = "GitHub Actions のワークフローを actionlint で確かめる"
+dir = "{{config_root}}"
+run = "actionlint"
+
+["device:install"]
+description = "電話機の実行ファイルと systemd のユニットを入れる。引数に linux/arm64 の実行ファイルを渡すとそのまま入れ、渡さないとこの機械の上で cgo を有効にしてビルドする。Pi では Flutter などを入れないよう mise run --skip-tools device:install にする"
+dir = "{{config_root}}"
+run = "bash scripts/device_install.sh"
 
 ["infra:plan"]
 description = "本番のインフラの plan。例: mise run infra:plan -- --project=ID --billing-account=ID --image=IMAGE --state-bucket=BUCKET"
