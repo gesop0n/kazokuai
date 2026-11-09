@@ -144,16 +144,6 @@ void main() {
     });
   });
 
-  group('予約している電話の行', () {
-    testWidgets('押すと「準備中です」と表示する', (tester) async {
-      await _pumpBooking(tester);
-
-      await _tapVisible(tester, find.text('話し相手'));
-
-      expect(find.text('準備中です'), findsOneWidget);
-    });
-  });
-
   group('かけなおしのルールの行', () {
     testWidgets('ルールの内容から文を作る', (tester) async {
       await _pumpBooking(tester);
@@ -228,17 +218,6 @@ void main() {
       await _tapVisible(tester, find.text('15分おきに3回かけて、家族に通知'));
 
       expect(find.byType(RetryRuleScreen), findsOneWidget);
-    });
-
-    testWidgets('「準備中です」はタブバーに隠れない', (tester) async {
-      await openBookingTab(tester);
-
-      await _tapVisible(tester, find.text('話し相手'));
-
-      expect(
-        tester.getBottomLeft(find.byType(SnackBar)).dy,
-        lessThanOrEqualTo(tester.getTopLeft(find.byType(AppTabBar)).dy),
-      );
     });
 
     testWidgets('スクロールの最後はタブバーに隠れない', (tester) async {

@@ -59,6 +59,32 @@ class BookedCallsNotifier extends Notifier<List<BookedCall>> {
         ? [...state, booking]
         : [...state.sublist(0, index), booking, ...state.sublist(index)];
   }
+
+  // 伝えたいことと日時を入れ替える。通話内容はそのまま。
+  // 日時が同じなら並びは動かさない。変わるときは日時の順の場所へ移し、
+  // 同じ日時の予約がすでにあるときは、その後ろに入る。
+  void update(int index, {required DateTime at, required String message}) {
+    final current = state[index];
+    final updated = BookedCall(
+      at: at,
+      message: message,
+      script: current.script,
+    );
+    if (current.at == at) {
+      state = [
+        for (var i = 0; i < state.length; i++) i == index ? updated : state[i],
+      ];
+      return;
+    }
+    final rest = [
+      for (var i = 0; i < state.length; i++)
+        if (i != index) state[i],
+    ];
+    final insertAt = rest.indexWhere((call) => call.at.isAfter(at));
+    state = insertAt < 0
+        ? [...rest, updated]
+        : [...rest.sublist(0, insertAt), updated, ...rest.sublist(insertAt)];
+  }
 }
 
 class RetryRule {
