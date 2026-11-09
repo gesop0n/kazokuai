@@ -47,6 +47,24 @@ void main() {
     );
   });
 
+  test('電話の最中の 409 は、アプリが見分けられる例外になる', () async {
+    final backend = Backend(
+      MockClient(
+        (request) async =>
+            http.Response(jsonEncode({'error': 'call_in_progress'}), 409),
+      ),
+    );
+
+    expect(
+      () => backend.startImmediateCall(
+        idToken: 'token',
+        message: '伝えたいこと',
+        script: '通話内容',
+      ),
+      throwsA(isA<CallInProgressException>()),
+    );
+  });
+
   test('それ以外の失敗は、今すぐ通話を始められなかった例外になる', () async {
     final backend = Backend(
       MockClient((request) async => http.Response('nope', 500)),

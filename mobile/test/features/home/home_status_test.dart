@@ -15,6 +15,7 @@ import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
@@ -147,6 +148,7 @@ void main() {
             signedInAuth(),
             registeredWatchedPerson(),
             sampleCalls(),
+            idleCallProgress(),
           ],
           child: const KazokuAiApp(),
         ),

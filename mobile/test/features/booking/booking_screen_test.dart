@@ -14,6 +14,7 @@ import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
@@ -182,6 +183,7 @@ void main() {
             registeredWatchedPerson(),
             sampleHome(),
             sampleCalls(),
+            idleCallProgress(),
           ],
           child: const KazokuAiApp(),
         ),

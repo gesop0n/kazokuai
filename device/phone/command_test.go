@@ -201,6 +201,48 @@ func TestCallEndReachesTheRestartedBackend(t *testing.T) {
 	waitState(t, c.id, protocol.StateEnded)
 }
 
+func TestSecondCallIsRefusedWhileOneIsInProgress(t *testing.T) {
+	s := newSystem(t, hanako, time.Date(2026, 11, 9, 3, 0, 0, 0, time.UTC))
+	c := s.startCall(t)
+	waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
+	waitState(t, c.id, protocol.StateRinging)
+	refuseSecondCall(t, s)
+
+	s.phone.pickUp()
+	waitState(t, c.id, protocol.StateTalking)
+	refuseSecondCall(t, s)
+
+	s.phone.putDown()
+	if err := c.result(t); err != nil {
+		t.Fatalf("受話器を置いたのに、電話が %v で終わった", err)
+	}
+	waitState(t, c.id, protocol.StateEnded)
+
+	next := s.startCall(t)
+	waitUntil(t, "終わったあとに呼び出し音が鳴らなかった", s.phone.isRinging)
+	s.phone.pickUp()
+	s.phone.putDown()
+	if err := next.result(t); err != nil {
+		t.Fatalf("終わったあとの電話が %v で終わった", err)
+	}
+	waitState(t, next.id, protocol.StateEnded)
+}
+
+func refuseSecondCall(t *testing.T, s *system) {
+	t.Helper()
+	before := len(callsOf(t))
+	status, body, err := postNow(s.backend.URL, familyToken, testMessage, testScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status != 409 || !strings.Contains(body, protocol.CallInProgress) {
+		t.Fatalf("電話の最中の今すぐ通話 = %d %s, want 409 %s", status, body, protocol.CallInProgress)
+	}
+	if got := len(callsOf(t)); got != before {
+		t.Errorf("電話の件数 = %d, want 断るので %d", got, before)
+	}
+}
+
 func TestPhonePlacesASecondCallWithoutRestart(t *testing.T) {
 	started := time.Date(2026, 11, 8, 5, 0, 0, 0, time.UTC)
 	s := newSystem(t, hanako, started)

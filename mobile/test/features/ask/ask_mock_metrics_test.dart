@@ -8,6 +8,7 @@ import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 
+import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/layout_matrix.dart';
 
@@ -46,6 +47,7 @@ Future<void> _pumpWithMessage(WidgetTester tester, LayoutCase layout) async {
       callScriptRepositoryProvider.overrideWithValue(
         FakeCallScriptRepository(script: _script),
       ),
+      idleCallProgress(),
     ],
   );
   await tester.enterText(find.byType(TextField), _message);
@@ -132,6 +134,7 @@ void main() {
           callScriptRepositoryProvider.overrideWithValue(
             FakeCallScriptRepository(script: _script),
           ),
+          idleCallProgress(),
         ],
       );
       tester.view

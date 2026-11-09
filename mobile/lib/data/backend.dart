@@ -83,6 +83,7 @@ class Backend {
   }
 
   // 今すぐ通話を始める。電話機がつながっていなければ PhoneNotConnectedException、
+  // 電話の最中なら CallInProgressException、
   // それ以外で始められなければ ImmediateCallException を投げる
   Future<void> startImmediateCall({
     required String idToken,
@@ -106,8 +107,13 @@ class Backend {
     } on TimeoutException {
       throw const ImmediateCallException();
     }
-    if (response.statusCode == 409 && _isPhoneNotConnected(response.body)) {
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _phoneNotConnected)) {
       throw const PhoneNotConnectedException();
+    }
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _callInProgress)) {
+      throw const CallInProgressException();
     }
     if (response.statusCode != 201) {
       throw const ImmediateCallException();
@@ -118,10 +124,13 @@ class Backend {
 // protocol.PhoneNotConnected と合わせる
 const _phoneNotConnected = 'phone_not_connected';
 
-bool _isPhoneNotConnected(String body) {
+// protocol.CallInProgress と合わせる
+const _callInProgress = 'call_in_progress';
+
+bool _isAPIError(String body, String code) {
   try {
     final decoded = jsonDecode(body);
-    return decoded is Map && decoded['error'] == _phoneNotConnected;
+    return decoded is Map && decoded['error'] == code;
   } on FormatException {
     return false;
   }

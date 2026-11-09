@@ -40,6 +40,10 @@ const DraftScriptPath = "/calls/script"
 // アプリはこれを見て「電話機につながっていません」と出す。
 const PhoneNotConnected = "phone_not_connected"
 
+// CallInProgress は、電話の最中なので今すぐ通話を始められなかった、というエラーである。
+// アプリはこれを見て「通話中です」と出す。
+const CallInProgress = "call_in_progress"
+
 // WebSocket のメッセージの種類である。
 const (
 	// PhoneTypeCall は、バックエンドが電話機に送る、電話をかける指示である。
