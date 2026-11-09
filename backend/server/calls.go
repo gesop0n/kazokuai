@@ -89,6 +89,7 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.phones.connected(personID) {
+		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
@@ -108,7 +109,7 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		if _, delErr := ref.Delete(r.Context()); delErr != nil {
 			log.Printf("届かなかった電話 %s を消せなかった: %v", ref.ID, delErr)
 		}
-		log.Printf("電話機に指示を送れなかった: %v", err)
+		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}

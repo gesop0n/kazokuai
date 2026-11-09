@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"net/http"
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 func TestRunRequiresWatchedPerson(t *testing.T) {
@@ -62,5 +66,27 @@ func TestPhoneSecretUsesTheDevSecretWhenUnset(t *testing.T) {
 	}
 	if got := phoneSecret("production-secret"); got != "production-secret" {
 		t.Fatalf("設定済み = %q", got)
+	}
+	if got := phoneSecret(" \n"); got != "dev-phone-secret" {
+		t.Fatalf("空白だけ = %q, want dev-phone-secret", got)
+	}
+}
+
+func TestPhoneSecretTrimsSurroundingSpace(t *testing.T) {
+	got := phoneSecret(" \nshared-secret\r\n")
+	if got != "shared-secret" {
+		t.Fatalf("合言葉 = %q, want shared-secret", got)
+	}
+	req, err := http.NewRequest(http.MethodPost, "http://backend.example/token", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(protocol.PhoneSecretHeader, got)
+	var buf bytes.Buffer
+	if err := req.Write(&buf); err != nil {
+		t.Fatalf("合言葉をヘッダーに書けなかった: %v", err)
+	}
+	if !bytes.Contains(buf.Bytes(), []byte("Kazokuai-Secret: shared-secret\r\n")) {
+		t.Fatalf("ヘッダーに合言葉がない: %s", buf.String())
 	}
 }

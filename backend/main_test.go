@@ -5,11 +5,13 @@ import (
 	"flag"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
+	"google.golang.org/genai"
 
 	"github.com/gesop0n/kazokuai/backend/server"
 	"github.com/gesop0n/kazokuai/internal/protocol"
@@ -132,6 +134,48 @@ func TestRunRefusesWhenTheCallOutlastsTheConnection(t *testing.T) {
 			t.Fatalf("ちょうど 10 分なら時間では断らず、API キーの確認まで進む。got %v", err)
 		}
 	})
+}
+
+func TestGeminiRequestWithTrailingNewline(t *testing.T) {
+	const key = "kazokuai-gemini-key"
+	var gotKey string
+	gemini := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.Header.Get("X-Goog-Api-Key")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"role":"model","parts":[{"text":"届きました"}]}}]}`))
+	}))
+	t.Cleanup(gemini.Close)
+
+	apiKey, err := readGeminiAPIKey(" \n" + key + "\r\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := newGeminiClient(t.Context(), apiKey, genai.HTTPOptions{BaseURL: gemini.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Models.GenerateContent(
+		t.Context(),
+		"gemini-3.6-flash",
+		[]*genai.Content{genai.NewContentFromText("こんにちは", genai.RoleUser)},
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("Gemini へのリクエスト: %v", err)
+	}
+	if resp.Text() != "届きました" {
+		t.Fatalf("Gemini の返答 = %q, want 届きました", resp.Text())
+	}
+	if gotKey != key {
+		t.Fatalf("X-Goog-Api-Key = %q, want %s", gotKey, key)
+	}
+}
+
+func TestGeminiAPIKeyOfOnlySpaceIsRefused(t *testing.T) {
+	_, err := readGeminiAPIKey(" \n")
+	if err == nil || !strings.Contains(err.Error(), "GEMINI_API_KEY") {
+		t.Fatalf("空白だけのキー = %v, want GEMINI_API_KEY が要ると断る", err)
+	}
 }
 
 func TestListenAddr(t *testing.T) {

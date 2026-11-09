@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"cloud.google.com/go/firestore"
 	"github.com/coder/websocket"
@@ -180,12 +183,14 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	if old := s.phones.replace(personID, link); old != nil {
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
+	s.logf("電話機がつながりました。見守る方: %s", personID)
 	defer s.disconnect(personID, link)
 	go keepalive.Run(ctx, s.clock, conn)
 
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
+			s.logf("電話機が切れました。見守る方: %s、理由: %s", personID, s.dropReason(err))
 			return
 		}
 		var msg protocol.PhoneMessage
@@ -194,6 +199,65 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 		}
 		s.applyState(personID, msg.CallID, msg.State)
 	}
+}
+
+// logf は、電話機のつながりを書く。Logger があればそこへ、無ければ標準のログへ書く。
+func (s *server) logf(format string, args ...any) {
+	if s.config.Logger != nil {
+		s.config.Logger.Printf(format, args...)
+		return
+	}
+	log.Printf(format, args...)
+}
+
+// dropReason は、切れた接続の理由である。合言葉は出さず、改行も 1 行に収める。
+func (s *server) dropReason(err error) string {
+	reason := "接続が切れた"
+	if s.base.Err() != nil {
+		reason = "バックエンドが止まった"
+	} else if err != nil {
+		var closed websocket.CloseError
+		switch {
+		case errors.As(err, &closed) && closed.Reason != "":
+			reason = closed.Reason
+		case errors.As(err, &closed) && closed.Code == websocket.StatusNormalClosure:
+			reason = "電話機が閉じた"
+		default:
+			reason = err.Error()
+		}
+	}
+	return oneLine(s.redact(reason))
+}
+
+// oneLine は、改行と制御文字を見える形に変えて、ログが 1 行のままになるようにする。
+func oneLine(text string) string {
+	var b strings.Builder
+	b.Grow(len(text))
+	for _, r := range text {
+		switch r {
+		case '\n':
+			b.WriteString(`\n`)
+		case '\r':
+			b.WriteString(`\r`)
+		case '\t':
+			b.WriteString(`\t`)
+		default:
+			if unicode.IsControl(r) {
+				fmt.Fprintf(&b, `\u%04x`, r)
+			} else {
+				b.WriteRune(r)
+			}
+		}
+	}
+	return b.String()
+}
+
+func (s *server) redact(text string) string {
+	secret := s.config.PhoneSecret
+	if secret == "" {
+		return text
+	}
+	return strings.ReplaceAll(text, secret, "[合言葉]")
 }
 
 // disconnect は、personID の接続が link のままなら外す。
