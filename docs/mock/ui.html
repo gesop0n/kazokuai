@@ -1552,7 +1552,7 @@
         S.L5 = () => `<div class="screen">${status('20:18')}
  <div class="content">
   ${navBar('x', '閉じる', '電話機と同期', 'L3')}
-  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">   ${illus('ok', '', false)}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">   ${illus('off', '', false)}
 
    <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期が完了しました！</h3><span class="body-m muted">以下の電話機からAIが電話できるようになりました。</span></div>
    <div class="card" style="flex-direction:row;align-items:center"><span class="iconbtn tinted">${icon('phone', 20)}</span><div style="display:flex;flex-direction:column"><span class="mono-m">03-0000-0000</span></div></div>
@@ -1855,7 +1855,7 @@
             L3d: ['お問い合わせの送信後', '送信できたことと、返信の届き先を伝えます。「同期の手順にもどる」でL3に戻り、返信を待つ間も手順を試せます。'],
             'L3d+': ['お問い合わせの送信に失敗したとき', 'L3cで送信できなかったときの画面です。L3dと同じ構成で、お問い合わせが届いていないことをはっきり伝えます。「もう一度送信する」で送り直し、「入力画面にもどる」でL3cに戻ります。'],
             'L3+': ['QRコードが読み取れないとき', 'L3とL3sの「QRコードが読み取れないとき」から開きます。読み取れないときに試すことを、簡単な順に3つ示します。'],
-            L5: ['同期完了', 'L3sで読み取って同期できると開きます。絵のランプを緑に変え、つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
+            L5: ['同期完了', 'L3sで読み取って同期できると開きます。つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
             L6: ['見守る方の名前', '入力は名前と呼び方だけです。呼び方はあとから変更できます。'],
             L7: ['好きな話題', '話し相手として会話を弾ませるための入力です。候補を押すだけで複数選べて、もう一度押すと外せます。候補にない話題は、左の＋で入力欄を増やして書けます。入力欄が2つ以上あるときは、右上の✕で消せます。08の設定からいつでも変更できます。', '選ばれた話題で話しかける', '話題を選ぶ'],
             L8: ['AIの声', '声を選び、再生ボタンで同じ言葉を聞き比べます。選んだ声はすべての電話で使います。あとから08の設定で変更できます。', '選ばれた声で話す', '聞き比べて声を選ぶ'],
