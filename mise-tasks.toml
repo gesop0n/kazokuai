@@ -19,7 +19,7 @@ run = [
 description = "Go のデバイスとバックエンドのフォーマット、静的解析、テスト。テストは Firebase のエミュレーターの中で動かす"
 dir = "{{config_root}}"
 run = [
-  'test -z "$(gofmt -l backend device internal | tee /dev/stderr)"',
+  'test -z "$(gofmt -l backend device internal demo | tee /dev/stderr)"',
   "go vet ./...",
   # テストは毎回新しいエミュレーターを使うので、前の結果を使い回さない
   "scripts/emulators_exec.sh 'go test -count=1 ./...'",
@@ -55,6 +55,21 @@ run = "infra/run.sh plan"
 description = "本番のインフラの apply。確認のプロンプトが出る。引数は infra:plan と同じ"
 dir = "{{config_root}}"
 run = "infra/run.sh apply"
+
+["deploy:backend"]
+description = "バックエンドのイメージを linux/amd64 で作り、Artifact Registry に上げ、そのイメージで apply する。例: mise run deploy:backend -- --project=ID --billing-account=ID --state-bucket=BUCKET"
+dir = "{{config_root}}"
+run = "scripts/deploy_backend.sh"
+
+["deploy:web"]
+description = "Terraform の output で本番向けの Web 版をビルドし、Firebase Hosting に公開する。例: mise run deploy:web -- --project=ID --state-bucket=BUCKET"
+dir = "{{config_root}}"
+run = "scripts/deploy_web.sh"
+
+["demo:seed"]
+description = "審査員のアカウントと、田中 ハナの 1 週間の電話を作り直す。JUDGE_EMAIL と JUDGE_PASSWORD を環境に置く。例: mise run demo:seed -- --project=ID"
+dir = "{{config_root}}"
+run = "go run ./demo/seed"
 
 [backend]
 description = "バックエンドを手元で起動する。0.0.0.0:8080 で待ち、demo-kazokuai のエミュレーターと開発用の合言葉を使う。GEMINI_API_KEY が要る。先に emulators を起動しておく。本番は GOOGLE_CLOUD_PROJECT と PHONE_SECRET を入れる"

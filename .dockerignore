@@ -1,5 +1,16 @@
+# 秘密と、イメージに不要なもの。ビルドの文脈に .env を入れない。
+.env
+.env.*
+**/.env
+**/.env.*
 .git
+.github
 mobile
+docs
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.codegraph
 firebase/node_modules
-docs/architecture/*.png
-docs/architecture/*.html

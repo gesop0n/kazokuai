@@ -2,7 +2,7 @@
 
 `infra/` の Terraform が、本番の Firebase と Google Cloud のプロジェクトに資源を作る。プロジェクトは、毎回引数で渡す。gcloud の既定のプロジェクトは使わない。
 
-公開の一連の手順は、公開のチケットが書く。ここにあるのは、Terraform を動かすために人がやることと、Terraform ではできないことである。
+公開の一連の手順は [docs/publish.md](../docs/publish.md) にある。ここにあるのは、Terraform を動かすために人がやることと、Terraform ではできないことである。
 
 ## 状態のバケット
 
@@ -39,9 +39,9 @@ gcloud secrets versions add gemini-api-key --project=PROJECT_ID --data-file=-
 gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file=-
 ```
 
-各コマンドのあと、値を貼って Ctrl-D で終える。名前は `gemini-api-key` と `phone-shared-secret` である。Cloud Run は、これらを環境変数 `GEMINI_API_KEY` と `PHONE_SHARED_SECRET` として読む。
+各コマンドのあと、値を貼って Ctrl-D で終える。名前は `gemini-api-key` と `phone-shared-secret` である。Cloud Run は、これらを環境変数 `GEMINI_API_KEY` と `PHONE_SECRET` として読む。電話機も、同じ合言葉を環境変数 `PHONE_SECRET` から読む。
 
-4. イメージを push する。手順は公開のチケットにある。
+4. イメージを push する。手順は [docs/publish.md](../docs/publish.md) にある。
 5. apply をやり直す。
 
 API の有効化が行き渡る前に失敗したときも、同じ apply をやり直す。

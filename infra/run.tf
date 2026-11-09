@@ -55,7 +55,8 @@ resource "google_cloud_run_v2_service" "backend" {
       }
 
       env {
-        name = "PHONE_SHARED_SECRET"
+        # プロセスは PHONE_SECRET を読む。Secret Manager の名前は phone-shared-secret のまま。
+        name = "PHONE_SECRET"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.phone_shared_secret.secret_id
