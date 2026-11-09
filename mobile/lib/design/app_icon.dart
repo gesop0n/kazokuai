@@ -22,7 +22,6 @@ enum AppIcons {
   x('x'),
   chevronLeft('chevron-left'),
   chevronRight('chevron-right'),
-  chevronDown('chevron-down'),
   sparkles('sparkles'),
   check('check'),
   pencil('pencil'),

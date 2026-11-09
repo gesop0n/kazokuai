@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
-import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/call_timeline.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
@@ -34,15 +33,14 @@ class _CallsScreenState extends State<CallsScreen> {
   final _listKey = GlobalKey();
   final _headingKeys = <DateTime, GlobalKey>{};
 
-  CallFilter _filter = CallFilter.all;
   late DateTime _selectedDay = _log.days.first.date;
+  var _revealSerial = 0;
+  DateTime? _revealDay;
   bool _isScrolledUnder = false;
-  // 最初の描画のあとで測り直す。値はモックの高さ
-  double _pinnedHeight = 166;
+  // 最初の描画のあとで測り直す。値はモックの 04c の高さ
+  double _pinnedHeight = 122;
 
   CallLog get _log => widget.log ?? sampleCallLog;
-
-  List<CallLogDay> get _visibleDays => _log.daysMatching(_filter);
 
   double get _titleHeight => _boxOf(_titleKey).size.height;
 
@@ -69,7 +67,7 @@ class _CallsScreenState extends State<CallsScreen> {
   }
 
   void _syncWithLayout() {
-    final days = _visibleDays;
+    final days = _log.days;
     if (days.isEmpty || !_scrollController.hasClients) return;
 
     final listTop = _scrollController.offset - _titleHeight;
@@ -95,14 +93,6 @@ class _CallsScreenState extends State<CallsScreen> {
     });
   }
 
-  void _selectFilter(CallFilter filter) {
-    // 新しい結果を先頭から読めるように、一覧の先頭を固定部の下端まで戻す
-    if (_scrollController.offset > _titleHeight) {
-      _scrollController.jumpTo(_titleHeight);
-    }
-    setState(() => _filter = filter);
-  }
-
   Future<void> _openCalendar() async {
     final date = await showCalendarSheet(
       context,
@@ -110,13 +100,11 @@ class _CallsScreenState extends State<CallsScreen> {
       selectedDay: _selectedDay,
     );
     if (date == null || !mounted) return;
-
-    // 絞り込みで隠れている日は移動できないので、全部に戻す
-    if (!_visibleDays.any((day) => day.date == date)) {
-      setState(() => _filter = CallFilter.all);
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-    }
+    // 選択日が同じだと帯は追従しないので、確定のたびに合わせ直す
+    setState(() {
+      _revealSerial += 1;
+      _revealDay = date;
+    });
     _scrollToDay(date);
   }
 
@@ -124,7 +112,7 @@ class _CallsScreenState extends State<CallsScreen> {
     final headingTop = _headingTopOf(date);
     if (headingTop == null) return;
     // 先頭の日はモックの 04 と同じ位置に戻す
-    final target = date == _visibleDays.first.date
+    final target = date == _log.days.first.date
         ? 0.0
         : _titleHeight + headingTop;
     _scrollController.animateTo(
@@ -136,7 +124,7 @@ class _CallsScreenState extends State<CallsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 絞り込みや文字の大きさが変わると、見出しの位置と固定部の高さが変わる
+    // 文字の大きさが変わると、見出しの位置と固定部の高さが変わる
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncWithLayout();
     });
@@ -159,10 +147,10 @@ class _CallsScreenState extends State<CallsScreen> {
                 key: _pinnedKey,
                 log: _log,
                 selectedDay: _selectedDay,
-                filter: _filter,
+                revealSerial: _revealSerial,
+                revealDay: _revealDay,
                 showsShadow: _isScrolledUnder,
                 onOpenCalendar: _openCalendar,
-                onSelectFilter: _selectFilter,
               ),
             ),
             SliverToBoxAdapter(
@@ -176,7 +164,7 @@ class _CallsScreenState extends State<CallsScreen> {
 
   // 件数が少なく、日の位置を測るので、画面の外の日も全部ビルドする
   Widget _buildList(double lastDayMinHeight) {
-    final days = _visibleDays;
+    final days = _log.days;
     return Column(
       key: _listKey,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -201,7 +189,6 @@ class _CallsScreenState extends State<CallsScreen> {
 
   Widget _buildDay(CallLogDay day) => CallDaySection(
     day: day,
-    entries: day.entriesMatching(_filter),
     today: _log.today,
     headingKey: _headingKeys.putIfAbsent(day.date, GlobalKey.new),
     onOpenCall: () => context.pushNamed(AppRoutes.callDetail),
@@ -213,23 +200,24 @@ class _PinnedHeader extends StatelessWidget {
     super.key,
     required this.log,
     required this.selectedDay,
-    required this.filter,
+    required this.revealSerial,
+    required this.revealDay,
     required this.showsShadow,
     required this.onOpenCalendar,
-    required this.onSelectFilter,
   });
 
   final CallLog log;
   final DateTime selectedDay;
-  final CallFilter filter;
+  final int revealSerial;
+  final DateTime? revealDay;
   final bool showsShadow;
   final VoidCallback onOpenCalendar;
-  final ValueChanged<CallFilter> onSelectFilter;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      // 04c は上 8、ミニカレンダー、下 8 で高さ 122
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       decoration: BoxDecoration(
         color: AppColors.paperBase,
         boxShadow: showsShadow
@@ -242,36 +230,12 @@ class _PinnedHeader extends StatelessWidget {
               ]
             : null,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 4,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: MiniCalendar(
-              log: log,
-              selectedDay: selectedDay,
-              onTap: onOpenCalendar,
-            ),
-          ),
-          // モックは折り返さず端で切れている。幅 393 で「不在」が切れるので、横に動かせるようにする
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              spacing: 8,
-              children: [
-                for (final option in CallFilter.values)
-                  AppChip(
-                    label: option.label,
-                    selected: option == filter,
-                    onTap: () => onSelectFilter(option),
-                  ),
-              ],
-            ),
-          ),
-        ],
+      child: MiniCalendar(
+        log: log,
+        selectedDay: selectedDay,
+        revealSerial: revealSerial,
+        revealDay: revealDay,
+        onTap: onOpenCalendar,
       ),
     );
   }

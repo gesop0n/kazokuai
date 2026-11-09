@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
-import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/day_mark_icon.dart';
+import 'package:kazokuai/features/calls/mini_calendar.dart';
 
 import '../../support/layout_matrix.dart';
 import 'calls_harness.dart';
@@ -328,7 +328,7 @@ void main() {
     }
 
     double pinnedBottom(WidgetTester tester) =>
-        tester.getBottomLeft(find.byType(AppChip).first).dy + 4;
+        tester.getBottomLeft(find.byType(MiniCalendar)).dy + 8;
 
     testWidgets('シートを閉じ、その日の見出しを固定部の下端に動かす', (tester) async {
       await pumpCallsScreen(tester, _mockLayout);
@@ -366,31 +366,6 @@ void main() {
 
       expect(callsPosition(tester).pixels, 0);
       expect(miniSelection(tester), '11月5日');
-    });
-
-    testWidgets('絞り込みで隠れている日を選ぶと、全部に戻して移動する', (tester) async {
-      await pumpCallsScreen(tester, _mockLayout);
-      await tapFilter(tester, '体調');
-      expect(find.text('11月3日(火)'), findsNothing);
-
-      await viewDay(tester, '11月3日、電話に出た');
-
-      expect(tester.widget<AppChip>(filterChip('全部')).selected, isTrue);
-      expect(
-        tester.getTopLeft(find.text('11月3日(火)')).dy - 8,
-        moreOrLessEquals(pinnedBottom(tester)),
-      );
-      expect(miniSelection(tester), '11月3日');
-    });
-
-    testWidgets('絞り込みに残っている日なら、条件はそのまま', (tester) async {
-      await pumpCallsScreen(tester, _mockLayout);
-      await tapFilter(tester, '話し相手');
-
-      await viewDay(tester, '11月1日、電話に出た');
-
-      expect(tester.widget<AppChip>(filterChip('話し相手')).selected, isTrue);
-      expect(miniSelection(tester), '11月1日');
     });
 
     testWidgets('閉じるだけなら動かない', (tester) async {

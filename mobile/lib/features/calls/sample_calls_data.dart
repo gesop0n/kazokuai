@@ -75,8 +75,10 @@ final sampleCallLog = CallLog(
       ],
     ),
   ],
-  // ミニカレンダーの印とホームのグラフにはあるが、モックの 04 と 04c に行がない
-  answeredDaysWithoutRecord: {DateTime(2026, 10, 30)},
+  // ミニカレンダーの印にはあるが、モックの 04 と 04c に行がない
+  answeredDaysWithoutRecord: {
+    for (var day = 23; day <= 30; day++) DateTime(2026, 10, day),
+  },
 );
 
 // モックの 05 と同じ内容。モックのデータは 1 通話分なので、どの行から開いてもこれを出す。

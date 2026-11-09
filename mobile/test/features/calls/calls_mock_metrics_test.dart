@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
-import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/mini_calendar.dart';
@@ -30,10 +29,11 @@ void main() {
   setUpAll(loadBundledFonts);
 
   group('04 の位置がモックと同じ', () {
-    testWidgets('見出し、ミニカレンダー、チップ', (tester) async {
+    testWidgets('見出しとミニカレンダー', (tester) async {
       await _pumpMockCalls(tester);
 
       expect(tester.getTopLeft(find.text('通話記録')), const Offset(16, 62));
+      expect(find.text('過去7日間'), findsOneWidget);
       final mini = find.byType(MiniCalendar);
       expect(tester.getRect(mini), const Rect.fromLTWH(16, 102, 361, 106));
       expect(
@@ -48,36 +48,18 @@ void main() {
       );
     });
 
-    testWidgets('チップの幅と位置', (tester) async {
-      await _pumpMockCalls(tester);
-
-      // 押せる領域の余白が上下に 4 ずつあるので、モックの見た目より 4 上から始まる
-      expect(tester.getTopLeft(filterChip('全部')), const Offset(16, 212));
-      expect(tester.getSize(filterChip('全部')).height, 44);
-      expect(
-        tester.getSize(filterChip('全部')).width,
-        moreOrLessEquals(62.56, epsilon: 1),
-      );
-      expect(
-        tester.getSize(filterChip('話し相手')).width,
-        moreOrLessEquals(89.03, epsilon: 1),
-      );
-      expect(
-        tester.getTopLeft(filterChip('不在')).dx,
-        moreOrLessEquals(353.28, epsilon: 2),
-      );
-    });
-
     testWidgets('日の見出しと行の高さ', (tester) async {
       await _pumpMockCalls(tester);
 
       double headingTop(String text) =>
           tester.getTopLeft(find.text(text)).dy - 8;
 
-      expect(headingTop('今日 11月5日(木)'), 260);
-      expect(headingTop('11月4日(水)'), 378);
-      expect(headingTop('11月3日(火)'), 574);
-      expect(headingTop('11月2日(月)'), 692);
+      // モックの流れる 04 は 212、330、526、644。
+      // 04 と 04c は同じ固定部で、04c の下の余白 8 に合わせるので、04 は 4 だけ下になる。
+      expect(headingTop('今日 11月5日(木)'), 216);
+      expect(headingTop('11月4日(水)'), 334);
+      expect(headingTop('11月3日(火)'), 530);
+      expect(headingTop('11月2日(月)'), 648);
       expect(tester.getSize(_textCard('朝食と薬は済み。膝を気にしている')).height, 68);
       expect(tester.getSize(_textCard('朝食と薬は済み。膝を気にしている')).width, 281);
     });
@@ -98,25 +80,14 @@ void main() {
         Border.all(color: AppColors.stateAlert, width: 2),
       );
     });
-
-    testWidgets('幅 393 では「不在」のチップが端で切れる(モックと同じ)', (tester) async {
-      await _pumpMockCalls(tester);
-
-      expect(tester.getTopRight(filterChip('不在')).dx, greaterThan(393));
-    });
-
-    testWidgets('幅 440 では全部のチップが収まる', (tester) async {
-      await pumpCallsScreen(tester, const LayoutCase(440, 1.0));
-
-      expect(tester.getTopRight(filterChip('不在')).dx, lessThanOrEqualTo(440));
-    });
   });
 
   group('04c の位置がモックと同じ', () {
-    // 04c の 12:00 の行は y=176 にある。04 では 496 なので、見出しの分と合わせて 320 動かす
+    // 11月3日の見出しは一覧の先頭から 314、タイトルは 40。
+    // 04c はその見出しが固定部の下端から 34 の位置なので、320 動かす
     const offset = 320.0;
 
-    testWidgets('固定部は y=54 から高さ 166 で、影が出る', (tester) async {
+    testWidgets('固定部は y=54 から高さ 122 で、影が出る', (tester) async {
       await _pumpMockCalls(tester);
 
       await scrollCallsTo(tester, offset);
@@ -127,7 +98,7 @@ void main() {
             matching: find.byType(Container),
           )
           .first;
-      expect(tester.getRect(pinned), const Rect.fromLTWH(0, 54, 393, 166));
+      expect(tester.getRect(pinned), const Rect.fromLTWH(0, 54, 393, 122));
       expect(
         tester.getRect(find.byType(MiniCalendar)),
         const Rect.fromLTWH(16, 62, 361, 106),
@@ -144,10 +115,10 @@ void main() {
 
       await scrollCallsTo(tester, offset);
 
-      expect(tester.getTopLeft(find.text('11月3日(火)')).dy - 8, 254);
-      expect(tester.getTopLeft(find.text('11月2日(月)')).dy - 8, 372);
-      expect(tester.getTopLeft(find.text('11月1日(日)')).dy - 8, 470);
-      expect(tester.getTopLeft(find.text('10月31日(土)')).dy - 8, 588);
+      expect(tester.getTopLeft(find.text('11月3日(火)')).dy - 8, 210);
+      expect(tester.getTopLeft(find.text('11月2日(月)')).dy - 8, 328);
+      expect(tester.getTopLeft(find.text('11月1日(日)')).dy - 8, 426);
+      expect(tester.getTopLeft(find.text('10月31日(土)')).dy - 8, 544);
       expect(miniSelection(tester), '11月3日');
     });
 
@@ -216,22 +187,13 @@ void main() {
           )
           .first;
       final pinnedHeight = tester.getSize(pinned).height;
-      expect(pinnedHeight, greaterThanOrEqualTo(166));
+      expect(pinnedHeight, greaterThanOrEqualTo(122));
 
       await scrollCallsTo(tester, callsPosition(tester).maxScrollExtent);
 
       expect(
         tester.getTopLeft(find.text('10月31日(土)')).dy - 8,
         moreOrLessEquals(pinnedHeight, epsilon: 1),
-      );
-    });
-
-    testWidgets('チップは押せる領域も含めて 44 以上', (tester) async {
-      await pumpCallsScreen(tester, const LayoutCase(360, 1.3));
-
-      expect(
-        tester.getSize(find.byType(AppChip).first).height,
-        greaterThanOrEqualTo(44),
       );
     });
   });

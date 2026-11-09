@@ -59,12 +59,12 @@ Future<void> tapBack(WidgetTester tester) async {
 int currentTab(WidgetTester tester) =>
     tester.widget<AppTabBar>(find.byType(AppTabBar)).currentIndex;
 
-// 条件のチップも横に動くので、一番外側の Scrollable を選ぶ
+// ミニカレンダーの帯も横に動くので、一覧の縦スクロールを選ぶ
 ScrollPosition callsScrollPosition(WidgetTester tester) => tester
     .state<ScrollableState>(
       find
           .descendant(
-            of: find.byType(CallsScreen),
+            of: find.byType(CustomScrollView),
             matching: find.byType(Scrollable),
           )
           .first,
@@ -124,29 +124,34 @@ void main() {
     expect(currentTab(tester), 2);
   });
 
-  testWidgets('05 をホームから開くと、タブバーが消え、ホームに戻る', (tester) async {
+  testWidgets('05 をホームから開くと、通話記録のタブで開き、通話記録に戻る', (tester) async {
     await pumpApp(tester);
 
     await tapText(tester, '会話を見る');
     expect(find.byType(CallDetailScreen), findsOneWidget);
-    expect(find.byType(AppTabBar), findsNothing);
+    expect(find.byType(AppTabBar), findsOneWidget);
+    expect(currentTab(tester), 1);
+    expect(find.bySemanticsLabel('通話記録にもどる'), findsOneWidget);
 
     await tapBack(tester);
-    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(CallsScreen), findsOneWidget);
+    expect(find.byType(CallDetailScreen), findsNothing);
     expect(find.byType(AppTabBar), findsOneWidget);
-    expect(currentTab(tester), 0);
+    expect(currentTab(tester), 1);
   });
 
-  testWidgets('05 を通話記録から開くと、タブバーが消え、通話記録に戻る', (tester) async {
+  testWidgets('05 を通話記録から開くと、タブバーが残り、通話記録に戻る', (tester) async {
     await pumpApp(tester);
     await tapTab(tester, '通話記録');
 
     await tapText(tester, '朝食と薬は済み。膝を気にしている');
     expect(find.byType(CallDetailScreen), findsOneWidget);
-    expect(find.byType(AppTabBar), findsNothing);
+    expect(find.byType(AppTabBar), findsOneWidget);
+    expect(currentTab(tester), 1);
 
     await tapBack(tester);
     expect(find.byType(CallsScreen), findsOneWidget);
+    expect(find.byType(CallDetailScreen), findsNothing);
     expect(find.byType(AppTabBar), findsOneWidget);
     expect(currentTab(tester), 1);
   });
@@ -154,9 +159,9 @@ void main() {
   testWidgets('全画面の遷移は OS 標準の動きになる', (tester) async {
     await pumpApp(tester);
 
-    await tapText(tester, '会話を見る');
+    await tapAskCard(tester);
 
-    final route = ModalRoute.of(tester.element(find.byType(CallDetailScreen)));
+    final route = ModalRoute.of(tester.element(find.byType(AskScreen)));
     expect(route, isA<MaterialRouteTransitionMixin<void>>());
   });
 
@@ -164,10 +169,6 @@ void main() {
     await pumpApp(tester);
 
     await tapAskCard(tester);
-    expect(find.bySemanticsLabel('もどる'), findsOneWidget);
-    await tapBack(tester);
-
-    await tapText(tester, '会話を見る');
     expect(find.bySemanticsLabel('もどる'), findsOneWidget);
     await tapBack(tester);
 

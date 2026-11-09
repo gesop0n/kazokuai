@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
+import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
@@ -23,9 +25,6 @@ class CallDetailScreen extends StatefulWidget {
 }
 
 class _CallDetailScreenState extends State<CallDetailScreen> {
-  // 下端の薄くなる重なりの、ホームバーより上の高さ
-  static const _fadeHeight = 32.0;
-
   final _utteranceKeys = <Duration, GlobalKey>{};
 
   CallDetail get _detail => widget.detail ?? sampleCallDetail;
@@ -40,76 +39,59 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
     );
   }
 
+  // 通話記録のタブに戻す。ホームから開いたときも、戻る先は 04
+  void _returnToCallLog() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.goNamed(AppRoutes.calls);
+  }
+
   @override
   Widget build(BuildContext context) {
     final detail = _detail;
+    // タブの中では、この余白がタブバーの高さ。下の余白は 16 を足す
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                AppNavBar(title: detail.title),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      16,
-                      0,
-                      16,
-                      _fadeHeight + bottomInset,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      spacing: 12,
-                      children: [
-                        _SummaryCard(
-                          detail: detail,
-                          onOpenUtterance: _scrollToUtterance,
-                          onCorrect: () => showComingSoon(context),
-                        ),
-                        const Text('会話の内容', style: AppTextStyles.titleM),
-                        for (final utterance in detail.utterances)
-                          _UtteranceRow(
-                            key: _utteranceKeys.putIfAbsent(
-                              utterance.at,
-                              GlobalKey.new,
-                            ),
-                            utterance: utterance,
-                            parentCallName: detail.parentCallName,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppNavBar(
+              title: detail.title,
+              leadingLabel: '通話記録にもどる',
+              onLeadingTap: _returnToCallLog,
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: _fadeHeight + bottomInset,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AppColors.paperBase.withAlpha(0),
-                      AppColors.paperBase,
-                    ],
-                    stops: const [0, .6],
-                  ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 12,
+                  children: [
+                    _SummaryCard(
+                      detail: detail,
+                      onOpenUtterance: _scrollToUtterance,
+                      onCorrect: () => showComingSoon(context),
+                    ),
+                    const Text('会話の内容', style: AppTextStyles.titleM),
+                    for (final utterance in detail.utterances)
+                      _UtteranceRow(
+                        key: _utteranceKeys.putIfAbsent(
+                          utterance.at,
+                          GlobalKey.new,
+                        ),
+                        utterance: utterance,
+                        parentCallName: detail.parentCallName,
+                      ),
+                  ],
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

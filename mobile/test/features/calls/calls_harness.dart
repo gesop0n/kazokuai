@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
-import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 
@@ -42,12 +41,12 @@ Future<void> pumpCallsScreen(WidgetTester tester, LayoutCase layout) async {
   await tester.pumpAndSettle();
 }
 
-// 条件のチップも横に動くので、一番外側の Scrollable を選ぶ
+// ミニカレンダーの帯も横に動くので、一覧の縦スクロールを選ぶ
 ScrollPosition callsPosition(WidgetTester tester) => tester
     .state<ScrollableState>(
       find
           .descendant(
-            of: find.byType(CallsScreen),
+            of: find.byType(CustomScrollView),
             matching: find.byType(Scrollable),
           )
           .first,
@@ -56,29 +55,6 @@ ScrollPosition callsPosition(WidgetTester tester) => tester
 
 Future<void> scrollCallsTo(WidgetTester tester, double offset) async {
   callsPosition(tester).jumpTo(offset);
-  await tester.pumpAndSettle();
-}
-
-Finder filterChip(String label) => find.widgetWithText(AppChip, label);
-
-// 幅が狭いと右のチップは画面の外にあるので、チップの列だけを動かしてから押す。
-// tester.ensureVisible は外側の一覧まで動かしてしまう。
-Future<void> tapFilter(WidgetTester tester, String label) async {
-  final chip = filterChip(label);
-  final row = tester
-      .state<ScrollableState>(
-        find.ancestor(of: chip, matching: find.byType(Scrollable)).first,
-      )
-      .position;
-  final screenWidth =
-      tester.view.physicalSize.width / tester.view.devicePixelRatio;
-  if (tester.getTopRight(chip).dx > screenWidth) {
-    row.jumpTo(row.maxScrollExtent);
-  } else if (tester.getTopLeft(chip).dx < 0) {
-    row.jumpTo(0);
-  }
-  await tester.pump();
-  await tester.tap(chip);
   await tester.pumpAndSettle();
 }
 

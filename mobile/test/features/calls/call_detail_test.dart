@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_pill.dart';
+import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
@@ -211,15 +212,14 @@ void main() {
       expect(find.text('飲んだよ。').hitTestable(), findsOneWidget);
     });
 
-    testWidgets('最後の発言は、下端の重なりに隠れない', (tester) async {
+    testWidgets('最後の発言は、下の余白に隠れない', (tester) async {
       await _pumpDetail(tester, _mockLayout);
 
       await _scrollTo(tester, _position(tester).maxScrollExtent);
 
-      final fadeTop = tester.getTopLeft(_fade).dy;
       expect(
         tester.getBottomLeft(find.text('飲んだよ。')).dy,
-        lessThanOrEqualTo(fadeTop),
+        lessThanOrEqualTo(852 - _scrollPadding(tester).bottom),
       );
     });
 
@@ -276,39 +276,37 @@ void main() {
     });
   });
 
-  group('下端の重なり', () {
-    testWidgets('モックと同じグラデーションで、高さは 32 と下の安全領域', (tester) async {
+  group('下の余白', () {
+    testWidgets('ぼかしはなく、余白は 16 と下の安全領域', (tester) async {
       tester.view.padding = const FakeViewPadding(bottom: 34);
       addTearDown(tester.view.resetPadding);
       await _pumpDetail(tester, _mockLayout);
 
-      expect(tester.getSize(_fade).height, 32 + 34);
-      expect(tester.getBottomLeft(_fade).dy, 852);
-      expect(tester.getSize(_fade).width, 393);
-
-      final gradient =
-          (tester.widget<DecoratedBox>(_fade).decoration as BoxDecoration)
-                  .gradient!
-              as LinearGradient;
-      expect(gradient.colors, [
-        AppColors.paperBase.withAlpha(0),
-        AppColors.paperBase,
-      ]);
-      expect(gradient.stops, [0, .6]);
+      expect(_fade, findsNothing);
+      expect(_scrollPadding(tester), const EdgeInsets.fromLTRB(16, 0, 16, 50));
     });
 
-    testWidgets('重なりの下の発言も押せるように、タップを通す', (tester) async {
-      await _pumpDetail(tester, _mockLayout);
+    testWidgets('タブバーの中では、余白は 16 とタブバーの高さ', (tester) async {
+      await pumpCallsTab(tester);
+      await tester.tap(find.text('朝食と薬は済み。膝を気にしている'));
+      await tester.pumpAndSettle();
 
-      expect(tester.widget<IgnorePointer>(_fadeIgnorePointer).ignoring, isTrue);
+      final tabBar = tester.getSize(find.byType(AppTabBar)).height;
+      final padding = tester.widget<SingleChildScrollView>(
+        find.descendant(
+          of: find.byType(CallDetailScreen),
+          matching: find.byType(SingleChildScrollView),
+        ),
+      );
+      expect(padding.padding, EdgeInsets.fromLTRB(16, 0, 16, 16 + tabBar));
     });
   });
 
   group('読み上げ', () {
-    testWidgets('戻るボタンは「もどる」', (tester) async {
+    testWidgets('戻るボタンは「通話記録にもどる」', (tester) async {
       await _pumpDetail(tester, _mockLayout);
 
-      expect(find.bySemanticsLabel('もどる'), findsOneWidget);
+      expect(find.bySemanticsLabel('通話記録にもどる'), findsOneWidget);
     });
 
     testWidgets('まとめの時刻は移動するボタンとして読み、時刻を二重に読まない', (tester) async {
@@ -341,7 +339,6 @@ void main() {
   });
 }
 
-// 下端の重なり。IgnorePointer はフレームワークの中にも多いので、グラデーションで探す
 Finder get _fade => find.byWidgetPredicate(
   (widget) =>
       widget is DecoratedBox &&
@@ -349,5 +346,8 @@ Finder get _fade => find.byWidgetPredicate(
       (widget.decoration as BoxDecoration).gradient != null,
 );
 
-Finder get _fadeIgnorePointer =>
-    find.ancestor(of: _fade, matching: find.byType(IgnorePointer)).first;
+EdgeInsets _scrollPadding(WidgetTester tester) =>
+    tester
+            .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+            .padding!
+        as EdgeInsets;
