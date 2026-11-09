@@ -48,6 +48,8 @@ func runCheck(ctx context.Context, part string, hw hardware) error {
 		err = checkHook(ctx, hw)
 	case "ringer":
 		err = checkRinger(ctx, hw)
+	case "keypad":
+		err = checkKeypad(ctx, hw)
 	default:
 		err = fmt.Errorf("確認できない部品です: %s", part)
 	}
