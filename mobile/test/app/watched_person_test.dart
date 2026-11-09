@@ -149,7 +149,7 @@ void main() {
         status: WatchedPersonStatus.unknown,
       );
       await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
-      await tester.tap(find.text('アカウントをお持ちの方はログイン'));
+      await tester.tap(find.text('始める'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.bySemanticsLabel('メールアドレス'),
@@ -289,7 +289,7 @@ void main() {
         status: WatchedPersonStatus.unknown,
       );
       await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
-      await tester.tap(find.text('アカウントをお持ちの方はログイン'));
+      await tester.tap(find.text('始める'));
       await tester.pumpAndSettle();
       await tester.enterText(
         find.bySemanticsLabel('メールアドレス'),
@@ -320,7 +320,9 @@ void main() {
         status: WatchedPersonStatus.unknown,
       );
       await pumpApp(tester, auth: auth, watchedPerson: watchedPerson);
-      await tester.tap(find.text('はじめる'));
+      await tester.tap(find.text('始める'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('はじめての方は新規登録'));
       await tester.pumpAndSettle();
       await readDocument(tester, '利用規約');
       await readDocument(tester, 'プライバシーポリシー');

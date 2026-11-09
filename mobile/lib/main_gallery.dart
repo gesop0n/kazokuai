@@ -169,6 +169,23 @@ class GalleryScreen extends StatelessWidget {
                   onTap: _noop,
                 ),
               ),
+              const _SectionLabel('下線の付いたリンク(L2)'),
+              Center(
+                child: AppButton(
+                  label: 'パスワードを忘れた場合',
+                  variant: AppButtonVariant.ghostInk,
+                  size: AppButtonSize.m,
+                  underlined: true,
+                  onTap: _noop,
+                ),
+              ),
+              AppButton(
+                label: 'はじめての方は新規登録',
+                variant: AppButtonVariant.ghost,
+                size: AppButtonSize.m,
+                underlined: true,
+                onTap: _noop,
+              ),
               const _SectionLabel('押せないボタン(disabledBtn)'),
               const AppButton(
                 label: '現在通話中です',

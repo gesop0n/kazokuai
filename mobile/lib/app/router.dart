@@ -7,6 +7,7 @@ import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
+import 'package:kazokuai/features/account/password_reset_screen.dart';
 import 'package:kazokuai/features/account/register_screen.dart';
 import 'package:kazokuai/features/account/sample_documents.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
@@ -21,6 +22,7 @@ import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 abstract final class AppRoutes {
   static const welcome = 'welcome';
   static const login = 'login';
+  static const passwordReset = 'passwordReset';
   static const register = 'register';
   static const terms = 'terms';
   static const privacy = 'privacy';
@@ -84,6 +86,13 @@ GoRouter createAppRouter({
             name: AppRoutes.login,
             path: 'login',
             builder: (context, state) => const LoginScreen(),
+            routes: [
+              GoRoute(
+                name: AppRoutes.passwordReset,
+                path: 'reset',
+                builder: (context, state) => const PasswordResetScreen(),
+              ),
+            ],
           ),
           GoRoute(
             name: AppRoutes.register,
