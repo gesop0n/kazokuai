@@ -3,7 +3,7 @@
 
 [check]
 description = "PR を出す前に通すチェック。CI でも同じものを動かす"
-depends = ["check:mobile", "check:scripts", "check:go", "check:rules"]
+depends = ["check:mobile", "check:scripts", "check:go", "check:rules", "check:infra"]
 
 ["check:mobile"]
 description = "Flutter のアプリのフォーマット、静的解析、テスト"
@@ -35,6 +35,25 @@ run = [
 ["check:scripts"]
 description = "scripts/ のテスト"
 run = "python3 -I -m unittest discover -s {{config_root}}/scripts -p '*_test.py'"
+
+["check:infra"]
+description = "Terraform の fmt と validate。リモートの状態は使わない"
+dir = "{{config_root}}"
+run = [
+  "terraform fmt -check -recursive infra",
+  "terraform -chdir=infra init -backend=false -input=false -lockfile=readonly",
+  "terraform -chdir=infra validate",
+]
+
+["infra:plan"]
+description = "本番のインフラの plan。例: mise run infra:plan -- --project=ID --billing-account=ID --image=IMAGE --state-bucket=BUCKET"
+dir = "{{config_root}}"
+run = "infra/run.sh plan"
+
+["infra:apply"]
+description = "本番のインフラの apply。確認のプロンプトが出る。引数は infra:plan と同じ"
+dir = "{{config_root}}"
+run = "infra/run.sh apply"
 
 [backend]
 description = "バックエンドを起動する。GEMINI_API_KEY が要る。先に emulators を起動しておく。見守る方の ID は電話機に渡す"
