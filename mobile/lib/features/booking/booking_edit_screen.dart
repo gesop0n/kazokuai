@@ -86,7 +86,10 @@ class _BookingEditScreenState extends ConsumerState<BookingEditScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AppNavBar(title: '予約の編集'),
+            AppNavBar(
+              title: '予約の編集',
+              onLeadingTap: () => popOrGoToParent(context),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
