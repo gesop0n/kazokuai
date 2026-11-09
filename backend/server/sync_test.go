@@ -671,10 +671,13 @@ func TestReviewReplacementCannotReceiveStaleCall(t *testing.T) {
 	awaitMessage(t, firstMsgs, protocol.PhoneTypeNotSynced)
 	gate.Release()
 
+	// 電話を作るトランザクションは、置き換えのトランザクションと通話の一覧を取り合ってやり直す。
+	// やり直しは最大 5 回で、待ちの上限は 1 秒から倍々に伸びる。遅いエミュレーターでは 2 秒を超える。
+	// 戻ったあとの断り方は、これまでどおり確かめる。
 	var got callResult
 	select {
 	case got = <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(30 * time.Second):
 		t.Fatal("今すぐ通話が戻らなかった")
 	}
 	if got.err != nil {

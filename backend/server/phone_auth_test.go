@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -335,10 +337,28 @@ func TestPhoneKeyConnectionLogsTheLinkedPerson(t *testing.T) {
 	}
 }
 
+// phoneIDs は、1 回のテスト実行のあいだ同じ電話機の ID を返す。
+var phoneIDs sync.Map
+
+// testPhoneID は、このテスト実行だけの電話機の ID を返す。同じ t では同じ ID である。
+// 名前だけにすると、go test -count が同じエミュレーターへ同じ ID を重ね、2 回目の登録が 200 になる。
 func testPhoneID(t *testing.T) string {
 	t.Helper()
-	sum := sha256.Sum256([]byte(t.Name()))
-	return "phone-" + hex.EncodeToString(sum[:6])
+	if id, ok := phoneIDs.Load(t); ok {
+		return id.(string)
+	}
+	var nonce [4]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(append([]byte(t.Name()), nonce[:]...))
+	id := "phone-" + hex.EncodeToString(sum[:6])
+	actual, loaded := phoneIDs.LoadOrStore(t, id)
+	if loaded {
+		return actual.(string)
+	}
+	t.Cleanup(func() { phoneIDs.Delete(t) })
+	return id
 }
 
 func registerPhone(t *testing.T, backend, secret, id, key string) response {
