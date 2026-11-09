@@ -77,10 +77,14 @@ class BookingFormActions extends StatelessWidget {
     super.key,
     required this.onBook,
     required this.onCall,
+    this.callLabel = '今すぐ通話',
   });
 
   final VoidCallback? onBook;
   final VoidCallback? onCall;
+
+  // 01 は電話の最中、「通話中です」にする。06b は「今すぐ通話」のまま
+  final String callLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +100,7 @@ class BookingFormActions extends StatelessWidget {
           onTap: onBook,
         ),
         AppButton(
-          label: '今すぐ通話',
+          label: callLabel,
           variant: AppButtonVariant.secondary,
           size: AppButtonSize.m,
           leadingIcon: AppIcons.phone,

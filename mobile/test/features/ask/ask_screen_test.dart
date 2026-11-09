@@ -5,7 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'dart:async';
 
 import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
+import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -21,6 +23,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/fake_immediate_call_repository.dart';
 import '../../support/fake_calls_repository.dart';
@@ -44,13 +47,19 @@ Future<FakeCallScriptRepository> _pumpAsk(
   WidgetTester tester, {
   LayoutCase layout = _standardLayout,
   FakeCallScriptRepository? drafts,
+  FakeCallProgressRepository? progress,
 }) {
   final repository = drafts ?? FakeCallScriptRepository();
   return pumpScreenInLayout(
     tester,
     layout,
     const AskScreen(),
-    overrides: [callScriptRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      callScriptRepositoryProvider.overrideWithValue(repository),
+      callProgressRepositoryProvider.overrideWithValue(
+        progress ?? FakeCallProgressRepository(),
+      ),
+    ],
   ).then((_) => repository);
 }
 
@@ -59,6 +68,7 @@ Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
   WidgetTester tester, {
   FakeImmediateCallRepository? calls,
   FakeCallScriptRepository? drafts,
+  FakeCallProgressRepository? progress,
 }) async {
   final repository = calls ?? FakeImmediateCallRepository();
   final scripts = drafts ?? FakeCallScriptRepository(script: _drafted);
@@ -75,6 +85,9 @@ Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
         sampleCalls(),
         immediateCallRepositoryProvider.overrideWithValue(repository),
         callScriptRepositoryProvider.overrideWithValue(scripts),
+        callProgressRepositoryProvider.overrideWithValue(
+          progress ?? FakeCallProgressRepository(),
+        ),
       ],
       child: const KazokuAiApp(),
     ),
@@ -863,6 +876,156 @@ void main() {
       await _pumpAsk(tester);
 
       expect(find.bySemanticsLabel('もどる'), findsOneWidget);
+    });
+  });
+
+  group('電話の最中', () {
+    testWidgets('呼び出し中か通話中は「通話中です」で押せない。終わると「今すぐ通話」に戻る', (tester) async {
+      final progress = FakeCallProgressRepository(inProgress: true);
+      await _pumpAsk(tester, progress: progress);
+
+      expect(find.text('通話中です'), findsOneWidget);
+      expect(find.text('今すぐ通話'), findsNothing);
+      expect(_button(tester, '通話中です').onTap, isNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNull);
+
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      final call = _button(tester, '通話中です');
+      expect(call.onTap, isNull);
+      expect(call.variant, AppButtonVariant.secondary);
+      expect(call.size, AppButtonSize.m);
+      expect(call.leadingIcon, AppIcons.phone);
+      final icon = tester.widget<AppIcon>(
+        find.descendant(
+          of: find.widgetWithText(AppButton, '通話中です'),
+          matching: find.byType(AppIcon),
+        ),
+      );
+      expect(icon.icon, AppIcons.phone);
+      expect(icon.color, AppColors.inkSecondary);
+      expect(icon.size, 18);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+
+      await tester.tap(find.text('通話中です'), warnIfMissed: false);
+      await tester.pump();
+      expect(find.byType(AskScreen), findsOneWidget);
+
+      progress.inProgress.value = false;
+      await tester.pump();
+
+      expect(find.text('今すぐ通話'), findsOneWidget);
+      expect(find.text('通話中です'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(find.byType(AskScreen), findsOneWidget);
+    });
+
+    testWidgets('電話の最中でも「この日時で予約する」は予約できる', (tester) async {
+      final progress = FakeCallProgressRepository(inProgress: true);
+      final calls = FakeImmediateCallRepository();
+      await _pumpAppAndOpenAsk(tester, calls: calls, progress: progress);
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      expect(_button(tester, '通話中です').onTap, isNull);
+      await tester.tap(find.text('この日時で予約する'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BookingScreen), findsOneWidget);
+      expect(calls.started, isEmpty);
+      expect(tester.container().read(bookedCallsProvider)[2].message, _message);
+      expect(find.text('11/6 08:30'), findsOneWidget);
+    });
+
+    testWidgets('電話の最中と断られたら「通話中です」と出て、終わると「今すぐ通話」に戻る', (tester) async {
+      final progress = FakeCallProgressRepository();
+      final calls = FakeImmediateCallRepository(inProgress: true);
+      await _pumpAppAndOpenAsk(tester, calls: calls, progress: progress);
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('通話中です'), findsOneWidget);
+      expect(find.text('今すぐ通話'), findsNothing);
+      expect(find.text('電話機につながっていません'), findsNothing);
+      expect(find.text('準備中です'), findsNothing);
+      expect(_button(tester, '通話中です').onTap, isNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(calls.started, isEmpty);
+      expect(find.byType(AskScreen), findsOneWidget);
+
+      progress.inProgress.value = true;
+      await tester.pump();
+      expect(find.text('通話中です'), findsOneWidget);
+
+      progress.inProgress.value = false;
+      await tester.pump();
+
+      expect(find.text('今すぐ通話'), findsOneWidget);
+      expect(find.text('通話中です'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+      expect(find.byType(AskScreen), findsOneWidget);
+    });
+
+    testWidgets('呼び出し中を読まなくても、終わったと分かれば「今すぐ通話」に戻る', (tester) async {
+      final progress = FakeCallProgressRepository();
+      final calls = FakeImmediateCallRepository(inProgress: true);
+      await _pumpAppAndOpenAsk(tester, calls: calls, progress: progress);
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('通話中です'), findsOneWidget);
+      expect(_button(tester, '通話中です').onTap, isNull);
+
+      // 進行中の通知を経由せず、終わったあとの読み取りだけが届く
+      progress.inProgress.read(false);
+      await tester.pump();
+
+      expect(find.text('今すぐ通話'), findsOneWidget);
+      expect(find.text('通話中です'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(find.byType(AskScreen), findsOneWidget);
+    });
+
+    testWidgets('終わった通知が拒否より先でも「今すぐ通話」に戻る', (tester) async {
+      final progress = FakeCallProgressRepository();
+      final gate = Completer<void>();
+      final calls = FakeImmediateCallRepository(
+        inProgress: true,
+        gate: gate.future,
+      );
+      await _pumpAppAndOpenAsk(tester, calls: calls, progress: progress);
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      await tester.tap(find.text('今すぐ通話'));
+      await tester.pump();
+
+      progress.inProgress.read(true);
+      await tester.pump();
+      expect(find.text('通話中です'), findsOneWidget);
+
+      progress.inProgress.read(false);
+      await tester.pump();
+      expect(find.text('今すぐ通話'), findsOneWidget);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+
+      expect(find.text('今すぐ通話'), findsOneWidget);
+      expect(find.text('通話中です'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(find.byType(AskScreen), findsOneWidget);
+      expect(calls.started, isEmpty);
     });
   });
 }

@@ -14,6 +14,7 @@ import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_call_progress_repository.dart';
 import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
@@ -32,6 +33,7 @@ Future<void> pumpSignedInApp(
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        idleCallProgress(),
       ],
       child: KazokuAiApp(authReady: authReady),
     ),

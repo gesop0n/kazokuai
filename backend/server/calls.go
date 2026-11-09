@@ -50,8 +50,11 @@ type apiError struct {
 // errNotFamily は、ログインした人に見守る方がいないときである。
 var errNotFamily = errors.New("この家族には見守る方がいない")
 
+// errCallInProgress は、見守る方の電話のどれかが呼び出し中か通話中のときである。
+var errCallInProgress = errors.New("電話の最中")
+
 // startCall は、ID トークンを確かめた家族の見守る方に、今すぐ電話をかける。
-// 電話機がつながっていなければ、電話の文書は作らない。
+// 電話機がつながっていないときと、電話の最中は、電話の文書を作らない。
 func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 	idToken, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if !ok || idToken == "" {
@@ -89,14 +92,11 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
-	ref := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection).NewDoc()
-	// createdAt はかけた時刻。出なかった電話には始まりの時刻がないので、通話記録はこの時刻を出す。
-	_, err = ref.Set(r.Context(), map[string]any{
-		"state":     protocol.StateRinging,
-		"message":   req.Message,
-		"script":    req.Script,
-		"createdAt": s.clock.Now(),
-	})
+	ref, err := s.beginCall(r.Context(), personID, req.Message, req.Script)
+	if errors.Is(err, errCallInProgress) {
+		writeAPIError(w, http.StatusConflict, protocol.CallInProgress)
+		return
+	}
 	if err != nil {
 		log.Printf("電話を作れなかった: %v", err)
 		http.Error(w, "電話を作れなかった", http.StatusInternalServerError)
@@ -115,6 +115,34 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(startedCall{ID: ref.ID})
+}
+
+// beginCall は、見守る方の電話が呼び出し中でも通話中でもなければ、
+// 呼び出し中の電話の文書を作ってその参照を返す。
+// 読み取りと作成は 1 つのトランザクションなので、同時に 2 回頼まれても 1 つしか作らない。
+func (s *server) beginCall(ctx context.Context, personID, message, script string) (*firestore.DocumentRef, error) {
+	collection := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection)
+	ref := collection.NewDoc()
+	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		busy, err := tx.Documents(collection.Where("state", "in", []string{protocol.StateRinging, protocol.StateTalking}).Limit(1)).GetAll()
+		if err != nil {
+			return err
+		}
+		if len(busy) > 0 {
+			return errCallInProgress
+		}
+		// createdAt はかけた時刻。出なかった電話には始まりの時刻がないので、通話記録はこの時刻を出す。
+		return tx.Create(ref, map[string]any{
+			"state":     protocol.StateRinging,
+			"message":   message,
+			"script":    script,
+			"createdAt": s.clock.Now(),
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ref, nil
 }
 
 func writeAPIError(w http.ResponseWriter, status int, code string) {

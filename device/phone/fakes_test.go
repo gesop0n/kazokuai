@@ -279,6 +279,10 @@ type call struct {
 func (s *system) startCall(t *testing.T) *call {
 	t.Helper()
 	waitUntil(t, "電話機がつながらなかった", func() bool { return s.api.Connected(hanakoID) })
+	// 電話機が切れると、つながらなかったにするまで 30 秒の猶予がある。
+	// テストがバックエンドを止めると猶予は取り消され、Firestore には呼び出し中か通話中が残る。
+	// 次の今すぐ通話は、その電話が終わるまで始めない。
+	waitUntil(t, "前の電話が終わらなかった", func() bool { return !hanakoBusy(t.Context()) })
 	c := &call{ended: make(chan struct{}), abandon: make(chan struct{})}
 	go func() {
 		select {
@@ -299,9 +303,30 @@ func (s *system) startCall(t *testing.T) *call {
 		case <-c.ended:
 		case <-time.After(waitTimeout):
 			t.Error("テストの終わりに電話が終わらなかった")
+			return
+		}
+		// 終わりの状態が Firestore に書かれてから、電話機を切る。
+		// 切れてからバックエンドが止まると、猶予は取り消される。
+		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
+		defer cancel()
+		deadline := time.Now().Add(waitTimeout)
+		for hanakoBusy(ctx) {
+			if time.Now().After(deadline) {
+				t.Error("終わった電話が呼び出し中か通話中のまま残った")
+				return
+			}
+			time.Sleep(time.Millisecond)
 		}
 	})
 	return c
+}
+
+// hanakoBusy は、ハナさんの電話が呼び出し中か通話中なら true を返す。読めなければ true。
+func hanakoBusy(ctx context.Context) bool {
+	docs, err := emulators.Firestore.Collection("watchedPersons").Doc(hanakoID).Collection("calls").
+		Where("state", "in", []string{protocol.StateRinging, protocol.StateTalking}).
+		Limit(1).Documents(ctx).GetAll()
+	return err != nil || len(docs) > 0
 }
 
 // postNow は、今すぐ通話の API を 1 回呼び、ステータスと本文を返す。

@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
@@ -33,9 +35,29 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   int _draftGeneration = 0;
   String? _script;
   _DraftPhase _phase = _DraftPhase.hidden;
+  late final ValueListenable<bool> _progress;
+
+  // バックエンドに断られてから、電話がまだ最中だと分かるまでの表示。
+  // 断ったあとに読み直して、終わっていればすぐ戻す
+  bool _refusedWhileBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _progress = ref.read(callProgressRepositoryProvider).inProgress;
+    _progress.addListener(_onCallProgress);
+  }
+
+  // 拒否よりあとに届いた読み取りに任せる。
+  // 呼び出し中を一度も読まなくても、終わったと分かれば表示を戻す
+  void _onCallProgress() {
+    if (!_refusedWhileBusy || !mounted) return;
+    setState(() => _refusedWhileBusy = false);
+  }
 
   @override
   void dispose() {
+    _progress.removeListener(_onCallProgress);
     _draftTimer?.cancel();
     _draftGeneration++;
     _messageController.dispose();
@@ -106,6 +128,16 @@ class _AskScreenState extends ConsumerState<AskScreen> {
             duration: Duration(seconds: 2),
           ),
         );
+    } on CallInProgressException {
+      if (!mounted) return;
+      setState(() => _refusedWhileBusy = true);
+      // 終わった通知が拒否より先だと、このあとに通知は来ない。
+      // 読み直して終わっていれば戻す。まだ読み終えていないときは戻さない。
+      final stillBusy = await ref
+          .read(callProgressRepositoryProvider)
+          .refresh();
+      if (!mounted || stillBusy != false) return;
+      setState(() => _refusedWhileBusy = false);
     } on ImmediateCallException {
       // つながらない以外の失敗は、画面に留まる。文面は、このチケットでは求めない。
     }
@@ -170,9 +202,16 @@ class _AskScreenState extends ConsumerState<AskScreen> {
             // 隠れるときは、この 8 がボタンとキーボードの間隔になる
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: BookingFormActions(
-                onBook: canSend ? () => _book(message) : null,
-                onCall: canSend ? () => _call(message) : null,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _progress,
+                builder: (context, inProgress, _) {
+                  final busy = inProgress || _refusedWhileBusy;
+                  return BookingFormActions(
+                    onBook: canSend ? () => _book(message) : null,
+                    onCall: canSend && !busy ? () => _call(message) : null,
+                    callLabel: busy ? '通話中です' : '今すぐ通話',
+                  );
+                },
               ),
             ),
           ],

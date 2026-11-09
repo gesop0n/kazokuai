@@ -10,6 +10,7 @@ import 'package:kazokuai/data/firebase_immediate_call_repository.dart';
 abstract interface class ImmediateCallRepository {
   // 伝えたいことと、画面に出ている通話内容で、今すぐ電話をかける。
   // 電話機がつながっていなければ PhoneNotConnectedException、
+  // 電話の最中なら CallInProgressException、
   // それ以外で始められなければ ImmediateCallException を投げる
   Future<void> start({required String message, required String script});
 }
@@ -22,7 +23,15 @@ class PhoneNotConnectedException implements Exception {
   String toString() => 'PhoneNotConnectedException';
 }
 
-// 今すぐ通話を始められなかった。つながっていないとき以外
+// 見守る方の電話が呼び出し中か通話中なので、2 つ目を始められなかった
+class CallInProgressException implements Exception {
+  const CallInProgressException();
+
+  @override
+  String toString() => 'CallInProgressException';
+}
+
+// 今すぐ通話を始められなかった。つながっていないときと、電話の最中以外
 class ImmediateCallException implements Exception {
   const ImmediateCallException();
 
