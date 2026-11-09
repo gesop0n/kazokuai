@@ -55,6 +55,7 @@ Future<void> _pump(
   WidgetTester tester, {
   LayoutCase layout = _layout,
   CallLog? log,
+  FakeCallsRepository? calls,
 }) {
   return pumpScreenInLayout(
     tester,
@@ -65,9 +66,25 @@ Future<void> _pump(
         FakeCallScriptRepository(),
       ),
       idleCallProgress(),
-      callsRepositoryProvider.overrideWithValue(FakeCallsRepository(log: log)),
+      callsRepositoryProvider.overrideWithValue(
+        calls ?? FakeCallsRepository(log: log),
+      ),
     ],
   );
+}
+
+void _expectWheelHits(WidgetTester tester, Finder wheel) {
+  final hits = find.descendant(
+    of: wheel,
+    matching: find.byType(GestureDetector),
+  );
+  expect(hits, findsWidgets);
+  final count = tester.widgetList(hits).length;
+  for (var i = 0; i < count; i++) {
+    final size = tester.getSize(hits.at(i));
+    expect(size.width, greaterThanOrEqualTo(44));
+    expect(size.height, greaterThanOrEqualTo(44));
+  }
 }
 
 Future<void> _open(WidgetTester tester) async {
@@ -209,6 +226,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('11/5(金) 8:30にする'), findsOneWidget);
     });
+
+    testWidgets('時刻の数字は 44pt 以上押せる', (tester) async {
+      await _pump(tester, log: _log());
+      await _open(tester);
+
+      _expectWheelHits(tester, _hourWheel());
+      _expectWheelHits(tester, _minuteWheel());
+    });
   });
 
   group('よく電話に出る時刻', () {
@@ -264,6 +289,34 @@ void main() {
 
       expect(find.text('よく電話に出る時刻'), findsNothing);
       expect(find.text('9:00'), findsNothing);
+    });
+
+    testWidgets('開いたあとに通話記録が届くと、よく出る時刻が出る', (tester) async {
+      final calls = FakeCallsRepository();
+      await _pump(tester, calls: calls);
+      await _open(tester);
+
+      expect(find.text('よく電話に出る時刻'), findsNothing);
+
+      calls.log.value = _log(answered: _times([(9, 0, 1)]));
+      await tester.pump();
+
+      expect(find.text('よく電話に出る時刻'), findsOneWidget);
+      expect(find.text('9:00'), findsOneWidget);
+    });
+
+    testWidgets('候補を押して回転中に決定しても、その候補の時刻になる', (tester) async {
+      await _pump(tester, log: _log(answered: _times([(19, 0, 1)])));
+      await _open(tester);
+
+      await tester.tap(find.text('19:00'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('11/6(金) 19:00にする'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 19:00にする'));
+      await tester.pumpAndSettle();
+      expect(find.text('19:00'), findsOneWidget);
+      expect(find.text('8:30'), findsNothing);
     });
   });
 }

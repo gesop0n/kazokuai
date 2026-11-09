@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
@@ -8,9 +9,11 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/usual_answer_times.dart';
+import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 
-const _itemExtent = 36.0;
+// モックの行は 36。押せる領域は 44 以上にする
+const _itemExtent = 44.0;
 const _wheelHeight = 180.0;
 const _columnWidth = 88.0;
 
@@ -50,7 +53,7 @@ const _fade = LinearGradient(
 Future<DateTime?> showDateTimeSheet(
   BuildContext context, {
   required DateTime initial,
-  required List<TimeOfDay> usualTimes,
+  required ValueListenable<CallLog?> answeredLog,
 }) {
   return showModalBottomSheet<DateTime>(
     context: context,
@@ -62,7 +65,7 @@ Future<DateTime?> showDateTimeSheet(
     elevation: 0,
     barrierColor: AppColors.scrim,
     builder: (context) =>
-        DateTimeSheet(initial: initial, usualTimes: usualTimes),
+        DateTimeSheet(initial: initial, answeredLog: answeredLog),
   );
 }
 
@@ -71,11 +74,13 @@ class DateTimeSheet extends StatefulWidget {
   const DateTimeSheet({
     super.key,
     required this.initial,
-    required this.usualTimes,
+    required this.answeredLog,
   });
 
   final DateTime initial;
-  final List<TimeOfDay> usualTimes;
+
+  // 開いたあとに届く通話記録も、よく出る時刻に反映する
+  final ValueListenable<CallLog?> answeredLog;
 
   @override
   State<DateTimeSheet> createState() => _DateTimeSheetState();
@@ -91,6 +96,11 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
   late final FixedExtentScrollController _hourController;
   late final FixedExtentScrollController _minuteController;
 
+  // 候補や数字への移動中は、途中の位置で選んだ時刻を上書きしない
+  int _spinSerial = 0;
+  int? _heldSpin;
+  int _heldPending = 0;
+
   @override
   void initState() {
     super.initState();
@@ -103,13 +113,27 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     _minute = time.minute;
     _hourController = FixedExtentScrollController(initialItem: _hour);
     _minuteController = FixedExtentScrollController(initialItem: _minute ~/ 5);
+    widget.answeredLog.addListener(_onAnsweredLog);
+  }
+
+  @override
+  void didUpdateWidget(DateTimeSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.answeredLog == widget.answeredLog) return;
+    oldWidget.answeredLog.removeListener(_onAnsweredLog);
+    widget.answeredLog.addListener(_onAnsweredLog);
   }
 
   @override
   void dispose() {
+    widget.answeredLog.removeListener(_onAnsweredLog);
     _hourController.dispose();
     _minuteController.dispose();
     super.dispose();
+  }
+
+  void _onAnsweredLog() {
+    if (mounted) setState(() {});
   }
 
   DateTime _clampDay(DateTime day) {
@@ -136,22 +160,37 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     setState(() => _month = DateTime(_month.year, _month.month + delta));
   }
 
-  // 押した時点で値を決め、回転はあとから追いつく
+  // 押した時点で値を決め、回転はあとから追いつく。
+  // 回転の途中で決めても、通り過ぎた時刻にはならない。
   void _spinTo(TimeOfDay time) {
+    final generation = ++_spinSerial;
+    _heldSpin = generation;
+    _heldPending = 2;
     setState(() {
       _hour = time.hour;
       _minute = time.minute;
     });
-    _hourController.animateToItem(
-      time.hour,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
-    _minuteController.animateToItem(
-      time.minute ~/ 5,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    _animate(_hourController, time.hour, generation);
+    _animate(_minuteController, time.minute ~/ 5, generation);
+  }
+
+  void _animate(
+    FixedExtentScrollController controller,
+    int item,
+    int generation,
+  ) {
+    controller
+        .animateToItem(
+          item,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        )
+        .whenComplete(() {
+          if (!mounted || _heldSpin != generation) return;
+          _heldPending--;
+          if (_heldPending > 0) return;
+          _heldSpin = null;
+        });
   }
 
   void _confirm() {
@@ -238,17 +277,20 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
                         hour: _hour,
                         minute: _minute,
                         onHour: (index) {
-                          if (index == _hour) return;
+                          if (_heldSpin != null || index == _hour) return;
                           setState(() => _hour = index);
                         },
                         onMinute: (index) {
                           final minute = index * 5;
-                          if (minute == _minute) return;
+                          if (_heldSpin != null || minute == _minute) return;
                           setState(() => _minute = minute);
                         },
                       ),
-                      if (widget.usualTimes.isNotEmpty)
-                        _UsualTimes(times: widget.usualTimes, onTap: _spinTo),
+                      if (usualAnswerTimes(widget.answeredLog.value).isNotEmpty)
+                        _UsualTimes(
+                          times: usualAnswerTimes(widget.answeredLog.value),
+                          onTap: _spinTo,
+                        ),
                     ],
                   ),
                   Padding(

@@ -14,7 +14,6 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
 import 'package:kazokuai/features/booking/date_time_sheet.dart';
-import 'package:kazokuai/features/booking/usual_answer_times.dart';
 
 // 入力が止まってから、通話内容の案を頼むまでの時間
 const _draftPause = Duration(seconds: 1);
@@ -146,10 +145,9 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   }
 
   // キーボードがシートに被らないように、開く前に欄から焦点を外す。
-  // 通話記録はここを開いたときだけ読む。画面を描くたびに読まない。
+  // 通話記録はシートが開いているあいだの更新も見る。画面を描くたびに読まない。
   Future<void> _pickWhen() async {
     FocusManager.instance.primaryFocus?.unfocus();
-    final log = ref.read(callsRepositoryProvider).log.value;
     final picked = await showDateTimeSheet(
       context,
       initial: DateTime(
@@ -159,7 +157,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
         _time.hour,
         _time.minute,
       ),
-      usualTimes: usualAnswerTimes(log),
+      answeredLog: ref.read(callsRepositoryProvider).log,
     );
     if (!mounted || picked == null) return;
     setState(() {
