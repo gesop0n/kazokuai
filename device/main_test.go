@@ -1,6 +1,7 @@
 package main
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -29,6 +30,27 @@ func TestBackendFlag(t *testing.T) {
 	_, _, err = parseArgs([]string{"--watched-person", "hanako", "--backend="})
 	if err == nil || !strings.Contains(err.Error(), "--backend") {
 		t.Fatalf("空の URL = %v", err)
+	}
+}
+
+func TestCheckNamesThePartBeforeOpeningAnything(t *testing.T) {
+	err := run([]string{"check"})
+	if err == nil || !strings.Contains(err.Error(), "speaker") {
+		t.Fatalf("部品なし = %v", err)
+	}
+	err = run([]string{"check", "keypad"})
+	if err == nil || !strings.Contains(err.Error(), "keypad") {
+		t.Fatalf("範囲外 = %v", err)
+	}
+}
+
+func TestCheckRunsOnThePhone(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("Linux では部品を開くので、ここでは動かさない")
+	}
+	err := run([]string{"check", "hook"})
+	if err == nil || !strings.Contains(err.Error(), "電話機") {
+		t.Fatalf("Mac の確認 = %v", err)
 	}
 }
 
