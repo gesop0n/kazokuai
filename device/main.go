@@ -3,7 +3,7 @@
 // macOS では、受話器の音声は既定のマイクとスピーカー、フックは Enter キー、
 // 呼び出し音とランプはターミナルの文字である。イヤホンを付けて使う。
 // Linux では、電話機の受話器とフックと呼び出し音を使い、ランプはログだけを書く。
-// 部品の確認は、電話機の上で `device check devices|speaker|mic|hook|ringer` である。
+// 部品の確認は、電話機の上で `device check devices|speaker|mic|hook|ringer|keypad` である。
 //
 // 見守る方の ID は、起動するときに渡す。受話器を開く前に確かめる。
 // バックエンドの URL は --backend で渡す。既定は http://localhost:8080 で、https は wss でつなぐ。
@@ -94,12 +94,12 @@ func parseArgs(args []string) (person, backend string, err error) {
 
 // parseCheck は、`device check` の部品名を読む。機器を開く前に、名前が違えば戻る。
 func parseCheck(args []string) (string, error) {
-	const usage = "確認する部品を1つ指定してください: devices, speaker, mic, hook, ringer"
+	const usage = "確認する部品を1つ指定してください: devices, speaker, mic, hook, ringer, keypad"
 	if len(args) != 1 {
 		return "", errors.New(usage)
 	}
 	switch args[0] {
-	case "devices", "speaker", "mic", "hook", "ringer":
+	case "devices", "speaker", "mic", "hook", "ringer", "keypad":
 		return args[0], nil
 	default:
 		return "", fmt.Errorf("確認できない部品です: %s。%s", args[0], usage)
