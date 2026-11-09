@@ -77,9 +77,32 @@ resource "google_service_account_iam_member" "deploy_runtime" {
 
 # 定義済みのロールで Hosting に公開できるのはこれだけである。
 # サイトの作成と削除も含む。roles/editor は付けない。
+# このロールには Service Usage の権限が無い。
 resource "google_project_iam_member" "deploy_hosting" {
   project = var.project_id
   role    = "roles/firebasehosting.admin"
+  member  = "serviceAccount:${google_service_account.deploy.email}"
+}
+
+# Firebase CLI は Hosting の公開前に、Service Usage で API が有効かを見る。
+# 403 は捕捉しない。見る権限と、課金プロジェクトを指定する use だけを渡す。
+# API の有効化や無効化は渡さない。
+resource "google_project_iam_custom_role" "deploy_service_usage" {
+  project     = var.project_id
+  role_id     = "kazokuaiDeployServiceUsage"
+  title       = "kazokuai のデプロイが API の有効を見る"
+  description = "Firebase CLI が Hosting の公開前に Service Usage を見る。API の有効化はできない。"
+  permissions = [
+    "serviceusage.services.get",
+    "serviceusage.services.use",
+  ]
+
+  depends_on = [google_project_service.api]
+}
+
+resource "google_project_iam_member" "deploy_service_usage" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.deploy_service_usage.name
   member  = "serviceAccount:${google_service_account.deploy.email}"
 }
 

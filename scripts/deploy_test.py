@@ -405,6 +405,8 @@ class DeployScriptTest(unittest.TestCase):
         self.assertEqual(hosting.count('deletion_policy = "PREVENT"'), 2)
         self.assertIn("site_id  = var.project_id", hosting)
         self.assertIn("site_id  = var.hosting_site_id", hosting)
+        published = hosting.split('resource "google_firebase_hosting_site" "published"', 1)[1]
+        self.assertNotIn("app_id", published)
         self.assertNotIn("prevent_destroy", hosting)
 
     def test_workload_identity_accepts_only_this_repo_on_main(self):
@@ -417,6 +419,10 @@ class DeployScriptTest(unittest.TestCase):
         self.assertIn("roles/run.developer", text)
         self.assertIn("roles/iam.serviceAccountUser", text)
         self.assertIn("roles/firebasehosting.admin", text)
+        self.assertIn("serviceusage.services.get", text)
+        self.assertIn("serviceusage.services.use", text)
+        self.assertNotIn("serviceusage.services.enable", text)
+        self.assertNotIn("roles/serviceusage.serviceUsageAdmin", text)
         self.assertIn("roles/iam.workloadIdentityUser", text)
         self.assertNotRegex(text, r'resource\s+"google_service_account_key"')
         self.assertNotIn("private_key", text)
