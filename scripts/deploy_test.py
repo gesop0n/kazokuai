@@ -13,7 +13,7 @@ WEB = ROOT / "scripts" / "deploy_web.sh"
 PROJECT = "kazokuai-prod"
 BILLING = "ABCDEF-123456-ABCDEF"
 BUCKET = "kazokuai-tfstate"
-AMBIENT = "spaco-prod"
+AMBIENT = "other-default-project"
 REGION = "asia-northeast1"
 IMAGE_PREFIX = f"{REGION}-docker.pkg.dev/{PROJECT}/kazokuai/backend:"
 
@@ -82,7 +82,7 @@ class DeployScriptTest(unittest.TestCase):
             f"{sh_quote(log)}\n"
             "printf 'GOOGLE_BILLING_PROJECT=%s\\n' \"$GOOGLE_BILLING_PROJECT\" >> "
             f"{sh_quote(log)}\n"
-            "printf '---\\n' >> "
+            "printf '%s\\n' '---' >> "
             f"{sh_quote(log)}\n"
             + extra
             + "exit 0\n",
@@ -164,6 +164,8 @@ class DeployScriptTest(unittest.TestCase):
         self.assertIn(f"-var=billing_account={BILLING}", terraform)
         self.assertIn(f"-backend-config=bucket={BUCKET}", terraform)
         self.assertIn("apply", terraform)
+        self.assertNotIn("-target=", terraform)
+        self.assertNotIn("deletion_protection=false", terraform)
         self.assertNotIn("-auto-approve", terraform)
         self.assertNotIn(AMBIENT, docker + terraform + gcloud)
         self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", terraform)

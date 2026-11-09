@@ -57,10 +57,8 @@ func (c sampleCall) fields() map[string]any {
 	for i, item := range c.points {
 		points[i] = map[string]any{"text": item.text, "offsetMs": item.offsetMs}
 	}
-	quote := point{}
-	if len(c.points) > 0 {
-		quote = c.points[0]
-	}
+	// 本人の言葉は、見守る方の最初の発言をそのまま入れる。
+	quote := firstWatched(c.lines)
 	return map[string]any{
 		"state":        protocol.StateEnded,
 		"createdAt":    c.at,
@@ -77,6 +75,15 @@ func (c sampleCall) fields() map[string]any {
 			"points":   points,
 		},
 	}
+}
+
+func firstWatched(lines []line) line {
+	for _, item := range lines {
+		if item.speaker == protocol.SpeakerWatched {
+			return item
+		}
+	}
+	return line{}
 }
 
 func (c condition) fields() map[string]any {

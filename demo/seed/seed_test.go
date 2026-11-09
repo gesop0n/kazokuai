@@ -66,8 +66,8 @@ func TestValidateRequest(t *testing.T) {
 }
 
 func TestRunRequiresAnExplicitProject(t *testing.T) {
-	t.Setenv("GOOGLE_CLOUD_PROJECT", "spaco-prod")
-	t.Setenv("CLOUDSDK_CORE_PROJECT", "spaco-prod")
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "other-default-project")
+	t.Setenv("CLOUDSDK_CORE_PROJECT", "other-default-project")
 	t.Setenv("JUDGE_EMAIL", "judge@example.com")
 	t.Setenv("JUDGE_PASSWORD", "judge-pass-1")
 	err := run(context.Background(), nil)
@@ -216,12 +216,12 @@ func assertSampleWeek(t *testing.T, ctx context.Context, person *firestore.Docum
 	}
 
 	wantAnswered := []answeredCall{
-		{time.Date(2026, 10, 31, 9, 0, 0, 0, tokyo), 22 * 60 * 1000, "庭の菊が咲き始めた話をした", "話し相手", "菊"},
-		{time.Date(2026, 11, 1, 12, 0, 0, 0, tokyo), 31 * 60 * 1000, "お米が残り少ないと相談があった", "話し相手", "お米"},
-		{time.Date(2026, 11, 3, 9, 0, 0, 0, tokyo), 18 * 60 * 1000, "お孫さんの運動会の話がはずんだ", "話し相手", "運動会"},
-		{time.Date(2026, 11, 4, 12, 0, 0, 0, tokyo), 9 * 60 * 1000, "テレビの映し方を案内して解決", "操作案内", "テレビ"},
-		{time.Date(2026, 11, 4, 19, 0, 0, 0, tokyo), 3 * 60 * 1000, "夕飯は大根の煮物。夜の薬も飲んだ", "体調", "大根"},
-		{time.Date(2026, 11, 5, 9, 2, 0, 0, tokyo), 6*60*1000 + 12*1000, "朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。", "体調", "膝"},
+		{time.Date(2026, 10, 31, 9, 0, 0, 0, tokyo), 22 * 60 * 1000, "庭の菊が咲き始めた話をした", "話し相手", "菊", "庭の菊が咲き始めたよ。"},
+		{time.Date(2026, 11, 1, 12, 0, 0, 0, tokyo), 31 * 60 * 1000, "お米が残り少ないと相談があった", "話し相手", "お米", "お米が残り少ないの。"},
+		{time.Date(2026, 11, 3, 9, 0, 0, 0, tokyo), 18 * 60 * 1000, "お孫さんの運動会の話がはずんだ", "話し相手", "運動会", "お孫さんの運動会の話でね、はずんだの。"},
+		{time.Date(2026, 11, 4, 12, 0, 0, 0, tokyo), 9 * 60 * 1000, "テレビの映し方を案内して解決", "操作案内", "テレビ", "映らないのよ。"},
+		{time.Date(2026, 11, 4, 19, 0, 0, 0, tokyo), 3 * 60 * 1000, "夕飯は大根の煮物。夜の薬も飲んだ", "体調", "大根", "大根の煮物を食べたよ。"},
+		{time.Date(2026, 11, 5, 9, 2, 0, 0, tokyo), 6*60*1000 + 12*1000, "朝ごはんを食べ、薬も飲んだそうです。膝の痛みを少し気にしています。", "体調", "膝", "よく眠れたよ。朝ごはんも食べたしね。"},
 	}
 
 	var missed int
@@ -269,6 +269,10 @@ func assertSampleWeek(t *testing.T, ctx context.Context, person *firestore.Docum
 		if !containsWord(lines, match.word) {
 			t.Fatalf("%s の会話に %s がない: %v", headline, match.word, lines)
 		}
+		quote := nested(t, summary["quote"])
+		if quote["text"] != match.quote || !containsWord(lines, match.quote) {
+			t.Fatalf("%s の本人の言葉 = %v", headline, quote)
+		}
 		if at.Equal(time.Date(2026, 11, 5, 9, 2, 0, 0, tokyo)) {
 			morningID = call.Ref.ID
 			assertMorningCall(t, ctx, call.Ref, fields, summary)
@@ -305,6 +309,7 @@ type answeredCall struct {
 	headline   string
 	topic      string
 	word       string
+	quote      string
 }
 
 func containsWord(lines []string, word string) bool {
@@ -326,6 +331,10 @@ func assertMorningCall(t *testing.T, ctx context.Context, ref *firestore.Documen
 	}
 	if summary["topic"] != "体調" {
 		t.Fatalf("話の種類 = %v", summary["topic"])
+	}
+	quote := nested(t, summary["quote"])
+	if quote["text"] != "よく眠れたよ。朝ごはんも食べたしね。" || asInt(quote["offsetMs"]) != 11*1000 {
+		t.Fatalf("本人の言葉 = %v", quote)
 	}
 	meal := nested(t, summary["meal"])
 	sleep := nested(t, summary["sleep"])

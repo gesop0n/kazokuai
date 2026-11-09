@@ -19,6 +19,7 @@ gcloud storage buckets update gs://BUCKET --project=PROJECT_ID --versioning
 
 ```bash
 mise run infra:plan -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX --image=IMAGE --state-bucket=BUCKET
+mise run infra:apply -- --bootstrap --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX --image=IMAGE --state-bucket=BUCKET
 mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXXXXX --image=IMAGE --state-bucket=BUCKET
 ```
 
@@ -26,12 +27,14 @@ mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXX
 
 `--project` が無いと、環境変数に別のプロジェクトがあっても、terraform は起動しない。apply は確認を求める。`-auto-approve` は付けない。
 
-`IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting、予算を作る。Cloud Run と、その公開の IAM は作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
+
+`IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。Cloud Run を作る apply は、push したあとに実行する。
 
 ## 作る順
 
 1. 上のバケットを作る。
-2. イメージと、秘密のバージョンがまだ無いときは、最初の apply が Cloud Run で失敗することがある。失敗したら、次を済ませてから同じ apply をやり直す。
+2. `--bootstrap` で apply する。Cloud Run はまだ作らない。
 3. 秘密の値を入れる。値はコマンドの引数にも、リポジトリのファイルにも書かない。標準入力で渡す。
 
 ```bash
@@ -41,10 +44,9 @@ gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file
 
 各コマンドのあと、値を貼って Ctrl-D で終える。名前は `gemini-api-key` と `phone-shared-secret` である。Cloud Run は、これらを環境変数 `GEMINI_API_KEY` と `PHONE_SECRET` として読む。電話機も、同じ合言葉を環境変数 `PHONE_SECRET` から読む。
 
-4. イメージを push する。手順は [docs/publish.md](../docs/publish.md) にある。
-5. apply をやり直す。
+4. イメージを push し、Cloud Run を作る。手順は [docs/publish.md](../docs/publish.md) にある。
 
-API の有効化が行き渡る前に失敗したときも、同じ apply をやり直す。
+API の有効化が行き渡る前に失敗したときは、同じ apply をやり直す。Cloud Run が状態に tainted で残ったときの戻し方も、同じ手順にある。
 
 ## メールアドレスとパスワードのログイン
 

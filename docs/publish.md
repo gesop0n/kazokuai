@@ -28,19 +28,21 @@ gcloud auth application-default set-quota-project PROJECT_ID
 
 Firestore の `(default)` や、プロジェクト ID と同じ Hosting のサイトが既にあるときは、作る前に取り込む。手順は [infra/README.md](../infra/README.md) の「すでに資源があるとき」にある。
 
-## 4. 最初の apply
+## 4. Cloud Run を作らずに apply する
 
-イメージと秘密のバージョンがまだ無いと、Cloud Run のところで失敗することがある。失敗しても、有効にした API、Artifact Registry、秘密の入れ物、Firebase は残る。イメージには、まだ push していない URI を渡してよい。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting、予算を作る。Cloud Run と、その公開の IAM は作らない。
+
+`IMAGE` は Terraform の変数なので要る。この URI は push しなくてよい。Cloud Run はここから先の手順で作る。
 
 ```bash
-mise run infra:apply -- \
+mise run infra:apply -- --bootstrap \
   --project=PROJECT_ID \
   --billing-account=XXXXXX-XXXXXX-XXXXXX \
   --image=asia-northeast1-docker.pkg.dev/PROJECT_ID/kazokuai/backend:bootstrap \
   --state-bucket=BUCKET
 ```
 
-apply は確認を求める。API の有効化が行き渡る前に失敗したときは、同じコマンドをやり直す。`allUsers` の IAM で失敗したときは、手順 7 の組織ポリシーを直してからやり直す。
+apply は確認を求める。API の有効化が行き渡る前に失敗したときは、同じコマンドをやり直す。
 
 ## 5. 秘密の値を入れる
 
@@ -68,11 +70,11 @@ mise run deploy:backend -- \
   --state-bucket=BUCKET
 ```
 
-Mac が Apple Silicon でも、イメージは `linux/amd64` で作る。Cloud Run が動かす形である。タグは、実行の時刻と git のリビジョンから作る。push のあと、そのイメージで Terraform を適用する。確認を求める。
+Mac が Apple Silicon でも、イメージは `linux/amd64` で作る。Cloud Run が動かす形である。タグは、実行の時刻と git のリビジョンから作る。push のあと、そのイメージで Terraform を適用し、Cloud Run を作る。確認を求める。
 
 終わると、イメージの URI と、電話機がつなぐ URL を出す。
 
-push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 4 の apply をやり直してから、もう一度このコマンドを実行する。
+push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 4 をやり直してから、もう一度このコマンドを実行する。`allUsers` の IAM で失敗したときは、手順 7 の組織ポリシーを直してからやり直す。Cloud Run が状態に tainted で残ったときは、うしろの「Cloud Run が tainted で残っているとき」で戻す。
 
 ## 7. コンソールでログインを有効にする
 
@@ -130,3 +132,29 @@ mise run device -- --backend CLOUD_RUN_URI --watched-person tanaka-hana
 `CLOUD_RUN_URI` は、手順 6 が表示した URL である。`https` は `wss` になる。
 
 Web 版に審査員としてログインし、今すぐ通話を押すと、この電話機が鳴る。
+
+## Cloud Run が tainted で残っているとき
+
+イメージが無い状態で Cloud Run を作ろうとして失敗すると、サービスが状態に tainted で残ることがある。そのままだと、次の apply はサービスを消して作り直そうとし、削除の保護がそれを拒む。
+
+プロジェクトは、ここでも引数で渡す。
+
+1. tainted を外す。次の apply は、サービスを消さずにイメージを載せる。
+
+```bash
+mise run infra:untaint -- --project=PROJECT_ID --state-bucket=BUCKET
+```
+
+2. 手順 6 の `mise run deploy:backend` をやり直す。
+
+サービスを消して作り直すときは、上の untaint のあと、削除の保護を 1 回だけ外して apply する。イメージは、push 済みの URI にする。
+
+```bash
+mise run infra:apply -- --allow-replace \
+  --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=IMAGE \
+  --state-bucket=BUCKET
+```
+
+続いて、`--allow-replace` を付けずに、もう一度 apply する。削除の保護が戻る。`deploy:backend` の apply でも戻る。

@@ -52,9 +52,14 @@ dir = "{{config_root}}"
 run = "infra/run.sh plan"
 
 ["infra:apply"]
-description = "本番のインフラの apply。確認のプロンプトが出る。引数は infra:plan と同じ"
+description = "本番のインフラの apply。確認のプロンプトが出る。--bootstrap は Cloud Run を作らない。--allow-replace は、この 1 回だけ削除の保護を外す。例: mise run infra:apply -- --project=ID --billing-account=ID --image=IMAGE --state-bucket=BUCKET"
 dir = "{{config_root}}"
 run = "infra/run.sh apply"
+
+["infra:untaint"]
+description = "状態に残った Cloud Run の tainted を外す。プロジェクトは引数で渡す。例: mise run infra:untaint -- --project=ID --state-bucket=BUCKET"
+dir = "{{config_root}}"
+run = "infra/run.sh untaint"
 
 ["deploy:backend"]
 description = "バックエンドのイメージを linux/amd64 で作り、Artifact Registry に上げ、そのイメージで apply する。例: mise run deploy:backend -- --project=ID --billing-account=ID --state-bucket=BUCKET"

@@ -4,8 +4,8 @@ resource "google_cloud_run_v2_service" "backend" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
-  # 既定が true。消すときは、ここを false にしてから destroy する。
-  deletion_protection = true
+  # 既定は true。外す 1 回は infra/run.sh apply --allow-replace を使う。
+  deletion_protection = var.deletion_protection
 
   # サービス全体の上限。改訂を切り替えているあいだも、インスタンスは 1 つを超えない。
   scaling {

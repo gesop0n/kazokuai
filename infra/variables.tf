@@ -38,3 +38,9 @@ variable "container_image" {
     error_message = "container_image にイメージの URI を、空白なしで入れてください。"
   }
 }
+
+variable "deletion_protection" {
+  type        = bool
+  description = "Cloud Run を消さない。壊れたサービスを作り直す 1 回だけ false にする。"
+  default     = true
+}
