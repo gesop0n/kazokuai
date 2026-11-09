@@ -7,6 +7,10 @@ __pycache__/
 # 環境変数。.env.example を写して作る。API キーが入るのでコミットしない
 .env
 
+# bookworm のビルドがリポジトリのルートに出す実行ファイルと sha256。Pi へ送るだけでコミットしない
+/kazokuai-device
+/kazokuai-device.sha256
+
 # firebase/ でエミュレーターを起動すると firebase-tools が作る
 *-debug.log
 
