@@ -122,6 +122,12 @@ void main() {
       expect(formatPickTime(19, 5), '19:05');
     });
 
+    test('01 の日時は時を 0 埋めしない', () {
+      expect(formatSheetTime(8, 30), '8:30');
+      expect(formatSheetTime(9, 0), '9:00');
+      expect(formatSheetTime(19, 5), '19:05');
+    });
+
     test('基準日の予約は「今日」と書く', () {
       expect(formatBookedAt(DateTime(2026, 11, 5, 12)), '今日 12:00');
       expect(formatBookedAt(DateTime(2026, 11, 5, 8, 30)), '今日 08:30');

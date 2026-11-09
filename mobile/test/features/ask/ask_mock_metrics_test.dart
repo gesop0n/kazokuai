@@ -85,25 +85,18 @@ void main() {
       expect(tester.getSize(find.byType(AppCard)).height, 162 + 12);
     });
 
-    testWidgets('日付と時刻の欄は高さ 56、幅 176.5 で、間は 8', (tester) async {
+    testWidgets('日時の欄は高さ 56、幅 361 で、見出しとの間は 8', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
-      final date = tester.getRect(find.text('11/6(金)'));
-      final time = tester.getRect(find.text('08:30'));
       // 文字の箱ではなく、欄の面を測る
-      final dateField = tester.getRect(
+      final field = tester.getRect(
         find.ancestor(of: find.text('11/6(金)'), matching: find.byType(InkWell)),
       );
-      final timeField = tester.getRect(
-        find.ancestor(of: find.text('08:30'), matching: find.byType(InkWell)),
-      );
 
-      expect(dateField.size, const Size(176.5, 56));
-      expect(timeField.size, const Size(176.5, 56));
-      expect(timeField.left - dateField.right, 8);
-      expect(date.top, time.top);
+      expect(field.size, const Size(361, 56));
+      expect(field.top - tester.getBottomLeft(find.text('日時')).dy, 8);
       expect(
-        tester.getTopLeft(find.text('日付')).dy -
+        tester.getTopLeft(find.text('日時')).dy -
             tester.getBottomLeft(find.byType(AppCard)).dy,
         16,
       );

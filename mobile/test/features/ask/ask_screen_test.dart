@@ -143,7 +143,7 @@ void main() {
       expect(find.text('AIに伝えてもらう'), findsOneWidget);
       expect(find.text('伝えたいこと'), findsOneWidget);
       expect(find.text('11/6(金)'), findsOneWidget);
-      expect(find.text('08:30'), findsOneWidget);
+      expect(find.text('8:30'), findsOneWidget);
       expect(_textField(tester).controller!.text, isEmpty);
       expect(_textField(tester).focusNode!.hasFocus, isTrue);
       expect(tester.testTextInput.isVisible, isTrue);
@@ -161,19 +161,17 @@ void main() {
       expect(tester.getSize(find.byType(AppTextField)).height, greaterThan(60));
     });
 
-    testWidgets('日付と時刻の欄は、項目の名前と値を押せるものとして読む', (tester) async {
+    testWidgets('日時の欄は、日時を選ぶボタンとして読み、中の値は重ねない', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpAsk(tester);
 
-      expect(find.bySemanticsLabel('日付\n11/6(金)'), findsOneWidget);
-      expect(find.bySemanticsLabel('時刻\n08:30'), findsOneWidget);
+      expect(find.bySemanticsLabel('日時を選ぶ'), findsOneWidget);
       expect(
-        tester.getSemantics(find.bySemanticsLabel('日付\n11/6(金)')),
+        tester.getSemantics(find.bySemanticsLabel('日時を選ぶ')),
         isSemantics(isButton: true, isEnabled: true, hasEnabledState: true),
       );
-      // 欄の上の見出しを別に読まない
-      expect(find.bySemanticsLabel('日付'), findsNothing);
-      expect(find.bySemanticsLabel('時刻'), findsNothing);
+      expect(find.bySemanticsLabel('11/6(金)'), findsNothing);
+      expect(find.bySemanticsLabel('8:30'), findsNothing);
       handle.dispose();
     });
 
@@ -377,26 +375,21 @@ void main() {
       });
     }
 
-    testWidgets('カードの順は入力欄、通話内容、日付と時刻', (tester) async {
+    testWidgets('カードの順は入力欄、通話内容、日時', (tester) async {
       await _pumpAsk(tester);
       await _enterMessage(tester);
       await _waitForDraft(tester);
 
       final fieldBottom = tester.getBottomLeft(find.byType(AppTextField)).dy;
       final card = tester.getRect(find.byType(AppCard));
-      final dateTop = tester.getTopLeft(find.text('日付')).dy;
-      // 欄の中の文字は左寄せなので、間隔は枠同士で見る
-      final date = tester.getRect(
+      final whenTop = tester.getTopLeft(find.text('日時')).dy;
+      final when = tester.getRect(
         find.ancestor(of: find.text('11/6(金)'), matching: find.byType(InkWell)),
-      );
-      final time = tester.getRect(
-        find.ancestor(of: find.text('08:30'), matching: find.byType(InkWell)),
       );
 
       expect(card.top - fieldBottom, 16);
-      expect(dateTop - card.bottom, 16);
-      expect(time.left - date.right, 8);
-      expect(date.top, time.top);
+      expect(whenTop - card.bottom, 16);
+      expect(when.top - tester.getBottomLeft(find.text('日時')).dy, 8);
     });
 
     testWidgets('「なおす」は ghost で、押すと準備中と出る', (tester) async {
@@ -542,150 +535,16 @@ void main() {
         lessThanOrEqualTo(keyboardTop),
       );
 
-      await tester.ensureVisible(find.text('08:30'));
+      await tester.ensureVisible(find.text('8:30'));
       await tester.pumpAndSettle();
       expect(
-        tester.getBottomLeft(find.text('08:30')).dy,
+        tester.getBottomLeft(find.text('8:30')).dy,
         lessThanOrEqualTo(keyboardTop),
       );
       expect(
-        tester.getTopLeft(find.text('日付')).dy,
+        tester.getTopLeft(find.text('日時')).dy,
         greaterThanOrEqualTo(tester.getBottomLeft(find.byType(AppNavBar)).dy),
       );
-    });
-  });
-
-  group('日付を選ぶ', () {
-    testWidgets('標準の画面を、基準の日より前を選べない形で開く', (tester) async {
-      await _pumpAsk(tester);
-
-      await _tapVisible(tester, find.text('11/6(金)'));
-
-      final dialog = tester.widget<DatePickerDialog>(
-        find.byType(DatePickerDialog),
-      );
-      expect(dialog.firstDate, DateTime(2026, 11, 5));
-      expect(dialog.initialDate, DateTime(2026, 11, 6));
-      expect(dialog.lastDate, DateTime(2027, 11, 5));
-      // 端末の時計ではなく、基準の日を今日として出す
-      expect(dialog.currentDate, DateTime(2026, 11, 5));
-      expect(
-        Localizations.localeOf(tester.element(find.byType(DatePickerDialog))),
-        const Locale('ja'),
-      );
-    });
-
-    testWidgets('基準の日より前の日は押しても選ばれない', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('11/6(金)'));
-
-      await tester.tap(find.text('4'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('11/6(金)'), findsOneWidget);
-    });
-
-    testWidgets('基準の日は選べる', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('11/6(金)'));
-
-      await tester.tap(find.text('5'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('11/5(木)'), findsOneWidget);
-    });
-
-    testWidgets('選んだ日が欄に出る', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('11/6(金)'));
-
-      await tester.tap(find.text('20'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('11/20(金)'), findsOneWidget);
-    });
-
-    testWidgets('キャンセルすると変わらない', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('11/6(金)'));
-
-      await tester.tap(find.text('20'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('キャンセル'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('11/6(金)'), findsOneWidget);
-    });
-  });
-
-  group('時刻を選ぶ', () {
-    // 文字盤の代わりに、標準の画面の入力の表示で時刻を打つ
-    Future<void> enterTime(
-      WidgetTester tester,
-      String hour,
-      String minute,
-    ) async {
-      await tester.tap(find.byIcon(Icons.keyboard_outlined));
-      await tester.pumpAndSettle();
-      final fields = find.descendant(
-        of: find.byType(TimePickerDialog),
-        matching: find.byType(TextField),
-      );
-      await tester.enterText(fields.at(0), hour);
-      await tester.enterText(fields.at(1), minute);
-      await tester.pump();
-    }
-
-    testWidgets('標準の画面を、今の値で開く', (tester) async {
-      await _pumpAsk(tester);
-
-      await _tapVisible(tester, find.text('08:30'));
-
-      final dialog = tester.widget<TimePickerDialog>(
-        find.byType(TimePickerDialog),
-      );
-      expect(dialog.initialTime, const TimeOfDay(hour: 8, minute: 30));
-      expect(
-        Localizations.localeOf(tester.element(find.byType(TimePickerDialog))),
-        const Locale('ja'),
-      );
-    });
-
-    testWidgets('日本語のロケールは 24 時間の表示で、午前と午後を出さない', (tester) async {
-      await _pumpAsk(tester);
-
-      await _tapVisible(tester, find.text('08:30'));
-
-      expect(find.text('午前'), findsNothing);
-      expect(find.text('午後'), findsNothing);
-    });
-
-    testWidgets('選んだ時刻を 2 桁に揃えて欄に出す', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('08:30'));
-
-      await enterTime(tester, '9', '05');
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('09:05'), findsOneWidget);
-    });
-
-    testWidgets('キャンセルすると変わらない', (tester) async {
-      await _pumpAsk(tester);
-      await _tapVisible(tester, find.text('08:30'));
-
-      await enterTime(tester, '9', '05');
-      await tester.tap(find.text('キャンセル'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('08:30'), findsOneWidget);
     });
   });
 
@@ -792,14 +651,16 @@ void main() {
       expect(tops[2], lessThan(tops[3]));
     });
 
-    testWidgets('選んだ日付の位置に予約を足す', (tester) async {
+    testWidgets('選んだ日時の位置に予約を足す', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
       await _waitForDraft(tester);
-      await _tapVisible(tester, find.text('11/6(金)'));
-      await tester.tap(find.text('5'));
+      await _tapVisible(tester, find.bySemanticsLabel('日時を選ぶ'));
+      await tester.tap(find.bySemanticsLabel('11月5日、今日'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('OK'));
+      await tester.tap(find.text('9:00'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(AppButton, '11/5(木) 9:00にする'));
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('この日時で予約する'));
@@ -807,8 +668,8 @@ void main() {
 
       final calls = tester.container().read(bookedCallsProvider);
       expect(calls.first.message, _message);
-      expect(calls.first.at, DateTime(2026, 11, 5, 8, 30));
-      expect(find.text('今日 08:30'), findsOneWidget);
+      expect(calls.first.at, DateTime(2026, 11, 5, 9));
+      expect(find.text('今日 09:00'), findsOneWidget);
     });
 
     testWidgets('入力した内容の前後の空白を除いて予約する', (tester) async {

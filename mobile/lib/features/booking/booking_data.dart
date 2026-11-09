@@ -5,6 +5,9 @@ import 'package:kazokuai/features/home/home_format.dart';
 // 予約の画面の基準日。端末の時計は使わない
 final bookingToday = DateTime(2026, 11, 5);
 
+// 選べる期間の終わりはモックにないので、基準日の 1 年後にする
+final bookingLastDate = DateTime(2027, 11, 5);
+
 class BookedCall {
   const BookedCall({
     required this.at,
@@ -176,9 +179,13 @@ class RetryRuleNotifier extends Notifier<RetryRule> {
 String formatPickDate(DateTime date) =>
     '${date.month}/${date.day}(${weekdayLabel(date)})';
 
-// 08:30
+// 08:30。予約の一覧と 06b の欄
 String formatPickTime(int hour, int minute) =>
     '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
+// 8:30。01 の日時と 01b は、モックのとおり時を 0 埋めしない
+String formatSheetTime(int hour, int minute) =>
+    '$hour:${minute.toString().padLeft(2, '0')}';
 
 // 今日 12:00。基準日と別の日なら 11/7 10:00
 String formatBookedAt(DateTime at) {
