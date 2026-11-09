@@ -103,7 +103,7 @@ func (h *Handset) useNamedDevice(name string) error {
 	if err != nil {
 		return err
 	}
-	in, err := choose(names(capture), name)
+	in, err := chooseCapture(names(capture), name)
 	if err != nil {
 		return err
 	}
