@@ -2,17 +2,11 @@ package server
 
 import (
 	"context"
-	"fmt"
-	"os"
 
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 )
-
-// ProjectID は Firebase のプロジェクトである。本物のプロジェクトはまだなく、開発者の Mac のエミュレーターだけを使う。
-// demo- で始まるプロジェクトは、エミュレーターの外には届かない。
-const ProjectID = "demo-kazokuai"
 
 // Firebase は、バックエンドが使う Firebase のクライアントである。
 // サーバーの SDK は、Firestore のセキュリティルールに縛られない。
@@ -22,15 +16,15 @@ type Firebase struct {
 	Auth *auth.Client
 }
 
-// ConnectFirebase は、環境変数 FIRESTORE_EMULATOR_HOST と FIREBASE_AUTH_EMULATOR_HOST にあるエミュレーターにつなぐ。
-// エミュレーターでは認証情報が要らない。
+// ConnectFirebase は、ResolveProject が決めたプロジェクトにつなぐ。
+// demo- のプロジェクトはエミュレーターへ、それ以外は渡したプロジェクトの ID とサービスアカウントの資格情報でつなぐ。
+// プロジェクトの ID は必ず明示するので、資格情報に入っている別のプロジェクトには頼らない。
 func ConnectFirebase(ctx context.Context) (Firebase, error) {
-	for _, name := range []string{"FIRESTORE_EMULATOR_HOST", "FIREBASE_AUTH_EMULATOR_HOST"} {
-		if os.Getenv(name) == "" {
-			return Firebase{}, fmt.Errorf("環境変数 %s に Firebase のエミュレーターのアドレスを入れてください", name)
-		}
+	projectID, err := ResolveProject()
+	if err != nil {
+		return Firebase{}, err
 	}
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: ProjectID})
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID})
 	if err != nil {
 		return Firebase{}, err
 	}

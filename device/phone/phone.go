@@ -6,9 +6,10 @@ package phone
 
 import (
 	"context"
-	"time"
 
 	"google.golang.org/genai"
+
+	"github.com/gesop0n/kazokuai/internal/clock"
 )
 
 // 受話器の音声の速さ(Hz)である。どちらも 16 ビット、モノラル、リトルエンディアンの PCM で、
@@ -70,21 +71,12 @@ type Phone struct {
 	Lamp    Lamp
 }
 
-// Clock は、呼び出しの上限と電話の長さを測る時計である。
+// Clock は、呼び出しの上限、電話の長さ、つなぎ直す間隔、ping の間隔を測る時計である。
 // テストは偽の時計を渡し、待たずに時刻を進める。
-type Clock interface {
-	// Now は、今の時刻を返す。
-	Now() time.Time
-	// NewTimer は、d が経ったことを知らせるタイマーを返す。d が 0 以下なら、すぐ知らせる。
-	NewTimer(d time.Duration) Timer
-}
+type Clock = clock.Clock
 
-// Timer は、時間が経ったことを Chan で 1 回知らせる。
-type Timer interface {
-	Chan() <-chan time.Time
-	// Stop は、まだ知らせていなければ、知らせないようにする。
-	Stop()
-}
+// Timer は、時間が経ったことを 1 回知らせる。
+type Timer = clock.Timer
 
 // Gemini は、短命トークンで Live API のセッションを開く。
 type Gemini interface {

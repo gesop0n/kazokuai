@@ -22,8 +22,13 @@ import (
 
 // Device は、バックエンドとつながり続け、来た指示ごとに電話をする。
 type Device struct {
-	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080
+	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080。https は wss でつなぐ。
 	Backend string
+	// Secret は、バックエンドへ付ける合言葉である。
+	Secret string
+	// HTTP は、バックエンドへのクライアントである。nil なら http.DefaultClient を使う。
+	// テストが、自分の証明を信じる TLS のバックエンドへつなぐときに渡す。
+	HTTP *http.Client
 	// WatchedPerson は、この電話機の見守る方の ID である。起動するときに渡す。
 	WatchedPerson string
 	Gemini        Gemini
@@ -561,12 +566,7 @@ func (d *Device) sendReport(report protocol.CallReport) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.CallReportPath, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := d.postBackend(ctx, protocol.CallReportPath, body)
 	if err != nil {
 		return err
 	}
@@ -603,12 +603,7 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.TokenPath, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := d.postBackend(ctx, protocol.TokenPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -622,4 +617,18 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 		return nil, fmt.Errorf("バックエンドのレスポンスを読めなかった: %w", err)
 	}
 	return &token, nil
+}
+
+func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(protocol.PhoneSecretHeader, d.Secret)
+	client := d.HTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return client.Do(req)
 }

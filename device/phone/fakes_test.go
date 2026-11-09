@@ -66,6 +66,9 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
+	if config.PhoneSecret == "" {
+		config.PhoneSecret = protocol.DevPhoneSecret
+	}
 	s := &system{
 		config:  config,
 		results: make(chan error, 1),
@@ -84,6 +87,7 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	s.backend = backend
 	s.device = &phone.Device{
 		Backend:       backend.URL,
+		Secret:        s.config.PhoneSecret,
 		WatchedPerson: hanakoID,
 		Gemini:        gemini,
 		Phone:         phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
