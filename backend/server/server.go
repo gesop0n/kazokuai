@@ -1,5 +1,5 @@
 // Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話と通話内容の案を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
-// つながっている電話機は、見守る方の ID ごとにメモリーで持つ。
+// 古い道の電話機は見守る方の ID ごとに、ID と鍵で認証した電話機は電話機の ID ごとに、メモリーで持つ。
 package server
 
 import (
@@ -38,7 +38,7 @@ type Config struct {
 	SummaryRetryWait time.Duration
 	// ProjectID は、Firebase のプロジェクトである。demo- で始まるときだけ、localhost からの CORS を許す。
 	ProjectID string
-	// PhoneSecret は、電話機の合言葉である。/token、/calls、WebSocket は、これが無いと断る。
+	// PhoneSecret は、電話機の合言葉である。登録するときの合言葉で、古い道の /token、/calls、WebSocket も、これが無いと断る。
 	PhoneSecret string
 }
 
@@ -58,21 +58,23 @@ type Summarizer interface {
 // Handler は、バックエンドの HTTP サーバーである。Stop で電話機との接続を閉じる。
 type Handler struct {
 	http.Handler
-	stop   context.CancelFunc
-	phones *phoneBook
+	stop      context.CancelFunc
+	connected func(string) bool
 }
 
 // Stop は、つながっている電話機との WebSocket を閉じる。
 func (h *Handler) Stop() { h.stop() }
 
 // Connected は、personID の電話機が今つながっているかを返す。
-func (h *Handler) Connected(personID string) bool { return h.phones.connected(personID) }
+// 結び付きがあるときはその電話機を、無いときは古い道の接続を見る。
+func (h *Handler) Connected(personID string) bool { return h.connected(personID) }
 
 // New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
+// protocol.PhoneRegisterPath で電話機の ID と鍵を登録し、
 // watchedPersonsPath でアプリから見守る方の登録を受け、protocol.DraftScriptPath で通話内容の案を作り、
 // protocol.StartCallPath で今すぐ通話を始め、protocol.CallReportPath でデバイスから電話の報告を受ける Handler を返す。
 // アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
-// 電話機の道（/token、/calls、WebSocket）は、今の道のままである。
+// 電話機の道（登録、/token、/calls、WebSocket）は、/api の下には置かない。
 // clk が nil のとき、タイマーは実時間で進む。
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
@@ -86,12 +88,21 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 		base:       ctx,
 	}
 	router := chi.NewRouter()
+	router.Post(protocol.PhoneRegisterPath, s.registerPhone)
 	router.Get(protocol.PhonePath, s.requirePhone(s.phone))
 	router.Post(protocol.TokenPath, s.requirePhone(s.token))
 	router.Post(protocol.CallReportPath, s.requirePhone(s.reportCall))
 	s.mountApp(router)
 	router.Route("/api", s.mountApp)
-	return &Handler{Handler: s.withCORS(router), stop: stop, phones: s.phones}
+	return &Handler{
+		Handler: s.withCORS(router),
+		stop:    stop,
+		connected: func(personID string) bool {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			return s.personConnected(ctx, personID)
+		},
+	}
 }
 
 // mountApp は、アプリが呼ぶ道を r に付ける。
@@ -126,6 +137,13 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRegistration)).Decode(&req); err != nil {
 		http.Error(w, "本文を JSON で読めなかった", http.StatusBadRequest)
 		return
+	}
+	identity := phoneIdentityFrom(r.Context())
+	if refuseOtherPerson(w, identity, req.WatchedPersonID) {
+		return
+	}
+	if identity.phoneID != "" && req.WatchedPersonID == "" {
+		req.WatchedPersonID = identity.personID
 	}
 	if req.CallID == "" || req.WatchedPersonID == "" {
 		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)

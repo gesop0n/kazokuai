@@ -7,15 +7,41 @@ import (
 )
 
 // TokenPath は、電話を始めるときにデバイスが短命トークンをもらう、バックエンドのパスである。
-// デバイスは TokenRequest を JSON で入れて POST し、PhoneSecretHeader に合言葉を付ける。
+// デバイスは TokenRequest を JSON で入れて POST する。
+// 電話機ごとの認証では PhoneIDHeader と PhoneKeyHeader を付ける。
+// 古い道では PhoneSecretHeader に合言葉を付ける。
 const TokenPath = "/token"
 
 // PhonePath は、電話機がつなぎ続ける WebSocket のパスである。
-// クエリ watchedPerson に、見守る方の ID を付ける。接続のときも PhoneSecretHeader に合言葉を付ける。
+// 電話機ごとの認証では PhoneIDHeader と PhoneKeyHeader を付ける。見守る方は結び付きから決まる。
+// クエリ watchedPerson を付けるときは、その結び付きと同じ ID でなければならない。
+// 古い道では、クエリ watchedPerson に見守る方の ID を付け、PhoneSecretHeader に合言葉を付ける。
 const PhonePath = "/phone"
 
-// PhoneSecretHeader は、電話機が /token、/calls、WebSocket に付ける合言葉のヘッダーである。
+// PhoneRegisterPath は、電話機が自分の ID と鍵を登録するパスである。/api の下には置かない。
+// 電話機は PhoneIDHeader と PhoneKeyHeader に ID と鍵を付け、PhoneSecretHeader に合言葉を付ける。
+const PhoneRegisterPath = "/phones"
+
+// PhoneSecretHeader は、登録するときの合言葉と、古い道の /token、/calls、WebSocket の合言葉のヘッダーである。
 const PhoneSecretHeader = "Kazokuai-Secret"
+
+// PhoneIDHeader は、電話機が自分の ID を付けるヘッダーである。
+const PhoneIDHeader = "Kazokuai-Phone-Id"
+
+// PhoneKeyHeader は、電話機が自分の鍵を付けるヘッダーである。
+const PhoneKeyHeader = "Kazokuai-Phone-Key"
+
+// 電話機の認証で返す答えである。知らない ID と、鍵が違うときと、別の見守る方を名乗るときで、文を分ける。
+const (
+	// PhoneAnswerBadSecret は、合言葉が無い、または違うときである。
+	PhoneAnswerBadSecret = "合言葉が違います"
+	// PhoneAnswerUnknownPhone は、電話機の ID が登録されていないときである。
+	PhoneAnswerUnknownPhone = "この電話機は登録されていません"
+	// PhoneAnswerBadKey は、登録されている ID に対して鍵が違うときである。
+	PhoneAnswerBadKey = "鍵が違います"
+	// PhoneAnswerOtherPerson は、リクエストが名乗った見守る方が、結び付きと違うときである。
+	PhoneAnswerOtherPerson = "別の見守る方の電話機ではありません"
+)
 
 // DevPhoneSecret は、手元の demo- プロジェクトで、環境変数 PHONE_SECRET が無いときに使う合言葉である。
 // 本番の合言葉は環境変数で渡し、リポジトリには置かない。
@@ -109,7 +135,9 @@ type CallTimes struct {
 }
 
 // CallReportPath は、電話が終わったときにデバイスが報告を送る、バックエンドのパスである。
-// 電話機は PhoneSecretHeader に合言葉を付ける。報告には、その電話の ID と見守る方の ID を付ける。
+// 電話機ごとの認証では PhoneIDHeader と PhoneKeyHeader を付ける。
+// 古い道では PhoneSecretHeader に合言葉を付ける。
+// 報告には、その電話の ID と見守る方の ID を付ける。名乗った見守る方が結び付きと違うときは断る。
 // バックエンドは 202 Accepted をすぐ返す。
 const CallReportPath = "/calls"
 

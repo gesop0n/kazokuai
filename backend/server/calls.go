@@ -88,7 +88,17 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "見守る方を読めなかった", http.StatusInternalServerError)
 		return
 	}
-	if !s.phones.connected(personID) {
+	phoneID, linked, err := s.linkedPhoneID(r.Context(), personID)
+	if err != nil {
+		log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
+		http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
+		return
+	}
+	online := s.phones.connected(personID)
+	if linked {
+		online = s.phones.hasPhone(phoneID)
+	}
+	if !online {
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
@@ -102,7 +112,12 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "電話を作れなかった", http.StatusInternalServerError)
 		return
 	}
-	err = s.phones.send(personID, protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: ref.ID})
+	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: ref.ID}
+	if linked {
+		err = s.phones.sendPhone(phoneID, personID, msg)
+	} else {
+		err = s.phones.send(personID, msg)
+	}
 	if err != nil {
 		// 指示が届かなかった電話は、残さない。家族には、つながらなかったと伝える。
 		if _, delErr := ref.Delete(r.Context()); delErr != nil {
@@ -163,12 +178,20 @@ func findFamilyPerson(ctx context.Context, store *firestore.Client, uid string) 
 	return docs[0].Ref.ID, nil
 }
 
-// reportCall は、合言葉を確かめた電話の報告を受け取り、その電話に発話を足して、すぐに 202 Accepted を返す。
+// reportCall は、認証した電話の報告を受け取り、その電話に発話を足して、すぐに 202 Accepted を返す。
+// ID と鍵で認証した電話機が、結び付きと違う見守る方を名乗ったときは断る。
 func (s *server) reportCall(w http.ResponseWriter, r *http.Request) {
 	var report protocol.CallReport
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCallReport)).Decode(&report); err != nil {
 		http.Error(w, "本文を JSON で読めなかった", http.StatusBadRequest)
 		return
+	}
+	identity := phoneIdentityFrom(r.Context())
+	if refuseOtherPerson(w, identity, report.WatchedPersonID) {
+		return
+	}
+	if identity.phoneID != "" && report.WatchedPersonID == "" {
+		report.WatchedPersonID = identity.personID
 	}
 	if report.CallID == "" || report.WatchedPersonID == "" {
 		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)
