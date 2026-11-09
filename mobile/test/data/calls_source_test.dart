@@ -247,6 +247,126 @@ void main() {
     expect(detail.parentCallName, 'ハナさん');
   });
 
+  test('出なかった電話は、電話に出ませんでしたの行になり、その日は不在になる', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _call(firestore, 'missed', {
+      'state': '出なかった',
+      'createdAt': DateTime(2026, 11, 2, 9),
+      'message': '金曜の通院、10時に迎えに行くと伝えて',
+      'script': '「ハナさん、美咲さんからご伝言です。」',
+    });
+
+    final log = await _log(firestore, _now);
+    final day = log.days.single;
+    final entry = day.entries.single;
+
+    expect(day.date, DateTime(2026, 11, 2));
+    expect(entry, isA<MissedCallEntry>());
+    expect(entry.startedAt, DateTime(2026, 11, 2, 9));
+    expect(entry.text, '電話に出ませんでした');
+    expect(formatDayHeading(day.date, log.today), '11月2日(月)');
+    expect(formatDayTotal(day), '不在');
+    expect(log.markOf(DateTime(2026, 11, 2)), DayMark.missed);
+    expect(log.markOf(DateTime(2026, 11, 5)), isNull);
+  });
+
+  test('出た電話がある日は、出なかった電話も並べ、見出しと印は出た電話で数える', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _call(
+      firestore,
+      'morning',
+      _made(
+        at: DateTime(2026, 11, 5, 9, 2),
+        durationMs: 372000,
+        headline: '朝食と薬は済み。膝を気にしている',
+        topic: '体調',
+      ),
+    );
+    await _call(firestore, 'evening-miss', {
+      'state': '出なかった',
+      'createdAt': DateTime(2026, 11, 5, 19),
+    });
+    await _call(firestore, 'monday-miss', {
+      'state': '出なかった',
+      'createdAt': DateTime(2026, 11, 2, 9),
+    });
+
+    final log = await _log(firestore, _now);
+
+    expect(
+      [
+        for (final day in log.days)
+          for (final entry in day.entries)
+            (
+              day.date,
+              formatDayTotal(day),
+              log.markOf(day.date),
+              entry is MissedCallEntry,
+              entry.startedAt,
+              entry.text,
+            ),
+      ],
+      [
+        (
+          DateTime(2026, 11, 5),
+          '1回 ・ 6分',
+          DayMark.answered,
+          true,
+          DateTime(2026, 11, 5, 19),
+          '電話に出ませんでした',
+        ),
+        (
+          DateTime(2026, 11, 5),
+          '1回 ・ 6分',
+          DayMark.answered,
+          false,
+          DateTime(2026, 11, 5, 9, 2),
+          '朝食と薬は済み。膝を気にしている',
+        ),
+        (
+          DateTime(2026, 11, 2),
+          '不在',
+          DayMark.missed,
+          true,
+          DateTime(2026, 11, 2, 9),
+          '電話に出ませんでした',
+        ),
+      ],
+    );
+    expect(log.markOf(DateTime(2026, 11, 4)), isNull);
+  });
+
+  test('呼び出し中とつながらなかった電話と、時刻のない出なかった電話は一覧に出さない', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _call(firestore, 'ringing', {
+      'state': '呼び出し中',
+      'createdAt': DateTime(2026, 11, 5, 10),
+    });
+    await _call(firestore, 'dropped', {
+      'state': 'つながらなかった',
+      'createdAt': DateTime(2026, 11, 4, 9),
+    });
+    await _call(firestore, 'timeless', {'state': '出なかった'});
+    await _call(
+      firestore,
+      'morning',
+      _made(
+        at: DateTime(2026, 11, 5, 9, 2),
+        durationMs: 60000,
+        headline: '朝の電話です。',
+        topic: '体調',
+      ),
+    );
+
+    final log = await _log(firestore, _now);
+    final entry = log.days.single.entries.single as AnsweredCallEntry;
+
+    expect(entry.id, 'morning');
+    expect(entry.text, '朝の電話です。');
+    expect(log.markOf(DateTime(2026, 11, 4)), isNull);
+    expect(log.markOf(DateTime(2026, 11, 5)), DayMark.answered);
+  });
+
   test('電話がまだなければ、一覧は空で、不在の印もない', () async {
     final log = await _log(FakeFirebaseFirestore(), _now);
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -10,6 +11,8 @@ import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/firebase_calls_repository.dart';
 import 'package:kazokuai/data/home_repository.dart';
+import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
@@ -133,6 +136,11 @@ CallLog _log() => CallLog(
 
 Finder _inCalls(String text) =>
     find.descendant(of: find.byType(CallsScreen), matching: find.text(text));
+
+Finder _missedMark(DateTime date) => find.descendant(
+  of: find.byKey(MiniCalendar.dayKey(date)),
+  matching: find.byType(CustomPaint),
+);
 
 Finder _answeredMark(DateTime date) => find.descendant(
   of: find.byKey(MiniCalendar.dayKey(date)),
@@ -316,6 +324,158 @@ void main() {
     expect(find.byType(CallDetailScreen), findsNothing);
     expect(find.text('朝に薬を飲んだ'), findsOneWidget);
     expect(find.text('よく眠れたよ。朝ごはんも食べたしね。'), findsNothing);
+  });
+
+  testWidgets('出なかった電話は通話記録に出て、開けない。出た電話がない日は不在になる', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await firestore.collection('watchedPersons').doc('hanako').set({
+      'name': '田中ハナ',
+      'callName': 'ハナさん',
+      'familyUids': ['misaki'],
+    });
+    await firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls')
+        .doc('morning')
+        .set({
+          'state': '終わった',
+          'createdAt': DateTime(2026, 11, 5, 9),
+          'startedAt': DateTime(2026, 11, 5, 9, 2),
+          'durationMs': 372000,
+          'summaryState': '作れた',
+          'summary': {'headline': '朝食と薬は済み。膝を気にしている', 'topic': '体調'},
+        });
+    final calls = firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls');
+    await calls.doc('evening-miss').set({
+      'state': '出なかった',
+      'createdAt': DateTime(2026, 11, 5, 19),
+      'message': '夕方の伝言',
+      'script': '夕方の通話内容',
+    });
+    await calls.doc('monday-miss').set({
+      'state': '出なかった',
+      'createdAt': DateTime(2026, 11, 2, 9),
+    });
+    final repository = FirebaseCallsRepository(
+      auth: _Auth(_User('misaki')),
+      firestore: firestore,
+      now: () => DateTime(2026, 11, 5, 20),
+      binding: tester.binding,
+    );
+    addTearDown(tester.view.reset);
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            signedInAuth(),
+            registeredWatchedPerson(),
+            sampleHome(),
+            callsRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const KazokuAiApp(),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppTabBar),
+          matching: find.text('通話記録'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(_inCalls('今日 11月5日(木)'), findsOneWidget);
+      expect(_inCalls('1回 ・ 6分'), findsOneWidget);
+      expect(_inCalls('11月2日(月)'), findsOneWidget);
+      expect(_inCalls('不在'), findsOneWidget);
+      expect(_inCalls('19:00'), findsOneWidget);
+      expect(_inCalls('9:00'), findsOneWidget);
+      expect(_inCalls('電話に出ませんでした'), findsNWidgets(2));
+      expect(_inCalls('朝食と薬は済み。膝を気にしている'), findsOneWidget);
+      expect(
+        tester.getTopLeft(_inCalls('19:00')).dy,
+        lessThan(tester.getTopLeft(_inCalls('9:02')).dy),
+      );
+
+      final missed = find.bySemanticsLabel('19:00の電話。電話に出ませんでした');
+      final missedNode = tester.getSemantics(missed);
+      expect(missedNode.flagsCollection.isButton, isFalse);
+      expect(
+        missedNode.getSemanticsData().hasAction(SemanticsAction.tap),
+        isFalse,
+      );
+      expect(
+        find.descendant(
+          of: missed,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is AppIcon && widget.icon == AppIcons.phoneMissed,
+          ),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: missed,
+          matching: find.byWidgetPredicate((widget) {
+            final decoration = widget is Container ? widget.decoration : null;
+            return decoration is BoxDecoration &&
+                decoration.color == AppColors.stateAlert &&
+                decoration.shape == BoxShape.circle;
+          }),
+        ),
+        findsOneWidget,
+      );
+      final card = tester.widget<Container>(
+        find.descendant(
+          of: missed,
+          matching: find.byWidgetPredicate((widget) {
+            final decoration = widget is Container ? widget.decoration : null;
+            return decoration is BoxDecoration && decoration.border != null;
+          }),
+        ),
+      );
+      final border = card.decoration! as BoxDecoration;
+      expect(border.color, AppColors.stateAlertSoft);
+      expect(border.border, Border.all(color: AppColors.stateAlert, width: 2));
+
+      await tester.tap(missed);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(CallDetailScreen), findsNothing);
+
+      await tester.tap(_inCalls('9:00'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(CallDetailScreen), findsNothing);
+      expect(find.byType(CallsScreen), findsOneWidget);
+
+      expect(_answeredMark(_today), findsOneWidget);
+      expect(_missedMark(_today), findsNothing);
+      expect(_answeredMark(DateTime(2026, 11, 2)), findsNothing);
+      expect(_missedMark(DateTime(2026, 11, 2)), findsOneWidget);
+      expect(_answeredMark(_emptyDay), findsNothing);
+      expect(_missedMark(_emptyDay), findsNothing);
+
+      await tester.tap(_inCalls('朝食と薬は済み。膝を気にしている'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byType(CallDetailScreen), findsOneWidget);
+      expect(find.text('朝の電話'), findsOneWidget);
+    } finally {
+      final binding = tester.binding;
+      binding.attachRootWidget(
+        binding.wrapWithDefaultView(const SizedBox.shrink()),
+      );
+      binding.buildOwner!.buildScope(binding.rootElement!);
+      repository.dispose();
+    }
   });
 
   testWidgets('認証より先に開いた電話も、ホームから詳細に出す', (tester) async {
