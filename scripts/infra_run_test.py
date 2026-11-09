@@ -47,7 +47,7 @@ class InfraRunTest(unittest.TestCase):
             "printf 'GOOGLE_APPLICATION_CREDENTIALS=%s\\n' "
             "\"$GOOGLE_APPLICATION_CREDENTIALS\" >> "
             f"{sh_quote(log)}\n"
-            "printf '---\\n' >> "
+            "printf '%s\\n' '---' >> "
             f"{sh_quote(log)}\n"
             f"exit {exit_code}\n",
             encoding="utf-8",
@@ -153,7 +153,74 @@ class InfraRunTest(unittest.TestCase):
         log = self.terraform_log.read_text(encoding="utf-8")
         self.assertIn("\napply\n", "\n" + log)
         self.assertIn("-var=region=asia-northeast2", log)
+        self.assertNotIn("-target=", log)
+        self.assertNotIn("deletion_protection=false", log)
         self.assertNotIn("-auto-approve", log)
+        self.assertFalse(self.gcloud_log.exists())
+
+    def test_bootstrap_apply_skips_cloud_run(self):
+        result = self.run_script("apply", "--bootstrap", *full_args())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self.terraform_log.read_text(encoding="utf-8")
+        apply = log.split("---")[1]
+        for target in (
+            "google_project_service.api",
+            "google_artifact_registry_repository.backend",
+            "google_secret_manager_secret.gemini_api_key",
+            "google_secret_manager_secret.phone_shared_secret",
+            "google_service_account.backend",
+            "google_project_iam_member.backend_firestore",
+            "google_secret_manager_secret_iam_member.backend_gemini",
+            "google_secret_manager_secret_iam_member.backend_phone",
+            "google_project_service_identity.run",
+            "google_artifact_registry_repository_iam_member.run_reader",
+            "google_firestore_database.default",
+            "google_firebaserules_ruleset.firestore",
+            "google_firebaserules_release.firestore",
+            "google_firebase_web_app.web",
+            "google_firebase_hosting_site.web",
+            "google_billing_budget.monthly",
+        ):
+            self.assertIn(f"-target={target}", apply)
+        self.assertNotIn("google_cloud_run_v2_service", log)
+        self.assertNotIn("-auto-approve", log)
+        self.assertNotIn(AMBIENT, log)
+        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", log)
+
+    def test_bootstrap_without_project_does_not_call_terraform(self):
+        result = self.run_script("apply", "--bootstrap")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(self.terraform_log.exists())
+
+    def test_bootstrap_and_allow_replace_do_not_call_terraform(self):
+        result = self.run_script("apply", "--bootstrap", "--allow-replace", *full_args())
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(self.terraform_log.exists())
+
+    def test_allow_replace_turns_deletion_protection_off(self):
+        result = self.run_script("apply", "--allow-replace", *full_args())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self.terraform_log.read_text(encoding="utf-8")
+        self.assertIn("-var=deletion_protection=false", log)
+        self.assertNotIn("-target=", log)
+        self.assertNotIn(AMBIENT, log)
+        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", log)
+
+    def test_untaint_uses_the_explicit_project(self):
+        result = self.run_script(
+            "untaint",
+            f"--project={PROJECT}",
+            f"--state-bucket={BUCKET}",
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self.terraform_log.read_text(encoding="utf-8")
+        self.assertIn("\nuntaint\n", "\n" + log)
+        self.assertIn("google_cloud_run_v2_service.backend", log)
+        self.assertNotIn("\napply\n", "\n" + log)
+        self.assertNotIn("-target=", log)
+        self.assertNotIn(AMBIENT, log)
+        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", log)
+        self.assertIn(f"-backend-config=bucket={BUCKET}", log)
         self.assertFalse(self.gcloud_log.exists())
 
 
