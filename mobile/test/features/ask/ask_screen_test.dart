@@ -120,6 +120,18 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _setWheel(WidgetTester tester, Finder wheel, int index) async {
+  final scrollable = find.descendant(
+    of: wheel,
+    matching: find.byWidgetPredicate((widget) => widget is Scrollable),
+  );
+  final controller =
+      tester.widget<Scrollable>(scrollable).controller!
+          as FixedExtentScrollController;
+  controller.jumpToItem(index);
+  await tester.pumpAndSettle();
+}
+
 AppButton _button(WidgetTester tester, String label) =>
     tester.widget<AppButton>(find.widgetWithText(AppButton, label));
 
@@ -658,8 +670,8 @@ void main() {
       await _tapVisible(tester, find.bySemanticsLabel('日時を選ぶ'));
       await tester.tap(find.bySemanticsLabel('11月5日、今日'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('9:00'));
-      await tester.pumpAndSettle();
+      await _setWheel(tester, find.bySemanticsLabel(RegExp(r'^時$')), 9);
+      await _setWheel(tester, find.bySemanticsLabel(RegExp(r'^分$')), 0);
       await tester.tap(find.widgetWithText(AppButton, '11/5(木) 9:00にする'));
       await tester.pumpAndSettle();
 
