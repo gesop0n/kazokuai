@@ -15,6 +15,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
 
@@ -29,6 +30,7 @@ Future<void> pumpApp(
         authRepositoryProvider.overrideWithValue(auth),
         watchedPersonRepositoryProvider.overrideWithValue(watchedPerson),
         sampleHome(),
+        sampleCalls(),
       ],
       child: const KazokuAiApp(),
     ),

@@ -108,8 +108,7 @@ class _LiveHome extends StatelessWidget {
                 RecentCallCard(
                   call: latest,
                   now: view.now,
-                  onOpenConversation: () =>
-                      context.goNamed(AppRoutes.callDetail),
+                  onOpenConversation: () => _openConversation(context, latest),
                 ),
               AskCard(onOpenAsk: () => context.pushNamed(AppRoutes.ask)),
               if (latest != null)
@@ -136,6 +135,15 @@ class _NoCalls extends StatelessWidget {
   }
 }
 
+void _openConversation(BuildContext context, Call call) {
+  final id = call.id;
+  if (id == null) {
+    context.goNamed(AppRoutes.callDetail);
+    return;
+  }
+  context.goNamed(AppRoutes.callDetailById, pathParameters: {'callId': id});
+}
+
 class _HomeCards extends StatelessWidget {
   const _HomeCards({required this.data});
 
@@ -150,7 +158,7 @@ class _HomeCards extends StatelessWidget {
         RecentCallCard(
           call: data.latestCall,
           now: data.now,
-          onOpenConversation: () => context.goNamed(AppRoutes.callDetail),
+          onOpenConversation: () => _openConversation(context, data.latestCall),
         ),
         AskCard(onOpenAsk: () => context.pushNamed(AppRoutes.ask)),
         TodayCard(call: data.latestCall),

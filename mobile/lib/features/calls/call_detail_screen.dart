@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
@@ -15,19 +17,48 @@ import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/calls/sample_calls_data.dart';
 
-class CallDetailScreen extends StatefulWidget {
-  const CallDetailScreen({super.key, this.detail});
+class CallDetailScreen extends ConsumerStatefulWidget {
+  const CallDetailScreen({super.key, this.detail, this.callId});
 
+  // 見本を確かめるときだけ渡す。callId があるときは Firestore のその電話を出す
   final CallDetail? detail;
+  final String? callId;
 
   @override
-  State<CallDetailScreen> createState() => _CallDetailScreenState();
+  ConsumerState<CallDetailScreen> createState() => _CallDetailScreenState();
 }
 
-class _CallDetailScreenState extends State<CallDetailScreen> {
+class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
   final _utteranceKeys = <Duration, GlobalKey>{};
+  CallsRepository? _live;
 
-  CallDetail get _detail => widget.detail ?? sampleCallDetail;
+  @override
+  void initState() {
+    super.initState();
+    _listen(widget.callId);
+  }
+
+  @override
+  void didUpdateWidget(CallDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.detail != null || widget.callId == oldWidget.callId) return;
+    _utteranceKeys.clear();
+    _listen(widget.callId);
+  }
+
+  // 見本の詳細はリポジトリを開かない。閉じるときに ref を使わないよう、開いた先を覚えておく
+  void _listen(String? callId) {
+    if (widget.detail != null || callId == null) return;
+    final repository = ref.read(callsRepositoryProvider);
+    _live = repository;
+    repository.open(callId);
+  }
+
+  @override
+  void dispose() {
+    _live?.close();
+    super.dispose();
+  }
 
   void _scrollToUtterance(Duration at) {
     final utterance = _utteranceKeys[at]?.currentContext;
@@ -50,7 +81,39 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final detail = _detail;
+    final explicit = widget.detail;
+    if (explicit != null) return _page(explicit);
+    if (widget.callId == null) return _page(sampleCallDetail);
+    final repository = ref.watch(callsRepositoryProvider);
+    return ValueListenableBuilder(
+      valueListenable: repository.detail,
+      builder: (context, detail, _) {
+        if (detail == null) return _loading();
+        return _page(detail);
+      },
+    );
+  }
+
+  // 詳細が届くまでは見本を出さない
+  Widget _loading() {
+    return Scaffold(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppNavBar(
+              title: '',
+              leadingLabel: '通話記録にもどる',
+              onLeadingTap: _returnToCallLog,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _page(CallDetail detail) {
     // タブの中では、この余白がタブバーの高さ。下の余白は 16 を足す
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
@@ -133,6 +196,8 @@ class _SummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            if (detail.summaryFailure case final failure?)
+              Text(failure, style: AppTextStyles.bodyM),
             for (final point in detail.points)
               _SummaryRow(point: point, onTap: () => onOpenUtterance(point.at)),
             // 行の下の余白がモックの間隔 8 にあたる

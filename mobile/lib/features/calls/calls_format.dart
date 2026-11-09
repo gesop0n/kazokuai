@@ -32,3 +32,14 @@ String formatElapsed(Duration elapsed) =>
 String formatCallStamp(DateTime startedAt, Duration duration) =>
     '${startedAt.month}/${startedAt.day} ${formatTime(startedAt)} ・ '
     '${duration.inMinutes}分${duration.inSeconds % 60}秒';
+
+// 詳細の題。5時から朝、11時から昼、17時から夕方、それ以外は夜
+String callDetailTitle(DateTime startedAt) {
+  final part = switch (startedAt.hour) {
+    >= 5 && < 11 => '朝',
+    >= 11 && < 17 => '昼',
+    >= 17 && < 21 => '夕方',
+    _ => '夜',
+  };
+  return '$partの電話';
+}

@@ -35,11 +35,14 @@ class CallSummary {
 
 class Call {
   const Call({
+    this.id,
     required this.startedAt,
     required this.duration,
     required this.summary,
   });
 
+  // Firestore の電話の ID。見本の電話にはない
+  final String? id;
   final DateTime startedAt;
   final Duration duration;
   final CallSummary summary;
