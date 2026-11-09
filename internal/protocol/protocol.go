@@ -18,6 +18,11 @@ const PhonePath = "/phone"
 // Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に伝えたいことと通話内容を JSON で入れて POST する。
 const StartCallPath = "/calls/now"
 
+// DraftScriptPath は、ログインした家族が通話内容の案を頼むパスである。
+// Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に伝えたいことを JSON で入れて POST する。
+// 呼び方は、その家族の見守る方から読む。Live API は使わない。
+const DraftScriptPath = "/calls/script"
+
 // PhoneNotConnected は、電話機がつながっていないので今すぐ通話を始められなかった、というエラーである。
 // アプリはこれを見て「電話機につながっていません」と出す。
 const PhoneNotConnected = "phone_not_connected"

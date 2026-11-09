@@ -412,6 +412,24 @@ func TestToken(t *testing.T) {
 		}
 	})
 
+	t.Run("伝言のある電話のシステム指示は、その通話内容を早いうちに伝え、返答を聞くよう書く", func(t *testing.T) {
+		s := newSystem(t, hanako, saturdayAfternoon)
+		s.startCall(t)
+		s.gemini.waitForSession(t, 1)
+
+		instruction := systemInstruction(t, s.gemini.tokenConfigs()[0])
+		for _, want := range []string{
+			testScript,
+			"早いうち",
+			"その言葉のまま",
+			"返答",
+		} {
+			if !strings.Contains(instruction, want) {
+				t.Errorf("システム指示に %q がない:\n%s", want, instruction)
+			}
+		}
+	})
+
 	t.Run("システム指示に、Firestore にある見守る方の名前と呼び方、日本時間の今の日時、AI であること、始まりの合図を書く", func(t *testing.T) {
 		s := newSystem(t, hanako, saturdayAfternoon)
 		s.startCall(t)

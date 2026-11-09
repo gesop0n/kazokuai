@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'dart:async';
+
 import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -18,6 +21,7 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_call_script_repository.dart';
 import '../../support/fake_immediate_call_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
@@ -27,6 +31,7 @@ import '../../support/layout_matrix.dart';
 const _standardLayout = LayoutCase(393, 1.0);
 const _message = '金曜の通院、10時に迎えに行くと伝えて';
 const _script = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
+const _drafted = '「ハナさん、金曜の通院は朝10時にお迎えに行くそうです。」';
 const _removedNote = '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。';
 const _longMessage = '金曜の通院、10時に迎えに行くと伝えて。帰りに薬局へ寄ることも話しておいてほしいです。';
 
@@ -35,17 +40,28 @@ const _removedFootNote = '押すと、すぐにハナさんの固定電話にか
 // iPhone 17 Pro で日本語のキーボードを出したときの値
 const _keyboardHeight = 336.0;
 
-Future<void> _pumpAsk(
+Future<FakeCallScriptRepository> _pumpAsk(
   WidgetTester tester, {
   LayoutCase layout = _standardLayout,
-}) => pumpScreenInLayout(tester, layout, const AskScreen());
+  FakeCallScriptRepository? drafts,
+}) {
+  final repository = drafts ?? FakeCallScriptRepository();
+  return pumpScreenInLayout(
+    tester,
+    layout,
+    const AskScreen(),
+    overrides: [callScriptRepositoryProvider.overrideWithValue(repository)],
+  ).then((_) => repository);
+}
 
 // 遷移は go_router が要るので、アプリ全体をホームから動かす
 Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
   WidgetTester tester, {
   FakeImmediateCallRepository? calls,
+  FakeCallScriptRepository? drafts,
 }) async {
   final repository = calls ?? FakeImmediateCallRepository();
+  final scripts = drafts ?? FakeCallScriptRepository(script: _drafted);
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = const Size(393, 852);
@@ -58,6 +74,7 @@ Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
         sampleHome(),
         sampleCalls(),
         immediateCallRepositoryProvider.overrideWithValue(repository),
+        callScriptRepositoryProvider.overrideWithValue(scripts),
       ],
       child: const KazokuAiApp(),
     ),
@@ -74,6 +91,12 @@ Future<void> _enterMessage(
   String text = _message,
 ]) async {
   await tester.enterText(find.byType(TextField), text);
+  await tester.pump();
+}
+
+// 入力が止まってから案が届くまで。偽物がすぐ返すときは、1 秒で案が出る
+Future<void> _waitForDraft(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 1));
   await tester.pump();
 }
 
@@ -154,10 +177,14 @@ void main() {
   });
 
   group('通話内容', () {
-    testEachLayout('文字を入れると通話内容が出て、予約も今すぐ通話も押せる', (tester, layout) async {
+    testEachLayout('入力が止むと、呼び方を使った通話内容が出て、予約も今すぐ通話も押せる', (
+      tester,
+      layout,
+    ) async {
       await _pumpAsk(tester, layout: layout);
 
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       expect(find.byType(AppAiTag), findsOneWidget);
       expect(find.text('通話内容'), findsOneWidget);
@@ -169,32 +196,156 @@ void main() {
       expect(_button(tester, '今すぐ通話').onTap, isNotNull);
     });
 
+    testWidgets('入力が止むまでは案を頼まず、止んでから頼んだ案を出す', (tester) async {
+      final drafts = FakeCallScriptRepository(script: _drafted);
+      await _pumpAsk(tester, drafts: drafts);
+
+      await _enterMessage(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(drafts.messages, isEmpty);
+      expect(find.text('案を作っています'), findsNothing);
+      expect(find.text(_drafted), findsNothing);
+      expect(find.text(_script), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNull);
+
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(drafts.messages, [_message]);
+      expect(find.text(_drafted), findsOneWidget);
+      expect(find.text('案を作っています'), findsNothing);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+    });
+
+    testWidgets('打ち直すと、止まるまでを数え直し、前の案は残さない', (tester) async {
+      final drafts = FakeCallScriptRepository(
+        onDraft: (message) async =>
+            message == '庭の菊' ? '「ハナさん、菊が咲いたそうです。」' : '「ハナさん、来週の予定です。」',
+      );
+      await _pumpAsk(tester, drafts: drafts);
+
+      await _enterMessage(tester, '庭の菊');
+      await tester.pump(const Duration(milliseconds: 800));
+      await _enterMessage(tester, '来週の予定');
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(drafts.messages, isEmpty);
+      expect(find.text('「ハナさん、菊が咲いたそうです。」'), findsNothing);
+      expect(find.text('案を作っています'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(drafts.messages, ['来週の予定']);
+      expect(find.text('「ハナさん、来週の予定です。」'), findsOneWidget);
+      expect(find.text('「ハナさん、菊が咲いたそうです。」'), findsNothing);
+    });
+
+    testWidgets('先の案が後から届いても、今の文の案だけを出す', (tester) async {
+      final first = Completer<void>();
+      final second = Completer<void>();
+      final drafts = FakeCallScriptRepository(
+        onDraft: (message) async {
+          if (message == '庭の菊') {
+            await first.future;
+            return '「ハナさん、菊が咲いたそうです。」';
+          }
+          await second.future;
+          return '「ハナさん、来週の予定です。」';
+        },
+      );
+      await _pumpAsk(tester, drafts: drafts);
+
+      await _enterMessage(tester, '庭の菊');
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.text('案を作っています'), findsOneWidget);
+      expect(drafts.messages, ['庭の菊']);
+
+      await _enterMessage(tester, '来週の予定');
+      expect(find.text('案を作っています'), findsNothing);
+      expect(find.text('「ハナさん、菊が咲いたそうです。」'), findsNothing);
+
+      first.complete();
+      await tester.pump();
+      expect(find.text('「ハナさん、菊が咲いたそうです。」'), findsNothing);
+      expect(find.text('案を作っています'), findsNothing);
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(drafts.messages, ['庭の菊', '来週の予定']);
+      expect(find.text('案を作っています'), findsOneWidget);
+
+      second.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('「ハナさん、来週の予定です。」'), findsOneWidget);
+      expect(find.text('「ハナさん、菊が咲いたそうです。」'), findsNothing);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+    });
+
+    testWidgets('案を作っているあいだは、その文が出て、予約も今すぐ通話も押せない', (tester) async {
+      final gate = Completer<void>();
+      final drafts = FakeCallScriptRepository(script: _drafted, pending: gate);
+      await _pumpAsk(tester, drafts: drafts);
+
+      await _enterMessage(tester);
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('案を作っています'), findsOneWidget);
+      expect(find.text(_drafted), findsNothing);
+      expect(find.text('通話内容'), findsOneWidget);
+      expect(_button(tester, 'この日時で予約する').onTap, isNull);
+      expect(_button(tester, '今すぐ通話').onTap, isNull);
+
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('案を作っています'), findsNothing);
+      expect(find.text(_drafted), findsOneWidget);
+      expect(_button(tester, 'この日時で予約する').onTap, isNotNull);
+      expect(_button(tester, '今すぐ通話').onTap, isNotNull);
+    });
+
+    testWidgets('案を作れなかったときは、その文が出て、空の通話内容では押せない', (tester) async {
+      await _pumpAsk(tester, drafts: FakeCallScriptRepository(failing: true));
+
+      await _enterMessage(tester);
+      await _waitForDraft(tester);
+
+      expect(find.text('案を作れませんでした'), findsOneWidget);
+      expect(find.text(_script), findsNothing);
+      expect(find.text('通話内容'), findsOneWidget);
+      expect(_button(tester, 'この日時で予約する').onTap, isNull);
+      expect(_button(tester, '今すぐ通話').onTap, isNull);
+
+      await tester.tap(find.text('今すぐ通話'), warnIfMissed: false);
+      await tester.tap(find.text('この日時で予約する'), warnIfMissed: false);
+      await tester.pump();
+
+      expect(find.text('案を作れませんでした'), findsOneWidget);
+      expect(find.byType(AskScreen), findsOneWidget);
+    });
+
     testEachLayout('長い文でも崩れない', (tester, layout) async {
       await _pumpAsk(tester, layout: layout);
 
       await _enterMessage(tester, _longMessage * 4);
+      await _waitForDraft(tester);
 
-      expect(find.text(_script), findsOneWidget);
-    });
-
-    testWidgets('文は入力の内容によって変わらない', (tester) async {
-      await _pumpAsk(tester);
-
-      await _enterMessage(tester, '庭の菊が咲きました');
-      expect(find.text(_script), findsOneWidget);
-
-      await _enterMessage(tester, '来週の予定');
       expect(find.text(_script), findsOneWidget);
     });
 
     testWidgets('消すと通話内容が消え、どちらのボタンも押せなくなる', (tester) async {
-      await _pumpAsk(tester);
+      final drafts = await _pumpAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
       expect(find.text(_script), findsOneWidget);
 
       await _enterMessage(tester, '');
+      await tester.pump(const Duration(seconds: 1));
 
       _expectNeedsMessage(tester);
+      expect(drafts.messages, [_message]);
     });
 
     for (final (name, spaces) in [
@@ -203,17 +354,20 @@ void main() {
       ('改行', '\n\n'),
     ]) {
       testWidgets('$nameの空白だけのときは空と同じ', (tester) async {
-        await _pumpAsk(tester);
+        final drafts = await _pumpAsk(tester);
 
         await _enterMessage(tester, spaces);
+        await tester.pump(const Duration(seconds: 1));
 
         _expectNeedsMessage(tester);
+        expect(drafts.messages, isEmpty);
       });
     }
 
     testWidgets('カードの順は入力欄、通話内容、日付と時刻', (tester) async {
       await _pumpAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       final fieldBottom = tester.getBottomLeft(find.byType(AppTextField)).dy;
       final card = tester.getRect(find.byType(AppCard));
@@ -235,6 +389,7 @@ void main() {
     testWidgets('「なおす」は ghost で、押すと準備中と出る', (tester) async {
       await _pumpAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       final button = _button(tester, 'なおす');
       expect(button.variant, AppButtonVariant.ghost);
@@ -251,6 +406,7 @@ void main() {
     testEachLayout('「なおす」の押せる領域は 44pt 以上', (tester, layout) async {
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       final size = tester.getSize(find.widgetWithText(AppButton, 'なおす'));
       expect(size.width, greaterThanOrEqualTo(44));
@@ -340,6 +496,7 @@ void main() {
       showKeyboard(tester);
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       final call = tester.getRect(find.widgetWithText(AppButton, '今すぐ通話'));
       expect(call.bottom, 852 - _keyboardHeight - 8);
@@ -354,6 +511,7 @@ void main() {
       showKeyboard(tester);
       await _pumpAsk(tester, layout: layout);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       final footTop = tester
           .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
@@ -521,11 +679,14 @@ void main() {
     testWidgets('「今すぐ通話」は伝えたいことと通話内容を送り、01 に留まる', (tester) async {
       final calls = await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       await tester.tap(find.text('今すぐ通話'));
       await tester.pumpAndSettle();
 
-      expect(calls.started, [(message: _message, script: _script)]);
+      expect(find.text(_drafted), findsOneWidget);
+      expect(find.text(_script), findsNothing);
+      expect(calls.started, [(message: _message, script: _drafted)]);
       expect(find.text('準備中です'), findsNothing);
       expect(find.text('電話機につながっていません'), findsNothing);
       expect(find.byType(AskScreen), findsOneWidget);
@@ -537,6 +698,7 @@ void main() {
       final calls = FakeImmediateCallRepository(disconnected: true);
       await _pumpAppAndOpenAsk(tester, calls: calls);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       await tester.tap(find.text('今すぐ通話'));
       await tester.pumpAndSettle();
@@ -552,6 +714,7 @@ void main() {
       final calls = FakeImmediateCallRepository(failing: true);
       await _pumpAppAndOpenAsk(tester, calls: calls);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       await tester.tap(find.text('今すぐ通話'));
       await tester.pumpAndSettle();
@@ -578,6 +741,7 @@ void main() {
     testWidgets('「この日時で予約する」は日時の順に予約を足し、06 を開く', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
 
       await tester.tap(find.text('この日時で予約する'));
       await tester.pumpAndSettle();
@@ -596,7 +760,7 @@ void main() {
         '週末に帰ると伝える',
       ]);
       expect(calls[2].at, DateTime(2026, 11, 6, 8, 30));
-      expect(calls[2].script, _script);
+      expect(calls[2].script, _drafted);
       expect(find.text('11/6 08:30'), findsOneWidget);
       expect(find.text(_message), findsOneWidget);
 
@@ -617,6 +781,7 @@ void main() {
     testWidgets('選んだ日付の位置に予約を足す', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
       await _tapVisible(tester, find.text('11/6(金)'));
       await tester.tap(find.text('5'));
       await tester.pumpAndSettle();
@@ -633,9 +798,12 @@ void main() {
     });
 
     testWidgets('入力した内容の前後の空白を除いて予約する', (tester) async {
-      await _pumpAppAndOpenAsk(tester);
+      final drafts = FakeCallScriptRepository(script: _drafted);
+      await _pumpAppAndOpenAsk(tester, drafts: drafts);
       await _enterMessage(tester, '  週末に電話する\n');
+      await _waitForDraft(tester);
 
+      expect(drafts.messages, ['週末に電話する']);
       await tester.tap(find.text('この日時で予約する'));
       await tester.pumpAndSettle();
 
@@ -648,6 +816,7 @@ void main() {
     testWidgets('タブを切り替えても足した予約は残る', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
+      await _waitForDraft(tester);
       await tester.tap(find.text('この日時で予約する'));
       await tester.pumpAndSettle();
 

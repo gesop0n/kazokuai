@@ -11,8 +11,9 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
 
    ```bash
    python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" \
-     "raspberrypi:raspberry-pi" gemini flutter firebase "gcp:google-cloud" \
-     "run:gcp/cloud-run" "tasks:gcp/cloud-tasks" "scheduler:gcp/cloud-scheduler" "secret:gcp/secret-manager"
+     "browser:lucide/globe" "raspberrypi:raspberry-pi" gemini flutter firebase "gcp:google-cloud" \
+     "run:gcp/cloud-run" "tasks:gcp/cloud-tasks" "scheduler:gcp/cloud-scheduler" "secret:gcp/secret-manager" \
+     "hosting:firebase"
    cp <skill>/assets/generic/user.svg <icons>/person.svg
    ```
 

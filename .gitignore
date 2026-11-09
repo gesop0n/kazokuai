@@ -12,3 +12,21 @@ __pycache__/
 
 # firebase/ のルールのテストに使う。npm ci で入れる
 node_modules/
+
+# Terraform の作業ディレクトリと状態。ロックファイル (.terraform.lock.hcl) はコミットする
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+
+# 変数の値。プロジェクト ID やイメージが入るのでコミットしない
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
