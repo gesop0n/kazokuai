@@ -406,7 +406,6 @@ void main() {
       await tester.pump(Duration.zero);
       await tester.pump();
 
-      expect(repository.detail.value?.utterances.single.text, '薬は飲んだよ');
       expect(find.text('薬は飲んだよ'), findsOneWidget);
       expect(find.text('よく眠れたよ。朝ごはんも食べたしね。'), findsNothing);
     } finally {
@@ -419,6 +418,174 @@ void main() {
       repository.dispose();
     }
   });
+
+  testWidgets('通話記録で開いた電話を残してホームから別の電話を開くと、そのまとめの更新が出る', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await firestore.collection('watchedPersons').doc('hanako').set({
+      'name': '田中ハナ',
+      'callName': 'ハナさん',
+      'familyUids': ['misaki'],
+    });
+    await _writeCall(
+      firestore,
+      id: 'morning',
+      at: DateTime(2026, 11, 5, 9, 2),
+      headline: '朝のまとめ',
+      point: '朝の要点',
+      utterance: '朝の発言',
+    );
+    await _writeCall(
+      firestore,
+      id: 'evening',
+      at: DateTime(2026, 11, 5, 19),
+      headline: '夕方のまとめ',
+      point: '夕方の要点',
+      utterance: '夕方の発言',
+    );
+    final repository = FirebaseCallsRepository(
+      auth: _Auth(_User('misaki')),
+      firestore: firestore,
+      now: () => DateTime(2026, 11, 5, 20),
+      binding: tester.binding,
+    );
+    addTearDown(tester.view.reset);
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            signedInAuth(),
+            registeredWatchedPerson(),
+            homeRepositoryProvider.overrideWithValue(
+              FakeHomeRepository(
+                HomeView(
+                  person: sampleHomeData.person,
+                  now: DateTime(2026, 11, 5, 20, 24),
+                  latestCall: Call(
+                    id: 'evening',
+                    startedAt: DateTime(2026, 11, 5, 19),
+                    duration: const Duration(minutes: 4),
+                    summary: const CallSummary(
+                      headline: 'ホームのまとめ',
+                      conditions: [],
+                    ),
+                  ),
+                  todayCall: null,
+                ),
+              ),
+            ),
+            callsRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const KazokuAiApp(),
+        ),
+      );
+      // 深夜までのタイマーがあるので、settle せずに決まった時間だけ進める
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AppTabBar),
+          matching: find.text('通話記録'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.tap(_inCalls('朝のまとめ'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('朝の要点'), findsOneWidget);
+
+      await tester.tap(
+        find.descendant(of: find.byType(AppTabBar), matching: find.text('ホーム')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.tap(find.text('会話を見る'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('夕方の要点'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await _writeCall(
+        firestore,
+        id: 'evening',
+        at: DateTime(2026, 11, 5, 19),
+        headline: '夕方のまとめ',
+        point: '更新した夕方の要点',
+        utterance: '夕方の発言',
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('更新した夕方の要点'), findsOneWidget);
+      expect(find.text('夕方の発言'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      final binding = tester.binding;
+      binding.attachRootWidget(
+        binding.wrapWithDefaultView(const SizedBox.shrink()),
+      );
+      binding.buildOwner!.buildScope(binding.rootElement!);
+      repository.dispose();
+    }
+  });
+}
+
+// 認証の通知を、コンストラクタの listen ですぐ出す
+class _Auth extends Fake implements FirebaseAuth {
+  _Auth(this._user);
+
+  final User? _user;
+
+  @override
+  Stream<User?> authStateChanges() => Stream<User?>.value(_user);
+}
+
+class _User extends Fake implements User {
+  _User(this.uid);
+
+  @override
+  final String uid;
+}
+
+Future<void> _writeCall(
+  FakeFirebaseFirestore firestore, {
+  required String id,
+  required DateTime at,
+  required String headline,
+  required String point,
+  required String utterance,
+}) {
+  final call = firestore
+      .collection('watchedPersons')
+      .doc('hanako')
+      .collection('calls')
+      .doc(id);
+  return call
+      .set({
+        'startedAt': at,
+        'durationMs': 372000,
+        'summaryState': '作れた',
+        'summary': {
+          'headline': headline,
+          'topic': '体調',
+          'points': [
+            {'text': point, 'offsetMs': 11000},
+          ],
+        },
+      })
+      .then((_) {
+        return call.collection('utterances').doc('0000').set({
+          'index': 0,
+          'speaker': '見守る方',
+          'offsetMs': 11000,
+          'text': utterance,
+        });
+      });
 }
 
 // 最初の認証通知を、詳細を開いたあとまで止める

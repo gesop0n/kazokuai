@@ -41,7 +41,7 @@ void main() {
         });
     final repository = _open(tester, firestore);
     // コンストラクタが認証を待ち始めたあと、最初の通知より先に開く
-    repository.open('morning');
+    final detail = repository.open('morning');
     try {
       await tester.pump();
       await tester.pump();
@@ -50,7 +50,7 @@ void main() {
         repository.log.value!.days.single.answeredEntries.single.id,
         'morning',
       );
-      expect(repository.detail.value?.utterances.single.text, '朝ごはんも食べたしね。');
+      expect(detail.value?.utterances.single.text, '朝ごはんも食べたしね。');
     } finally {
       repository.dispose();
     }
@@ -122,15 +122,15 @@ void main() {
         isFalse,
       );
 
-      repository.open('morning');
+      final detail = repository.open('morning');
       await tester.pump();
 
-      final detail = repository.detail.value!;
-      expect(detail.parentCallName, 'ハナさん');
-      expect(detail.points.single.text, '朝ごはんを食べたそうです');
-      expect(detail.points.single.at, const Duration(milliseconds: 11000));
-      expect(detail.utterances.single.text, '朝ごはんも食べたしね。');
-      expect(detail.utterances.single.speaker, Speaker.parent);
+      final shown = detail.value!;
+      expect(shown.parentCallName, 'ハナさん');
+      expect(shown.points.single.text, '朝ごはんを食べたそうです');
+      expect(shown.points.single.at, const Duration(milliseconds: 11000));
+      expect(shown.utterances.single.text, '朝ごはんも食べたしね。');
+      expect(shown.utterances.single.speaker, Speaker.parent);
     } finally {
       repository.dispose();
     }

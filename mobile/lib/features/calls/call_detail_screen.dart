@@ -30,7 +30,7 @@ class CallDetailScreen extends ConsumerStatefulWidget {
 
 class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
   final _utteranceKeys = <int, GlobalKey>{};
-  CallsRepository? _live;
+  CallSubscription? _subscription;
 
   @override
   void initState() {
@@ -46,17 +46,17 @@ class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
     _listen(widget.callId);
   }
 
-  // 見本の詳細はリポジトリを開かない。閉じるときに ref を使わないよう、開いた先を覚えておく
+  // 見本の詳細はリポジトリを開かない。閉じるときに ref を使わないよう、開いた読み込みを覚えておく
   void _listen(String? callId) {
+    _subscription?.close();
+    _subscription = null;
     if (widget.detail != null || callId == null) return;
-    final repository = ref.read(callsRepositoryProvider);
-    _live = repository;
-    repository.open(callId);
+    _subscription = ref.read(callsRepositoryProvider).open(callId);
   }
 
   @override
   void dispose() {
-    _live?.close();
+    _subscription?.close();
     super.dispose();
   }
 
@@ -87,9 +87,10 @@ class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
     final explicit = widget.detail;
     if (explicit != null) return _page(explicit);
     if (widget.callId == null) return _page(sampleCallDetail);
-    final repository = ref.watch(callsRepositoryProvider);
+    final subscription = _subscription;
+    if (subscription == null) return _loading();
     return ValueListenableBuilder(
-      valueListenable: repository.detail,
+      valueListenable: subscription,
       builder: (context, detail, _) {
         if (detail == null) return _loading();
         return _page(detail);
