@@ -73,6 +73,7 @@ class PiReleaseTest(unittest.TestCase):
             self.assertIn("release\ncreate\n", text)
             self.assertIn(f"pi-{SHA}\n", text)
             self.assertIn("--prerelease\n", text)
+            self.assertIn(f"--target\n{SHA}\n", text)
             self.assertIn("--title\n0123456\n", text)
             self.assertIn("kazokuai-device\n", text)
             self.assertIn("kazokuai-device.sha256\n", text)

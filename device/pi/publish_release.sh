@@ -28,7 +28,9 @@ if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
   gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber \
     kazokuai-device kazokuai-device.sha256
 else
+  # タグの既定は既定ブランチの先端である。main が進んでも、ビルドしたコミットを指す。
   gh release create "$tag" --repo "$GITHUB_REPOSITORY" \
+    --target "$GITHUB_SHA" \
     --title "$short" \
     --prerelease \
     --notes "$notes" \

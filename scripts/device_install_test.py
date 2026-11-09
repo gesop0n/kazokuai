@@ -222,6 +222,28 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertEqual(values["KAZOKUAI_BACKEND"], "http://localhost:8080")
         self.assertEqual(values["KAZOKUAI_WATCHED_PERSON"], "")
         self.assertEqual(values["PHONE_SECRET"], "")
+        self.assertEqual(
+            {key: values[key] for key in (
+                "KAZOKUAI_AUDIO_DEVICE",
+                "KAZOKUAI_MIC_CHANNEL",
+                "KAZOKUAI_SPEAKER_GAIN",
+                "KAZOKUAI_SPEAKER_LIMIT",
+                "KAZOKUAI_GPIO_CHIP",
+                "KAZOKUAI_HOOK_GPIO",
+                "KAZOKUAI_LIFTED_WHEN_CLOSED",
+                "KAZOKUAI_HOOK_DEBOUNCE",
+            )},
+            {
+                "KAZOKUAI_AUDIO_DEVICE": "",
+                "KAZOKUAI_MIC_CHANNEL": "0",
+                "KAZOKUAI_SPEAKER_GAIN": "0.15",
+                "KAZOKUAI_SPEAKER_LIMIT": "0.1",
+                "KAZOKUAI_GPIO_CHIP": "gpiochip0",
+                "KAZOKUAI_HOOK_GPIO": "5",
+                "KAZOKUAI_LIFTED_WHEN_CLOSED": "true",
+                "KAZOKUAI_HOOK_DEBOUNCE": "50ms",
+            },
+        )
         self.assertNotIn("dev-phone-secret", text)
 
 
