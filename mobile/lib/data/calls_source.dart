@@ -6,6 +6,8 @@ import 'package:kazokuai/features/calls/calls_format.dart';
 const _summaryMade = '作れた';
 const _summaryNotMade = '作れなかった';
 const _summaryCouldNotBeMade = 'まとめを作れませんでした';
+const _notAnswered = '出なかった';
+const _didNotAnswer = '電話に出ませんでした';
 
 // Firestore の電話 1 件。ID はドキュメントの ID で、フィールドには入っていない
 class CallDocument {
@@ -16,12 +18,13 @@ class CallDocument {
 }
 
 // 電話のドキュメントを、通話記録の型にする。
-// 日付ごとに新しい順。出なかった電話の記録はまだないので、不在の日は作らない
+// 日付ごとに新しい順。出なかった電話は「電話に出ませんでした」の行にする。
+// 出た電話がない日は不在になる。
 CallLog callLogFrom({
   required List<CallDocument> calls,
   required DateTime now,
 }) {
-  final entries = <AnsweredCallEntry>[];
+  final entries = <CallLogEntry>[];
   for (final call in calls) {
     final entry = _entryFrom(call);
     if (entry != null) entries.add(entry);
@@ -67,7 +70,19 @@ CallDetail? callDetailFrom({
   );
 }
 
-AnsweredCallEntry? _entryFrom(CallDocument call) {
+// 出なかった電話には始まりの時刻がない。かけた時刻で、その日の行にする。
+// かけた時刻がなければ、どの日にも置けないので出さない。
+CallLogEntry? _entryFrom(CallDocument call) {
+  final data = call.data;
+  if (_string(data['state']) == _notAnswered) {
+    final placedAt = _date(data['createdAt']);
+    if (placedAt == null) return null;
+    return MissedCallEntry(startedAt: placedAt, text: _didNotAnswer);
+  }
+  return _answeredFrom(call);
+}
+
+AnsweredCallEntry? _answeredFrom(CallDocument call) {
   final data = call.data;
   final startedAt = _date(data['startedAt']);
   if (startedAt == null) return null;

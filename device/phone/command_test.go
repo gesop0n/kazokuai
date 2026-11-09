@@ -27,6 +27,9 @@ func TestCallMovesThroughStates(t *testing.T) {
 	if ringing.Data()["script"] != testScript {
 		t.Errorf("通話内容 = %v, want %s", ringing.Data()["script"], testScript)
 	}
+	if got, ok := ringing.Data()["createdAt"].(time.Time); !ok || !got.Equal(started) {
+		t.Errorf("かけた時刻 = %v, want %v", ringing.Data()["createdAt"], started)
+	}
 
 	s.phone.pickUp()
 	waitForText(t, session, "[電話がつながりました]")

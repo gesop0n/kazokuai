@@ -90,10 +90,12 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ref := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection).NewDoc()
+	// createdAt はかけた時刻。出なかった電話には始まりの時刻がないので、通話記録はこの時刻を出す。
 	_, err = ref.Set(r.Context(), map[string]any{
-		"state":   protocol.StateRinging,
-		"message": req.Message,
-		"script":  req.Script,
+		"state":     protocol.StateRinging,
+		"message":   req.Message,
+		"script":    req.Script,
+		"createdAt": s.clock.Now(),
 	})
 	if err != nil {
 		log.Printf("電話を作れなかった: %v", err)

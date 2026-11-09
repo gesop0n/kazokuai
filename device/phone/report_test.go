@@ -169,6 +169,9 @@ func TestCallReport(t *testing.T) {
 		if _, ok := doc.Data()["startedAt"].(time.Time); ok {
 			t.Error("出なかった電話に始まりの時刻がある")
 		}
+		if got, ok := doc.Data()["createdAt"].(time.Time); !ok || !got.Equal(started) {
+			t.Errorf("かけた時刻 = %v, want %v", doc.Data()["createdAt"], started)
+		}
 		if got := utterancesOf(t, doc.Ref); len(got) != 0 {
 			t.Errorf("発話 = %+v, want 残さない", got)
 		}
