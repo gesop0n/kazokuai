@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
@@ -134,7 +135,10 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AppNavBar(title: 'かけなおしのルール'),
+            AppNavBar(
+              title: 'かけなおしのルール',
+              onLeadingTap: () => popOrGoToParent(context),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),

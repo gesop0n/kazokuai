@@ -211,3 +211,25 @@ GoRouter createAppRouter({
     ],
   );
 }
+
+// 読み直すと、押し開いた画面の下には何もない。「もどる」はそのとき、
+// ふだん開く元の画面へ移る。下があるときは、今までどおりそこへ戻る。
+// 元の画面は上のルートを読む。いくつかの場所から開く画面は、属するタブ。
+void popOrGoToParent(BuildContext context) {
+  final routeName = GoRouterState.of(context).name;
+  Navigator.of(context).maybePop().then((didPop) {
+    if (didPop || !context.mounted) return;
+    final parent = _screenParent(routeName);
+    if (parent != null) context.goNamed(parent);
+  });
+}
+
+// 01 はホームからも予約電話からも開く。属するタブはホーム。
+// 予約の編集とかけなおしのルールは、予約電話の上に開く。
+String? _screenParent(String? routeName) {
+  return switch (routeName) {
+    AppRoutes.ask => AppRoutes.home,
+    AppRoutes.bookingEdit || AppRoutes.retryRule => AppRoutes.booking,
+    _ => null,
+  };
+}
