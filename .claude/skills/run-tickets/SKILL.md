@@ -41,11 +41,11 @@ Done when no worktree or `#<N>` workspace belongs to a closed ticket.
 
 The **frontier** is every open sub-issue of the spec labelled `ready-for-agent` with no open blockers and no `ticket/<N>` branch yet (`git gtr list`). A branch named in the older form `ticket/<N>-grok` or `ticket/<N>-claude` counts too.
 
-Pick up to two tickets from the frontier. Grok implements every ticket (ADR 0007, `docs/adr/20261107_grok_implementer.md`), with one Grok per ticket.
+Up to four tickets run at once (ADR 0012, `docs/adr/20261109_four_tickets.md`), across every spec. A ticket runs from its worktree until its PR is open. Pick tickets from the frontier until four run. Grok implements every ticket (ADR 0007, `docs/adr/20261107_grok_implementer.md`), with one Grok per ticket.
 
 Tell the person the plan in one line (`#12, #13 → Grok`) and go on.
 
-Done when up to two tickets are picked.
+Done when four tickets run, or the frontier is empty.
 
 ## 4. Implement
 
@@ -66,7 +66,7 @@ For each picked ticket, in parallel:
    ```bash
    git gtr new ticket/<N> --yes     # the hooks run mise trust and codegraph init, and .env is copied
    wt=$(git gtr go ticket/<N>)      # not "path": in zsh, path is PATH
-   herdr worktree open --path "$wt" --no-focus --label "#<N>"
+   herdr worktree open --cwd "$(git gtr go 1)" --path "$wt" --no-focus --label "#<N>"   # --cwd: the focused workspace may be another repo
    ```
 
    The pane is `.result.root_pane.pane_id`, and the workspace is `.result.workspace.workspace_id`.
@@ -77,7 +77,7 @@ For each picked ticket, in parallel:
    ```
 
    `agent_not_ready` usually means a trust dialog: notify the person, then `herdr agent wait t<N>-impl`.
-4. Prompt it as the Guardrails say. When two tickets run, add one sentence naming the other ticket and asking it to stay within its own:
+4. Prompt it as the Guardrails say. When other tickets run, add one sentence naming them and asking it to stay within its own:
 
    > /implement `<work>/ticket.md`. The parent spec is `<work>/spec.md`. Skip the final code-review step: another agent reviews your work. Run `mise run check` before you finish, and commit to the current branch with a Japanese commit message. Do not push. If you need a test that talks through the Mac's microphone or speaker, stop and say so: the person runs those tests, one at a time.
 
