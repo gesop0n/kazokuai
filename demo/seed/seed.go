@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/firestore"
 	"firebase.google.com/go/v4/auth"
@@ -13,6 +14,9 @@ import (
 // watchedPersonID は、見本の見守る方のドキュメント ID である。作り直しても変わらない。
 const watchedPersonID = "tanaka-hana"
 
+// judgeDisplayName は、08e の「あなたのお名前」である。Firebase Auth の表示名に入れる。
+const judgeDisplayName = "田中 太郎"
+
 // Request は、見本を書く先と、審査員のアカウントである。パスワードはログに出さない。
 type Request struct {
 	ProjectID     string
@@ -20,6 +24,8 @@ type Request struct {
 	Password      string
 	FirestoreHost string
 	AuthHost      string
+	// Today は、見本の 1 週間が朝で終わる日である。日付は日本時間で読む。ゼロのときは、実行した日。
+	Today time.Time
 }
 
 // Result は、作った審査員と見守る方である。
@@ -57,7 +63,9 @@ func validateRequest(req Request) error {
 	return nil
 }
 
-// Seed は、渡した Firebase に審査員と見本の電話を作る。もう一度実行すると、そのアカウントの電話を見本に戻す。
+// Seed は、渡した Firebase に審査員と見本の電話を作る。
+// 見本の 1 週間は、渡した日の朝で終わる。日を渡さないときは、実行した日の朝で終わる。
+// もう一度実行すると、そのアカウントの電話をその日の見本に戻す。
 func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, req Request) (Result, error) {
 	user, err := upsertJudge(ctx, accounts, req.Email, req.Password)
 	if err != nil {
@@ -77,7 +85,7 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 	if err := deleteCalls(ctx, store, person); err != nil {
 		return Result{}, err
 	}
-	calls := sampleCalls()
+	calls := sampleCalls(sampleDay(req))
 	missed := 0
 	for _, call := range calls {
 		if err := writeCall(ctx, store, person, call); err != nil {
@@ -105,6 +113,7 @@ func upsertJudge(ctx context.Context, accounts *auth.Client, email, password str
 		created, err := accounts.CreateUser(ctx, (&auth.UserToCreate{}).
 			Email(email).
 			Password(password).
+			DisplayName(judgeDisplayName).
 			EmailVerified(true))
 		if err != nil {
 			return nil, fmt.Errorf("審査員のアカウントを作れなかった: %w", err)
@@ -113,9 +122,10 @@ func upsertJudge(ctx context.Context, accounts *auth.Client, email, password str
 	}
 	updated, err := accounts.UpdateUser(ctx, user.UID, (&auth.UserToUpdate{}).
 		Password(password).
+		DisplayName(judgeDisplayName).
 		EmailVerified(true))
 	if err != nil {
-		return nil, fmt.Errorf("審査員のパスワードを戻せなかった: %w", err)
+		return nil, fmt.Errorf("審査員のアカウントを戻せなかった: %w", err)
 	}
 	return updated, nil
 }

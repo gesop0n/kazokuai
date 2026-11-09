@@ -173,10 +173,10 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
 
   <header class="head">
     <div>
-      <div class="kicker">ADR 0003 · ADR 0011 · 2026-11-09</div>
+      <div class="kicker">ADR 0003 · ADR 0011 · 2026-11-10</div>
       <h1>かぞくAI の構成</h1>
     </div>
-    <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。</p>
+    <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。公開は GitHub Actions から手で行う。</p>
   </header>
 
   <div class="scroller">
@@ -185,6 +185,9 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <!-- GROUPS -->
     <div class="group gcp" style="left:550px; top:40px; width:660px; height:390px;">
       <div class="g-label"><img src="%%ICON_gcp%%" alt="">Google Cloud</div>
+    </div>
+    <div class="group gb" style="left:24px; top:40px; width:180px; height:172px;">
+      <div class="g-label"><img class="lt" src="%%ICON_github%%" alt=""><img class="dk" src="%%ICON_github_dark%%" alt="">GitHub</div>
     </div>
     <div class="group gb" style="left:30px; top:220px; width:480px; height:210px;">
       <div class="g-label"><img class="plate" src="%%ICON_home%%" alt="">高齢者の家</div>
@@ -227,6 +230,17 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <path class="n" d="M654 274 V250 H1120 V274" marker-end="url(#ar)"/>
       <text class="el" x="1000" y="242" text-anchor="middle">保存</text>
 
+      <!-- deploy from GitHub Actions. Dashed, and kept off the runtime labels. -->
+      <path class="n dash" d="M148 130 V32 H766 V126" marker-end="url(#ar)"/>
+      <text class="el" x="450" y="24" text-anchor="middle">認証</text>
+      <path class="n dash" d="M834 130 H926" marker-end="url(#ar)"/>
+      <path class="n dash" d="M994 130 H1086" marker-end="url(#ar)"/>
+      <text class="el" x="1040" y="122" text-anchor="middle">イメージ</text>
+      <path class="n dash" d="M960 204 V230 H660 V276" marker-end="url(#ar)"/>
+      <text class="el" x="710" y="222" text-anchor="middle">リビジョン</text>
+      <path class="n dash" d="M880 230 V276" marker-end="url(#ar)"/>
+      <text class="el" x="920" y="222" text-anchor="middle">Web 版</text>
+
       <!-- the 家族's app -->
       <path class="n" d="M994 570 H916" marker-end="url(#ar)"/>
       <text class="el" x="955" y="562" text-anchor="middle">使う</text>
@@ -241,17 +255,33 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     </svg>
 
     <!-- NODES -->
+    <div class="node" style="left:48px;top:100px">
+      <div class="tile"><img src="%%ICON_github%%" alt=""></div>
+      <div class="name"><span>GitHub Actions</span></div><div class="role"><span>main から手で</span></div>
+    </div>
     <div class="node" style="left:574px;top:100px">
       <div class="tile"><img src="%%ICON_secret%%" alt=""></div>
       <div class="name"><span>Secret Manager</span></div><div class="role"><span>API キー・合言葉</span></div>
+    </div>
+    <div class="node" style="left:734px;top:100px">
+      <div class="tile"><img src="%%ICON_iam%%" alt=""></div>
+      <div class="name"><span>Workload Identity</span></div><div class="role"><span>このリポジトリの main</span></div>
+    </div>
+    <div class="node" style="left:894px;top:100px">
+      <div class="tile"><img src="%%ICON_sa%%" alt=""></div>
+      <div class="name"><span>デプロイ</span></div><div class="role"><span>公開用アカウント</span></div>
+    </div>
+    <div class="node" style="left:1054px;top:100px">
+      <div class="tile"><img src="%%ICON_ar%%" alt=""></div>
+      <div class="name"><span>Artifact Registry</span></div><div class="role"><span>バックエンドのイメージ</span></div>
     </div>
     <div class="node" style="left:54px;top:280px">
       <div class="tile"><img src="%%ICON_person%%" alt=""></div>
       <div class="name"><span>見守る方</span></div><div class="role"><span>受話器で話す</span></div>
     </div>
-    <div class="node" style="left:204px;top:280px">
+    <div class="node" style="left:194px;top:280px;width:152px">
       <div class="tile"><img src="%%ICON_phone%%" alt=""></div>
-      <div class="name"><span>電話機</span></div><div class="role"><span>受話器・フック・ランプ</span></div>
+      <div class="name"><span>電話機</span></div><div class="role"><span>受話器・フック・キーパッド</span></div>
     </div>
     <div class="node" style="left:354px;top:280px">
       <div class="tile"><img src="%%ICON_raspberrypi%%" alt=""></div>
@@ -292,6 +322,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
   <div class="legend">
     <span><span class="sw"></span>電話の声</span>
     <span><span class="sw n"></span>データと操作</span>
+    <span><span class="sw n dash"></span>公開</span>
   </div>
 
   <div class="foot">

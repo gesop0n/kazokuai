@@ -22,12 +22,3 @@ func OpenRinger(cfg Config, out io.Writer) (*Ringer, error) {
 	}
 	return newRinger(gpioPin{line: line}, clock.Real{}, out), nil
 }
-
-// gpioPin は、go-gpiocdev の出力である。
-type gpioPin struct {
-	line *gpiocdev.Line
-}
-
-func (p gpioPin) Set(level int) error { return p.line.SetValue(level) }
-
-func (p gpioPin) Close() error { return p.line.Close() }

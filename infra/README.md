@@ -29,7 +29,7 @@ mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXX
 
 `--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM は作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
 
-`IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。Cloud Run を作る apply は、push したあとに実行する。
+`IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。Cloud Run を作る apply は、push したあとに実行する。サービスができたあとのイメージは、`gcloud run deploy` が載せる。Terraform は `template[0].containers[0].image` と `client` と `client_version` の変更を無視する。あとの apply は、ワークフローが載せたイメージを戻さない。`--bootstrap` は、GitHub Actions の Workload Identity と、デプロイ用のサービスアカウントも作らない。それらは、`--bootstrap` を付けない apply が作る。
 
 ## 作る順
 
@@ -44,7 +44,7 @@ gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file
 
 各コマンドのあと、値を貼って Ctrl-D で終える。名前は `gemini-api-key` と `phone-shared-secret` である。Cloud Run は、これらを環境変数 `GEMINI_API_KEY` と `PHONE_SECRET` として読む。電話機も、同じ合言葉を環境変数 `PHONE_SECRET` から読む。
 
-4. イメージを push し、Cloud Run を作る。手順は [docs/publish.md](../docs/publish.md) にある。
+4. イメージを push し、Cloud Run を作る。GitHub Actions から公開するときは、同じ apply で Workload Identity を足し、output をリポジトリ変数に入れる。手順は [docs/publish.md](../docs/publish.md) にある。
 
 API の有効化が行き渡る前に失敗したときは、同じ apply をやり直す。Cloud Run が状態に tainted で残ったときの戻し方も、同じ手順にある。
 
@@ -107,6 +107,8 @@ Gemini の API キーと、電話機の合言葉は、Secret Manager の名前�
 
 サイトは 2 つある。プロジェクト ID と同じサイトは、Firebase が先に作った既定のサイトで、状態に取り込み済みである。消さない。アドレスは `google_firebase_hosting_site.web` のままである。Web 版は、変数 `hosting_site_id`（既定は `kazokuai`）のサイトに出す。`hosting_url` はこのサイトである。
 
+Cloud Run と、両方の Hosting サイトは、`deletion_policy` を `PREVENT` にする。この属性は ForceNew ではない。名前、ロケーション、サイト ID、アプリ ID を変えない apply は、これらの資源を置き換えない。plan が replace のときは、適用しない。`PREVENT` が状態に入ったあと、apply が消そうとすると失敗する。Hosting のサイトに `deletion_protection` は無い。
+
 中身と、`/api/**` を Cloud Run に回す設定は、公開のときに `firebase.json` へ書く。`site` は公開するサイトの ID である。空のリリースは作らない。今ある中身を消してしまう。
 
 ```json
@@ -147,3 +149,5 @@ Gemini の API キーと、電話機の合言葉は、Secret Manager の名前�
 | `artifact_registry` | イメージを push するリポジトリ |
 | `gemini_api_key_secret` | 秘密の名前 `gemini-api-key`。値は出ない |
 | `phone_shared_secret` | 秘密の名前 `phone-shared-secret`。値は出ない |
+| `workload_identity_provider` | GitHub Actions が使うプロバイダーの名前。プロジェクト番号を含む |
+| `deploy_service_account` | デプロイ用のサービスアカウントのメールアドレス。鍵は出ない |

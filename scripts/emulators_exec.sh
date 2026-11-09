@@ -21,11 +21,13 @@ for s in sockets:
 print(*(s.getsockname()[1] for s in sockets))
 ')
 
+# singleProjectMode は切る。パッケージごとのテストが、別のプロジェクトに書くためである。
+# 入れたままにすると、起動した demo-kazokuai 以外は警告になり、エミュレーターの版によっては拒否される。
 cat >"$work/firebase.json" <<EOF
 {
   "firestore": { "rules": "$root/firebase/firestore.rules" },
   "emulators": {
-    "singleProjectMode": true,
+    "singleProjectMode": false,
     "auth": { "port": $auth_port },
     "firestore": { "port": $firestore_port, "websocketPort": $websocket_port },
     "hub": { "port": $hub_port },

@@ -25,7 +25,8 @@ enum AppIcons {
   sparkles('sparkles'),
   check('check'),
   pencil('pencil'),
-  eye('eye');
+  eye('eye'),
+  logOut('log-out');
 
   const AppIcons(this.fileName);
 
