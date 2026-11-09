@@ -230,17 +230,17 @@ class _ScrimPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final full = Path()..addRect(Offset.zero & size);
     final hole = this.hole;
-    if (hole == null) {
-      canvas.drawPath(full, Paint()..color = _dim);
-      return;
+    final path = Path()..addRect(Offset.zero & size);
+    if (hole != null) {
+      // 穴が全体の中に収まると、Web では Path.combine の差分が抜けない。
+      // 偶奇塗りなら全体と穴を一つの線にして、Web でも iOS でも中が明るく残る
+      path
+        ..fillType = PathFillType.evenOdd
+        ..addRRect(RRect.fromRectAndRadius(hole, _radius));
     }
-    final spot = Path()..addRRect(RRect.fromRectAndRadius(hole, _radius));
-    canvas.drawPath(
-      Path.combine(PathOperation.difference, full, spot),
-      Paint()..color = _dim,
-    );
+    canvas.drawPath(path, Paint()..color = _dim);
+    if (hole == null) return;
     canvas.drawRRect(
       RRect.fromRectAndRadius(hole, _radius),
       Paint()

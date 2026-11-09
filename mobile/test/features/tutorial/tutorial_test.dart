@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -537,4 +539,97 @@ void main() {
       DateTime(2026, 11, 10),
     );
   });
+
+  testWidgets('穴の中は暗くせず、外だけを暗くする', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 480);
+    addTearDown(tester.view.reset);
+
+    final registry = TutorialAnchorRegistry();
+    const boundaryKey = Key('scrim');
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: TutorialAnchors(
+            registry: registry,
+            sampling: false,
+            child: RepaintBoundary(
+              key: boundaryKey,
+              child: SizedBox.expand(
+                child: Stack(
+                  children: [
+                    const ColoredBox(color: AppColors.white),
+                    const Positioned(
+                      left: 24,
+                      top: 24,
+                      width: 160,
+                      height: 56,
+                      child: TutorialAnchor(
+                        part: TutorialPart.recent,
+                        child: ColoredBox(color: AppColors.white),
+                      ),
+                    ),
+                    TutorialOverlay(
+                      step: const TutorialStep(
+                        part: TutorialPart.recent,
+                        place: TutorialPlace.home,
+                        title: '直近の電話',
+                        body: '説明',
+                      ),
+                      index: 0,
+                      registry: registry,
+                      onNext: () {},
+                      onSkip: () {},
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final hole = tester.getRect(find.byType(TutorialHole));
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(boundaryKey),
+    );
+    final outside = boundary.localToGlobal(const Offset(4, 4));
+    expect(hole.contains(hole.center), isTrue);
+    expect(hole.contains(outside), isFalse);
+
+    // toImage はテストの偽の非同期では終わらない。
+    // 穴は下の白のまま。外は 62% の黒（不透明度 158）で、白の上では (97, 97, 97) に見える
+    final inside = (await tester.runAsync(
+      () => _pixel(boundary, hole.center),
+    ))!;
+    final dimmed = (await tester.runAsync(() => _pixel(boundary, outside)))!;
+    expect(inside, (r: 255, g: 255, b: 255, a: 255));
+    expect(dimmed.r, 0);
+    expect(dimmed.g, 0);
+    expect(dimmed.b, 0);
+    expect(dimmed.a, inInclusiveRange(157, 159));
+  });
+}
+
+Future<({int r, int g, int b, int a})> _pixel(
+  RenderRepaintBoundary boundary,
+  Offset global,
+) async {
+  final image = await boundary.toImage(pixelRatio: 1);
+  try {
+    final data = (await image.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+    final local = boundary.globalToLocal(global);
+    final i = (local.dy.floor() * image.width + local.dx.floor()) * 4;
+    return (
+      r: data.getUint8(i),
+      g: data.getUint8(i + 1),
+      b: data.getUint8(i + 2),
+      a: data.getUint8(i + 3),
+    );
+  } finally {
+    image.dispose();
+  }
 }
