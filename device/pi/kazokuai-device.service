@@ -6,8 +6,11 @@ Wants=network-online.target
 [Service]
 # インストールが User= と XDG_RUNTIME_DIR を、入れた人のユーザーで書き足す。
 Type=simple
+# /var/lib/kazokuai を作り、ID と鍵のファイルをそこに置く。
+StateDirectory=kazokuai
 EnvironmentFile=/etc/kazokuai/device.env
-ExecStart=/usr/local/bin/kazokuai-device --watched-person ${KAZOKUAI_WATCHED_PERSON} --backend ${KAZOKUAI_BACKEND}
+# 見守る方の ID は環境ファイルから読む。空なら、電話機が作った ID と鍵でつなぐ。
+ExecStart=/usr/local/bin/kazokuai-device --backend ${KAZOKUAI_BACKEND}
 Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=0

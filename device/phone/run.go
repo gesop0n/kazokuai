@@ -182,10 +182,16 @@ func (q *callQueue) next(ctx context.Context) (string, bool) {
 
 // Run は、バックエンドと WebSocket でつながり続け、電話の指示が来るたびに電話をする。
 // 電話のあいだも接続を読み、切れれば間隔を空けてつなぎ直す。届かなかった状態は、つなぎ直したあとに送る。
-// ctx が終わると戻る。WatchedPerson が空なら、つなぐ前にエラーを返す。
+// ctx が終わると戻る。ID が無く、WatchedPerson も空なら、つなぐ前にエラーを返す。
+// ID があるときは、先に登録する。バックエンドがその ID を知らないときは、同じ ID と鍵で登録し直す。
 func (d *Device) Run(ctx context.Context) error {
-	if strings.TrimSpace(d.WatchedPerson) == "" {
+	if d.ID == "" && strings.TrimSpace(d.WatchedPerson) == "" {
 		return errors.New("見守る方の ID が要ります。--watched-person で渡してください")
+	}
+	if d.ID != "" {
+		if err := d.Register(ctx); err != nil {
+			return err
+		}
 	}
 	link := &sessionLink{}
 	commands := newCallQueue()
@@ -298,16 +304,11 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 // readOnce は、1 本の接続で指示を読む。電話の処理は止めない。
 // 接続できたら connected を true にする。ダイヤルに失敗したときは false である。
 func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *callQueue) (bool, error) {
-	wsURL, err := phoneWebSocketURL(d.Backend, d.WatchedPerson)
+	wsURL, err := phoneWebSocketURL(d.Backend, d.dialPerson())
 	if err != nil {
 		return false, err
 	}
-	header := http.Header{}
-	header.Set(protocol.PhoneSecretHeader, d.Secret)
-	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
-		HTTPHeader: header,
-		HTTPClient: d.HTTP,
-	})
+	conn, err := d.dialPhone(ctx, wsURL)
 	if err != nil {
 		return false, err
 	}
@@ -333,6 +334,56 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 	}
 }
 
+// dialPerson は、WebSocket のクエリに付ける見守る方である。
+// ID と鍵でつなぐときは、見守る方を名乗らない。結び付きから決まる。
+func (d *Device) dialPerson() string {
+	if d.ID != "" {
+		return ""
+	}
+	return d.WatchedPerson
+}
+
+// dialPhone は、WebSocket をつなぐ。ID を知らないと返されたときは、同じ ID と鍵で登録してからもう一度つなぐ。
+func (d *Device) dialPhone(ctx context.Context, wsURL string) (*websocket.Conn, error) {
+	conn, resp, err := d.dial(ctx, wsURL)
+	if err == nil {
+		return conn, nil
+	}
+	if d.ID == "" {
+		closeBody(resp)
+		return nil, err
+	}
+	unknown, uerr := unknownPhone(resp)
+	closeBody(resp)
+	if uerr != nil {
+		return nil, uerr
+	}
+	if !unknown {
+		return nil, err
+	}
+	if err := d.Register(ctx); err != nil {
+		return nil, err
+	}
+	conn, resp, err = d.dial(ctx, wsURL)
+	closeBody(resp)
+	return conn, err
+}
+
+func (d *Device) dial(ctx context.Context, wsURL string) (*websocket.Conn, *http.Response, error) {
+	header := http.Header{}
+	d.authorize(header)
+	return websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: header,
+		HTTPClient: d.HTTP,
+	})
+}
+
+func closeBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		resp.Body.Close()
+	}
+}
+
 func phoneWebSocketURL(backend, personID string) (string, error) {
 	u, err := url.Parse(backend)
 	if err != nil {
@@ -347,6 +398,8 @@ func phoneWebSocketURL(backend, personID string) (string, error) {
 		return "", fmt.Errorf("バックエンドの URL の scheme が %s だった", u.Scheme)
 	}
 	u.Path = protocol.PhonePath
-	u.RawQuery = url.Values{"watchedPerson": {personID}}.Encode()
+	if personID != "" {
+		u.RawQuery = url.Values{"watchedPerson": {personID}}.Encode()
+	}
 	return u.String(), nil
 }

@@ -4,6 +4,8 @@
 # 渡さないと、この機械の上で cgo を有効にしてビルドする。
 # サービスは、入れた人のユーザーで動かす。root では、その人の PipeWire が見えない。
 # ユーザーは KAZOKUAI_SERVICE_USER、無ければ SUDO_USER、それも無ければ今のユーザー。
+# 見守る方の ID が空のときは、電話機が作った ID と鍵で起動する。
+# バックエンドの URL が空のときと、見守る方の ID に空白があるときは、起動しない。
 # DEVICE_INSTALL_ROOT はテストがインストール先を差し替える。Pi では空のままにする。
 set -euo pipefail
 
@@ -218,8 +220,8 @@ enable_linger
 
 person=$(read_value "$env_file" KAZOKUAI_WATCHED_PERSON)
 backend=$(read_value "$env_file" KAZOKUAI_BACKEND)
-if [[ -z "$person" || "$person" == *[[:space:]]* ]]; then
-  echo "見守る方の ID が空か、空白を含みます。${env_file} の KAZOKUAI_WATCHED_PERSON を書いてから、もう一度動かしてください。" >&2
+if [[ "$person" == *[[:space:]]* ]]; then
+  echo "見守る方の ID に空白が含まれます。${env_file} の KAZOKUAI_WATCHED_PERSON を直してから、もう一度動かしてください。" >&2
   exit 1
 fi
 if [[ -z "$backend" || "$backend" == *[[:space:]]* ]]; then

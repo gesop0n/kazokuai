@@ -25,12 +25,18 @@ import (
 type Device struct {
 	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080。https は wss でつなぐ。
 	Backend string
-	// Secret は、バックエンドへ付ける合言葉である。
+	// Secret は、登録するときの合言葉である。古い道では、どのリクエストにも付ける。
 	Secret string
+	// ID と Key は、この電話機が作った ID と鍵である。
+	// 空でなければ、合言葉で登録したあと、WebSocket、トークン、電話の報告にこの 2 つを付ける。
+	// 見守る方は結び付きから決まるので、WatchedPerson は空のままにする。
+	ID  string
+	Key string
 	// HTTP は、バックエンドへのクライアントである。nil なら http.DefaultClient を使う。
 	// テストが、自分の証明を信じる TLS のバックエンドへつなぐときに渡す。
 	HTTP *http.Client
-	// WatchedPerson は、この電話機の見守る方の ID である。起動するときに渡す。
+	// WatchedPerson は、古い道の見守る方の ID である。--watched-person で渡す。
+	// ID があるときは使わない。
 	WatchedPerson string
 	Gemini        Gemini
 	Phone         Phone
@@ -620,22 +626,101 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 	return &token, nil
 }
 
+// Register は、この電話機の ID と鍵を、合言葉を添えてバックエンドに登録する。
+// 同じ ID と鍵なら、もう一度登録しても成功する。
+func (d *Device) Register(ctx context.Context) error {
+	if d.ID == "" || d.Key == "" {
+		return errors.New("電話機の ID と鍵が要ります")
+	}
+	resp, err := d.post(ctx, protocol.PhoneRegisterPath, nil, true)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		text, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("電話機を登録できなかった: %s: %s", resp.Status, bytes.TrimSpace(text))
+	}
+	return nil
+}
+
 func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*http.Response, error) {
+	resp, err := d.post(ctx, path, body, false)
+	if err != nil || d.ID == "" {
+		return resp, err
+	}
+	unknown, uerr := unknownPhone(resp)
+	if uerr != nil {
+		resp.Body.Close()
+		return nil, uerr
+	}
+	if !unknown {
+		return resp, nil
+	}
+	resp.Body.Close()
+	if err := d.Register(ctx); err != nil {
+		return nil, err
+	}
+	return d.post(ctx, path, body, false)
+}
+
+// post は、path へ POST する。register のときは、ID と鍵に加えて合言葉を付ける。
+func (d *Device) post(ctx context.Context, path string, body []byte, register bool) (*http.Response, error) {
 	endpoint, err := backendEndpoint(d.Backend, path)
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	var reader io.Reader
+	if body != nil {
+		reader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, reader)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(protocol.PhoneSecretHeader, d.Secret)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if register {
+		req.Header.Set(protocol.PhoneSecretHeader, d.Secret)
+	}
+	d.authorize(req.Header)
 	client := d.HTTP
 	if client == nil {
 		client = http.DefaultClient
 	}
 	return client.Do(req)
+}
+
+// authorize は、ID と鍵があるときはそれを、無いときは合言葉をヘッダーに付ける。
+func (d *Device) authorize(header http.Header) {
+	if d.ID != "" {
+		header.Set(protocol.PhoneIDHeader, d.ID)
+		header.Set(protocol.PhoneKeyHeader, d.Key)
+		return
+	}
+	header.Set(protocol.PhoneSecretHeader, d.Secret)
+}
+
+// unknownPhone は、バックエンドがこの電話機の ID を知らないと答えたとき true を返す。
+// 違う 404 の本文は、呼び出し側が読めるように戻す。
+func unknownPhone(resp *http.Response) (bool, error) {
+	if resp == nil || resp.Body == nil || resp.StatusCode != http.StatusNotFound {
+		return false, nil
+	}
+	orig := resp.Body
+	body, err := io.ReadAll(io.LimitReader(orig, 2048))
+	orig.Close()
+	if err != nil {
+		resp.Body = io.NopCloser(bytes.NewReader(nil))
+		return false, err
+	}
+	if strings.Contains(string(body), protocol.PhoneAnswerUnknownPhone) {
+		resp.Body = io.NopCloser(bytes.NewReader(nil))
+		return true, nil
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return false, nil
 }
 
 // backendEndpoint は、base の末尾の / に関わらず、path を 1 つの URL にする。
