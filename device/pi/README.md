@@ -8,7 +8,7 @@ Pi を触るのは人です。指揮役は Pi に入りません。実行ファ�
 
 Linux の実行ファイルは、バックエンドへつなぎ、切れたら自分でつなぎ直します。起動時に動き、失敗したら動き直します。再起動のあとも、systemd が起動し、ひとりでにバックエンドへつなぎます。
 
-受話器は、`KAZOKUAI_AUDIO_DEVICE` に書いた名前の USB オーディオを開きます。音には `KAZOKUAI_SPEAKER_GAIN` を掛け、`KAZOKUAI_SPEAKER_LIMIT` を超えた分を切ります。フックは GPIO で読みます。呼び出し音は GPIO18 をソフトウェアで切り替えます。`config.txt` は変えません。今の実行ファイルは、まだ音も光も出さず、ログに「呼び出し中です。」「ランプが点きました。」と書きます。キーパッドの読み取りは、まだこの実行ファイルにはありません。
+受話器は、`KAZOKUAI_AUDIO_DEVICE` に書いた名前の USB オーディオを開きます。音には `KAZOKUAI_SPEAKER_GAIN` を掛け、`KAZOKUAI_SPEAKER_LIMIT` を超えた分を切ります。フックは GPIO で読みます。呼び出し音は GPIO18 をソフトウェアで切り替え、本体のスピーカーを鳴らします。`config.txt` は変えません。ランプは、まだ光を出さず、ログに「ランプが点きました。」と書きます。キーパッドの読み取りは、まだこの実行ファイルにはありません。
 
 macOS で手元から動かすときは、既定のマイクとスピーカー、Enter キーのフックのままです。ここから下は Pi の手順です。
 
@@ -74,7 +74,7 @@ sudo apt install -y libasound2
 | `PHONE_SECRET` | 空 | 合言葉。Cloud Run ではバックエンドと同じものを、このファイルにだけ書く。空なら手元の開発用の合言葉 |
 | `KAZOKUAI_AUDIO_DEVICE` | 空 | USB アダプターの名前の一部。音声を開くときは要る。番号は再起動や接続の順で変わるので、名前で選ぶ |
 
-Linux の実行ファイルが読む、受話器とフックの既定です。空の項目は、この既定のまま動きます。音声の名前だけは、空だと開けません。
+Linux の実行ファイルが読む、受話器、フック、呼び出し音の既定です。空の項目は、この既定のまま動きます。音声の名前だけは、空だと開けません。
 
 | 変数 | 既定 | 意味 |
 |---|---|---|
@@ -83,6 +83,7 @@ Linux の実行ファイルが読む、受話器とフックの既定です。�
 | `KAZOKUAI_SPEAKER_LIMIT` | `0.1` | フルスケールに対する上限。0 より大きく 1 以下 |
 | `KAZOKUAI_GPIO_CHIP` | `gpiochip0` | GPIO のチップ |
 | `KAZOKUAI_HOOK_GPIO` | `5` | フックの BCM 番号 |
+| `KAZOKUAI_RINGER_GPIO` | `18` | 呼び出し音の BCM 番号 |
 | `KAZOKUAI_LIFTED_WHEN_CLOSED` | `true` | 上げると接点が閉じるなら true、開くなら false |
 | `KAZOKUAI_HOOK_DEBOUNCE` | `50ms` | フックが安定したとみなす時間 |
 
@@ -106,6 +107,7 @@ sudo systemd-run --pty --wait --collect \
 | `device check speaker` | 受話器で 1 秒の音を鳴らす |
 | `device check mic` | 5 秒録って、受話器から流す |
 | `device check hook` | 受話器が上がっているか、置かれているかを出す |
+| `device check ringer` | 止めるまで、本体のスピーカーを鳴らす |
 
 `devices` で見た名前の、他の機器と重ならない一部を `KAZOKUAI_AUDIO_DEVICE` に入れます。`hook` で、上げると接点が閉じるかを見ます。違うときは `KAZOKUAI_LIFTED_WHEN_CLOSED` を変えます。
 
@@ -221,7 +223,7 @@ sudo /usr/local/bin/kazokuai-device check devices
 sudoedit /etc/kazokuai/device.env
 ```
 
-書くものは、バックエンドの URL、見守る方の ID、合言葉、音声の機器名です。受話器とフックの残りの項目は、既定のまま残します。ID は、家族がアプリで見守る方を登録したとき、バックエンドのログに `--watched-person` に続けて出ます。見本やこの README には書きません。
+書くものは、バックエンドの URL、見守る方の ID、合言葉、音声の機器名です。受話器、フック、呼び出し音の残りの項目は、既定のまま残します。ID は、家族がアプリで見守る方を登録したとき、バックエンドのログに `--watched-person` に続けて出ます。見本やこの README には書きません。
 
 `KAZOKUAI_AUDIO_DEVICE` が空のままだと、サービスは音声を開けずに動き直します。スピーカー、マイク、フックは、サービスを有効にする前に、上の確認コマンドで見ておけます。
 

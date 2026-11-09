@@ -25,6 +25,7 @@ func RunCheck(ctx context.Context, part string, cfg Config, out io.Writer) error
 		},
 		open:   func() (ear, error) { return OpenHandset(cfg) },
 		line:   func() (Line, error) { return OpenLine(cfg) },
+		bell:   func() (bell, error) { return OpenRinger(cfg, out) },
 		record: 5 * time.Second,
 		tail:   300 * time.Millisecond,
 		tone:   time.Second,

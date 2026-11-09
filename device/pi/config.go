@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Config は、電話機の受話器とフックの設定である。環境変数が空なら既定を使う。
+// Config は、電話機の受話器とフックと呼び出し音の設定である。環境変数が空なら既定を使う。
 // 倍率の既定は 0.15 である。tel-base の 0.5 は、音全体を上限まで縮めるときの値で、
 // こちらは倍率を掛けてから上限を超えた部分を切る。
 type Config struct {
@@ -17,6 +17,7 @@ type Config struct {
 	SpeakerLimit     float64
 	GPIOChip         string
 	HookGPIO         int
+	RingerGPIO       int
 	LiftedWhenClosed bool
 	Debounce         time.Duration
 }
@@ -29,6 +30,7 @@ func DefaultConfig() Config {
 		SpeakerLimit:     0.1,
 		GPIOChip:         "gpiochip0",
 		HookGPIO:         5,
+		RingerGPIO:       18,
 		LiftedWhenClosed: true,
 		Debounce:         50 * time.Millisecond,
 	}
@@ -70,6 +72,13 @@ func Load(getenv func(string) string) (Config, error) {
 			return Config{}, fmt.Errorf("KAZOKUAI_HOOK_GPIO=%q は 0 以上の整数にしてください", v)
 		}
 		cfg.HookGPIO = n
+	}
+	if v := getenv("KAZOKUAI_RINGER_GPIO"); strings.TrimSpace(v) != "" {
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil || n < 0 {
+			return Config{}, fmt.Errorf("KAZOKUAI_RINGER_GPIO=%q は 0 以上の整数にしてください", v)
+		}
+		cfg.RingerGPIO = n
 	}
 	if v := getenv("KAZOKUAI_LIFTED_WHEN_CLOSED"); strings.TrimSpace(v) != "" {
 		on, err := strconv.ParseBool(strings.TrimSpace(v))
