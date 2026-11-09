@@ -254,6 +254,14 @@ void main() {
     });
 
     testWidgets('進み具合の線は3段階のうちの1つ目で、モックの色である', (tester) async {
+      // 既定の 800 は広い画面の列で幅 430 になり、線の幅が割り切れず間隔が誤差になる。
+      // スマホの幅で、間隔がちょうど 6 になる幅にする。
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = const Size(392, 600)
+        ..padding = FakeViewPadding.zero;
+      addTearDown(tester.view.reset);
+
       await openL6(tester);
 
       final progress = find.bySemanticsLabel('3段階のうち1段階目');

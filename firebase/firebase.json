@@ -3,6 +3,23 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "hosting": {
+    "public": "../mobile/build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "kazokuai",
+          "region": "asia-northeast1"
+        }
+      }
+    ]
+  },
   "emulators": {
     "singleProjectMode": true,
     "auth": {

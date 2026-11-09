@@ -7,21 +7,17 @@ import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 
-// バックエンドのアドレス。ビルドするときに --dart-define=BACKEND_URL=<アドレス> で変えられる。
-// 既定値は backend/main.go の addr と合わせる。iOS のシミュレーターからは localhost で Mac に届く。
-// Android のエミュレーターでは http://10.0.2.2:8080 を渡す
-const _backendUrl = String.fromEnvironment(
-  'BACKEND_URL',
-  defaultValue: 'http://localhost:8080',
-);
-
-// アプリがバックエンドの API を呼ぶ。家族の Firebase の ID トークンを Authorization ヘッダーに入れる
+// アプリがバックエンドの API を呼ぶ。家族の Firebase の ID トークンを Authorization ヘッダーに入れる。
+// baseUrl はエミュレーターでは http://localhost:8080、本物のプロジェクトの Web 版では /api。
 class Backend {
-  Backend(this._client);
+  Backend(this._client, {this.baseUrl = 'http://localhost:8080'});
 
   static const _timeout = Duration(seconds: 15);
 
   final http.Client _client;
+  final String baseUrl;
+
+  Uri _uri(String path) => Uri.parse('$baseUrl$path');
 
   // 見守る方を登録する。登録できなかったときは RegisterWatchedPersonException を投げる
   Future<void> registerWatchedPerson({
@@ -33,7 +29,7 @@ class Backend {
     try {
       response = await _client
           .post(
-            Uri.parse('$_backendUrl/watched-persons'),
+            _uri('/watched-persons'),
             headers: {
               'Authorization': 'Bearer $idToken',
               'Content-Type': 'application/json',
@@ -60,7 +56,7 @@ class Backend {
     try {
       response = await _client
           .post(
-            Uri.parse('$_backendUrl/calls/script'),
+            _uri('/calls/script'),
             headers: {
               'Authorization': 'Bearer $idToken',
               'Content-Type': 'application/json',
@@ -97,7 +93,7 @@ class Backend {
     try {
       response = await _client
           .post(
-            Uri.parse('$_backendUrl/calls/now'),
+            _uri('/calls/now'),
             headers: {
               'Authorization': 'Bearer $idToken',
               'Content-Type': 'application/json',

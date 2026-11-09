@@ -6,12 +6,13 @@ description = "PR を出す前に通すチェック。CI でも同じものを�
 depends = ["check:mobile", "check:scripts", "check:go", "check:rules", "check:infra"]
 
 ["check:mobile"]
-description = "Flutter のアプリのフォーマット、静的解析、テスト"
+description = "Flutter のアプリのフォーマット、静的解析、テスト、Web のビルド"
 dir = "{{config_root}}/mobile"
 run = [
   "dart format --output=none --set-exit-if-changed lib test",
   "flutter analyze",
   "flutter test",
+  "flutter build web",
 ]
 
 ["check:go"]
@@ -70,7 +71,8 @@ run = "go run ./device"
 [emulators]
 description = "Firebase の Auth と Firestore のエミュレーターを起動する。エミュレーターの画面は http://localhost:4000"
 dir = "{{config_root}}/firebase"
-run = "firebase emulators:start --project demo-kazokuai"
+# Hosting は本番の Web 版用。ここは demo-kazokuai の Auth と Firestore だけを起動する
+run = "firebase emulators:start --project demo-kazokuai --only auth,firestore"
 
 [translate]
 description = "英語の Markdown を plamo-translate で日本語に訳す。例: mise run translate en.md ja.md"

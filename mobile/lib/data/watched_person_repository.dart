@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:kazokuai/data/app_config.dart';
 import 'package:kazokuai/data/backend.dart';
 import 'package:kazokuai/data/firebase_watched_person_repository.dart';
 
@@ -47,7 +48,7 @@ final watchedPersonRepositoryProvider = Provider<WatchedPersonRepository>((
   final repository = FirebaseWatchedPersonRepository(
     auth: FirebaseAuth.instance,
     firestore: FirebaseFirestore.instance,
-    backend: Backend(client),
+    backend: Backend(client, baseUrl: appConfig.backendUrl),
   );
   ref.onDispose(() {
     repository.dispose();
