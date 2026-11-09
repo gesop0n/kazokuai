@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
+import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/calls/day_mark_icon.dart';
@@ -15,6 +16,8 @@ class MiniCalendar extends StatelessWidget {
     required this.log,
     required this.selectedDay,
     required this.onTap,
+    this.revealSerial = 0,
+    this.revealDay,
   });
 
   static const dayCount = 14;
@@ -23,6 +26,10 @@ class MiniCalendar extends StatelessWidget {
   final CallLog log;
   final DateTime selectedDay;
   final VoidCallback onTap;
+
+  // シートで同じ日を選び直した回数。日付が同じでも帯を合わせる
+  final int revealSerial;
+  final DateTime? revealDay;
 
   // テストから日を探すためのキー
   @visibleForTesting
@@ -44,14 +51,35 @@ class MiniCalendar extends StatelessWidget {
               borderRadius: AppRadius.borderRadius,
               border: Border.all(color: AppColors.line),
             ),
-            padding: const EdgeInsets.all(8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              spacing: 4,
+            child: Stack(
               children: [
-                _MiniHead(onTap: onTap),
-                _DayStrip(log: log, selectedDay: selectedDay, onTap: onTap),
+                // 余白と隙間のタップは帯より奥に置く。手前だと横移動がスクロールに届かない
+                Positioned.fill(
+                  child: _PressColor(
+                    onTap: onTap,
+                    foreground: AppColors.inkPrimary,
+                    radius: AppRadius.borderRadius,
+                    child: const SizedBox.expand(),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    spacing: 4,
+                    children: [
+                      _MiniHead(onTap: onTap),
+                      _DayStrip(
+                        log: log,
+                        selectedDay: selectedDay,
+                        onTap: onTap,
+                        revealSerial: revealSerial,
+                        revealDay: revealDay,
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -68,12 +96,12 @@ class _MiniHead extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return _PressColor(
       onTap: onTap,
+      foreground: AppColors.inkPrimary,
       child: ConstrainedBox(
-        constraints: BoxConstraints(minHeight: 24),
-        child: Padding(
+        constraints: const BoxConstraints(minHeight: 24),
+        child: const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Align(
             alignment: Alignment.centerLeft,
@@ -90,11 +118,15 @@ class _DayStrip extends StatelessWidget {
     required this.log,
     required this.selectedDay,
     required this.onTap,
+    required this.revealSerial,
+    required this.revealDay,
   });
 
   final CallLog log;
   final DateTime selectedDay;
   final VoidCallback onTap;
+  final int revealSerial;
+  final DateTime? revealDay;
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +138,8 @@ class _DayStrip extends StatelessWidget {
           log: log,
           selectedDay: selectedDay,
           onTap: onTap,
+          revealSerial: revealSerial,
+          revealDay: revealDay,
         );
       },
     );
@@ -118,12 +152,16 @@ class _DayScroller extends StatefulWidget {
     required this.log,
     required this.selectedDay,
     required this.onTap,
+    required this.revealSerial,
+    required this.revealDay,
   });
 
   final double dayWidth;
   final CallLog log;
   final DateTime selectedDay;
   final VoidCallback onTap;
+  final int revealSerial;
+  final DateTime? revealDay;
 
   @override
   State<_DayScroller> createState() => _DayScrollerState();
@@ -148,7 +186,10 @@ class _DayScrollerState extends State<_DayScroller> {
   @override
   void didUpdateWidget(_DayScroller oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedDay != widget.selectedDay) {
+    // シートの確定は日付が同じでも届く。一覧の移動は選択日の変化で届く
+    if (oldWidget.revealSerial != widget.revealSerial) {
+      _reveal(widget.revealDay ?? widget.selectedDay);
+    } else if (oldWidget.selectedDay != widget.selectedDay) {
       _reveal(widget.selectedDay);
     }
   }
@@ -214,24 +255,27 @@ class _DayScrollerState extends State<_DayScroller> {
         controller: _controller,
         scrollDirection: Axis.horizontal,
         physics: _DaySnapPhysics(dayWidth: widget.dayWidth),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _onTap,
-          child: Listener(
-            onPointerDown: (_) => _dragged = false,
-            child: Row(
-              children: [
-                for (final date in _days)
-                  SizedBox(
-                    width: widget.dayWidth,
+        child: Listener(
+          onPointerDown: (_) => _dragged = false,
+          child: Row(
+            children: [
+              for (final date in _days)
+                SizedBox(
+                  width: widget.dayWidth,
+                  child: _PressColor(
+                    onTap: _onTap,
+                    foreground: date == widget.selectedDay
+                        ? AppColors.paperRaised
+                        : AppColors.inkPrimary,
+                    radius: AppRadius.borderRadius,
                     child: _MiniDay(
                       date: date,
                       log: widget.log,
                       selectedDay: widget.selectedDay,
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),
@@ -326,6 +370,65 @@ class _MiniDay extends StatelessWidget {
                 : AppColors.lineStrong,
           ),
         ],
+      ),
+    );
+  }
+}
+
+// 押している間だけ前景色を薄く重ねる。波紋は出さない。
+class _PressColor extends StatefulWidget {
+  const _PressColor({
+    required this.onTap,
+    required this.foreground,
+    required this.child,
+    this.radius,
+  });
+
+  final VoidCallback onTap;
+  final Color foreground;
+  final Widget child;
+  final BorderRadius? radius;
+
+  @override
+  State<_PressColor> createState() => _PressColorState();
+}
+
+class _PressColorState extends State<_PressColor> {
+  var _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 色は指が触れた瞬間に出す。タップの確定を待つと、一覧のスクロールと
+    // 競合しているあいだは押している色が出ない
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: (_) => _setPressed(true),
+      onPointerUp: (_) => _setPressed(false),
+      onPointerCancel: (_) => _setPressed(false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Stack(
+          children: [
+            widget.child,
+            if (_pressed)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppPressable.overlayOf(widget.foreground),
+                      borderRadius: widget.radius,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

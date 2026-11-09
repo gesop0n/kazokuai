@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
+import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
@@ -61,6 +62,27 @@ Rect _stripRect(WidgetTester tester) => tester.getRect(
     matching: find.byType(Scrollable),
   ),
 );
+
+Finder _pressOverlay(Color foreground) {
+  final color = AppPressable.overlayOf(foreground);
+  return find.byWidgetPredicate((widget) {
+    final decoration = widget is DecoratedBox ? widget.decoration : null;
+    return decoration is BoxDecoration && decoration.color == color;
+  });
+}
+
+Future<void> _expectPressColor(
+  WidgetTester tester,
+  Finder target,
+  Color foreground,
+) async {
+  final gesture = await tester.startGesture(tester.getCenter(target));
+  await tester.pump();
+  expect(_pressOverlay(foreground), findsOneWidget);
+  await gesture.cancel();
+  await tester.pump();
+  expect(_pressOverlay(foreground), findsNothing);
+}
 
 void _expectOnlyRows(List<String> rows) {
   for (final row in _allRows) {
@@ -337,6 +359,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(CalendarSheet), findsNothing);
+      expect(_pressOverlay(AppColors.inkPrimary), findsNothing);
       expect(
         _stripPosition(tester).pixels,
         moreOrLessEquals(dayWidth * 6, epsilon: 1),
@@ -407,6 +430,86 @@ void main() {
       );
       expect(revealed.left, greaterThanOrEqualTo(strip.left - 1));
       expect(revealed.right, lessThanOrEqualTo(strip.right + 1));
+    });
+
+    testWidgets('押すと薄い色が重なり、指を離すと消える', (tester) async {
+      await pumpCallsScreen(tester, _mockLayout);
+
+      await _expectPressColor(tester, find.text('過去7日間'), AppColors.inkPrimary);
+      await _expectPressColor(
+        tester,
+        find.byKey(MiniCalendar.dayKey(DateTime(2026, 11, 4))),
+        AppColors.inkPrimary,
+      );
+      await _expectPressColor(
+        tester,
+        find.byKey(MiniCalendar.dayKey(DateTime(2026, 11, 5))),
+        AppColors.paperRaised,
+      );
+      expect(find.byType(CalendarSheet), findsNothing);
+    });
+
+    testWidgets('カードの余白と隙間を押すとシートが開く', (tester) async {
+      await pumpCallsScreen(tester, _mockLayout);
+      final card = tester.getRect(find.byType(MiniCalendar));
+
+      await tester.tapAt(card.topLeft + const Offset(4, 4));
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarSheet), findsOneWidget);
+
+      Navigator.of(tester.element(find.byType(CalendarSheet))).pop();
+      await tester.pumpAndSettle();
+
+      final today = tester.getRect(
+        find.byKey(MiniCalendar.dayKey(DateTime(2026, 11, 5))),
+      );
+      await tester.tapAt(Offset(card.left + 4, today.center.dy));
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarSheet), findsOneWidget);
+
+      Navigator.of(tester.element(find.byType(CalendarSheet))).pop();
+      await tester.pumpAndSettle();
+
+      // 枠 1、余白 8、見出し 24 のあとが、見出しと日付の 4pt の隙間
+      await tester.tapAt(Offset(card.center.dx, card.top + 1 + 8 + 24 + 2));
+      await tester.pumpAndSettle();
+      expect(find.byType(CalendarSheet), findsOneWidget);
+    });
+
+    testWidgets('同じ日をシートで選び直すと、隠れていても帯がその日まで戻る', (tester) async {
+      await pumpCallsScreen(tester, _mockLayout);
+      final dayWidth = _dayWidth(tester);
+      final today = DateTime(2026, 11, 5);
+
+      await tester.tap(find.text('過去7日間'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('11月5日の記録を見る'));
+      await tester.pumpAndSettle();
+      expect(
+        _stripPosition(tester).pixels,
+        moreOrLessEquals(dayWidth * 7, epsilon: 1),
+      );
+
+      _stripPosition(tester).jumpTo(0);
+      await tester.pumpAndSettle();
+      final strip = _stripRect(tester);
+      expect(
+        tester.getRect(find.byKey(MiniCalendar.dayKey(today))).right,
+        greaterThan(strip.right),
+      );
+
+      await tester.tap(find.text('過去7日間'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('11月5日の記録を見る'));
+      await tester.pumpAndSettle();
+
+      final revealed = tester.getRect(find.byKey(MiniCalendar.dayKey(today)));
+      expect(revealed.left, greaterThanOrEqualTo(strip.left - 1));
+      expect(revealed.right, lessThanOrEqualTo(strip.right + 1));
+      expect(
+        _stripPosition(tester).pixels,
+        moreOrLessEquals(dayWidth * 7, epsilon: 1),
+      );
     });
   });
 

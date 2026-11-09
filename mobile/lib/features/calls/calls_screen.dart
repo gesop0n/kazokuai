@@ -34,6 +34,8 @@ class _CallsScreenState extends State<CallsScreen> {
   final _headingKeys = <DateTime, GlobalKey>{};
 
   late DateTime _selectedDay = _log.days.first.date;
+  var _revealSerial = 0;
+  DateTime? _revealDay;
   bool _isScrolledUnder = false;
   // 最初の描画のあとで測り直す。値はモックの 04c の高さ
   double _pinnedHeight = 122;
@@ -98,6 +100,11 @@ class _CallsScreenState extends State<CallsScreen> {
       selectedDay: _selectedDay,
     );
     if (date == null || !mounted) return;
+    // 選択日が同じだと帯は追従しないので、確定のたびに合わせ直す
+    setState(() {
+      _revealSerial += 1;
+      _revealDay = date;
+    });
     _scrollToDay(date);
   }
 
@@ -140,6 +147,8 @@ class _CallsScreenState extends State<CallsScreen> {
                 key: _pinnedKey,
                 log: _log,
                 selectedDay: _selectedDay,
+                revealSerial: _revealSerial,
+                revealDay: _revealDay,
                 showsShadow: _isScrolledUnder,
                 onOpenCalendar: _openCalendar,
               ),
@@ -191,12 +200,16 @@ class _PinnedHeader extends StatelessWidget {
     super.key,
     required this.log,
     required this.selectedDay,
+    required this.revealSerial,
+    required this.revealDay,
     required this.showsShadow,
     required this.onOpenCalendar,
   });
 
   final CallLog log;
   final DateTime selectedDay;
+  final int revealSerial;
+  final DateTime? revealDay;
   final bool showsShadow;
   final VoidCallback onOpenCalendar;
 
@@ -220,6 +233,8 @@ class _PinnedHeader extends StatelessWidget {
       child: MiniCalendar(
         log: log,
         selectedDay: selectedDay,
+        revealSerial: revealSerial,
+        revealDay: revealDay,
         onTap: onOpenCalendar,
       ),
     );
