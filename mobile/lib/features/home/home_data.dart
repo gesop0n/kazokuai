@@ -81,7 +81,7 @@ class HomeView {
   // 今日の最後の電話。今日の電話がなければ null で、今日の様子は話していない
   final Call? todayCall;
 
-  // 伝言への返答。それより新しい電話のまとめが届いたら null
+  // 伝言への返答。それより新しい電話のまとめが作れたら null
   final Reply? reply;
 }
 

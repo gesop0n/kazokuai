@@ -171,7 +171,7 @@ func TestSummary(t *testing.T) {
 	})
 
 	t.Run("伝言のある電話のまとめは、伝えたことと、発話にある返答を残す", func(t *testing.T) {
-		started := time.Date(2026, 11, 7, 11, 0, 0, 0, time.UTC)
+		started := time.Date(2026, 11, 7, 13, 0, 0, 0, time.UTC)
 		s := newSystem(t, hanako, started)
 		s.gemini.setSummary(summaryResponse(`{
 			"headline": "伝言を伝えたそうです。",
@@ -229,7 +229,7 @@ func TestSummary(t *testing.T) {
 	})
 
 	t.Run("見守る方の発話にない返答は捨てる", func(t *testing.T) {
-		started := time.Date(2026, 11, 7, 12, 0, 0, 0, time.UTC)
+		started := time.Date(2026, 11, 7, 14, 0, 0, 0, time.UTC)
 		s := newSystem(t, hanako, started)
 		s.gemini.setSummary(summaryResponse(`{
 			"headline": "伝言を伝えたそうです。",

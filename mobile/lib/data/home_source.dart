@@ -9,7 +9,7 @@ const _notTalked = '話していない';
 
 // Firestore の見守る方と電話のドキュメントを、ホームの型にする。
 // 直近の電話は期間に関係なくいちばん新しいもの、今日の様子はその日の最後の電話。
-// 返答は、まとめが届いているいちばん新しい電話のもので、届いていなければ出さない。
+// 返答は、まとめを作れた電話のうちいちばん新しいもの。作れなかった電話では前の返答を残す。
 HomeView homeViewFrom({
   required Map<String, dynamic> person,
   required List<Map<String, dynamic>> calls,
@@ -46,8 +46,9 @@ HomeView homeViewFrom({
   );
 }
 
-// 返答のある電話のうち最新のものを、それより新しい電話のまとめが届くまで出す。
-// 新しい順に見て、まとめが届いた最初の電話に返答がなければ出さない。
+// 返答のある電話のうち最新のものを、それより新しい電話のまとめが作れたときまで出す。
+// 新しい順に見て、まとめが作れた最初の電話に返答がなければ出さない。
+// 作れなかった電話はまとめが届いていないので飛ばす。
 Reply? _replyUntilLaterSummary(List<_ParsedCall> calls) {
   for (final call in calls) {
     if (!call.summaryArrived) continue;
@@ -89,7 +90,7 @@ _ParsedCall? _callFrom(Map<String, dynamic> data) {
         ],
       ),
     ),
-    summaryArrived: state == _summaryMade || state == _summaryNotMade,
+    summaryArrived: made,
     reply: made ? _replyFrom(summary, startedAt) : null,
   );
 }

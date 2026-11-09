@@ -314,7 +314,7 @@ void main() {
     expect(home.latestCall!.id, 'newer');
   });
 
-  test('まとめを作れなかったあとの電話では、前の返答を出さない', () async {
+  test('まとめを作れなかったあとの電話でも、前の返答を出す', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
     await _call(
@@ -334,7 +334,8 @@ void main() {
 
     final home = await _home(firestore, DateTime(2026, 11, 5, 11, 10));
 
-    expect(home.reply, isNull);
+    expect(home.reply!.text, 'わかったよ。玄関で待ってるね。');
+    expect(home.latestCall!.id, 'newer');
     expect(home.latestCall!.summary.headline, 'まとめを作れませんでした');
   });
 
