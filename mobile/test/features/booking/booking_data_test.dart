@@ -205,6 +205,53 @@ void main() {
       );
     });
 
+    test('update は伝えたいことと日時だけを変え、通話内容は残す', () {
+      final notifier = container.read(bookedCallsProvider.notifier);
+
+      notifier.update(
+        1,
+        at: DateTime(2026, 11, 8, 9, 5),
+        message: '夕食のあとに電話する',
+      );
+
+      final calls = container.read(bookedCallsProvider);
+      expect(calls.map((call) => call.message), [
+        '話し相手',
+        '週末に帰ると伝える',
+        '夕食のあとに電話する',
+      ]);
+      expect(calls[2].at, DateTime(2026, 11, 8, 9, 5));
+      expect(calls[2].script, '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」');
+      expect(calls[0].script, '「ハナさん、こんにちは。\n体調はいかがですか。」');
+      expect(calls[1].message, '週末に帰ると伝える');
+    });
+
+    test('update は日時が同じなら並びを動かさない', () {
+      final notifier = container.read(bookedCallsProvider.notifier);
+
+      notifier.update(0, at: DateTime(2026, 11, 5, 12), message: '昼に話す');
+
+      final calls = container.read(bookedCallsProvider);
+      expect(calls.map((call) => call.message), [
+        '昼に話す',
+        '薬と戸締まりの確認',
+        '週末に帰ると伝える',
+      ]);
+      expect(calls.first.script, '「ハナさん、こんにちは。\n体調はいかがですか。」');
+    });
+
+    test('update は同じ日時の予約の後ろに入る', () {
+      final notifier = container.read(bookedCallsProvider.notifier);
+
+      notifier.update(2, at: DateTime(2026, 11, 5, 12), message: '週末に帰ると伝える');
+
+      expect(container.read(bookedCallsProvider).map((call) => call.message), [
+        '話し相手',
+        '週末に帰ると伝える',
+        '薬と戸締まりの確認',
+      ]);
+    });
+
     test('ルールの初期値は 15 分おきに 3 回', () {
       final rule = container.read(retryRuleProvider);
 

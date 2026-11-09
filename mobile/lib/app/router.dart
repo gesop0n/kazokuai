@@ -12,6 +12,7 @@ import 'package:kazokuai/features/account/register_screen.dart';
 import 'package:kazokuai/features/account/sample_documents.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
+import 'package:kazokuai/features/booking/booking_edit_screen.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
@@ -34,6 +35,7 @@ abstract final class AppRoutes {
   static const ask = 'ask';
   static const callDetail = 'callDetail';
   static const retryRule = 'retryRule';
+  static const bookingEdit = 'bookingEdit';
 }
 
 // ログインする前に開ける画面は、すべてこの下に置く
@@ -177,6 +179,13 @@ GoRouter createAppRouter({
         path: '/ask',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const AskScreen(),
+      ),
+      GoRoute(
+        name: AppRoutes.bookingEdit,
+        path: '/booking/edit/:index',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) =>
+            BookingEditScreen(index: int.parse(state.pathParameters['index']!)),
       ),
       GoRoute(
         name: AppRoutes.retryRule,

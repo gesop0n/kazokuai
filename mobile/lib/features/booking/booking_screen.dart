@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
@@ -65,7 +64,8 @@ class _BookedCallsCard extends ConsumerWidget {
           spacing: 10,
           children: [
             const Text('予約している電話', style: AppTextStyles.titleM),
-            for (final call in calls) _BookedRow(call),
+            for (final (index, call) in calls.indexed)
+              _BookedRow(call, index: index),
           ],
         ),
       ],
@@ -75,9 +75,10 @@ class _BookedCallsCard extends ConsumerWidget {
 
 // モックの bookedRow。1 行に日時、伝えたいこと、シェブロンが並ぶ
 class _BookedRow extends StatelessWidget {
-  const _BookedRow(this.call);
+  const _BookedRow(this.call, {required this.index});
 
   final BookedCall call;
+  final int index;
 
   @override
   Widget build(BuildContext context) {
@@ -86,7 +87,10 @@ class _BookedRow extends StatelessWidget {
         border: Border(top: BorderSide(color: AppColors.line)),
       ),
       child: AppPressable(
-        onTap: () => showComingSoon(context),
+        onTap: () => context.pushNamed(
+          AppRoutes.bookingEdit,
+          pathParameters: {'index': '$index'},
+        ),
         foregroundColor: AppColors.inkPrimary,
         shape: const RoundedRectangleBorder(),
         padding: const EdgeInsets.only(top: 10),
