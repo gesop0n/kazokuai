@@ -62,3 +62,13 @@ output "phone_shared_secret" {
   description = "電話機の合言葉を入れる Secret Manager の名前。値は出力しない。"
   value       = google_secret_manager_secret.phone_shared_secret.secret_id
 }
+
+output "workload_identity_provider" {
+  description = "GitHub Actions が使う Workload Identity のプロバイダー。名前はプロジェクト番号を含む。秘密の値は出ない。"
+  value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "deploy_service_account" {
+  description = "GitHub Actions が使うデプロイ用のサービスアカウントのメールアドレス。鍵は作らない。"
+  value       = google_service_account.deploy.email
+}

@@ -1,8 +1,10 @@
 # プロジェクトの引数を読む。source してから parse_gcp_args を呼ぶ。
 # 呼び出し側が usage を定義する。
 # GCP_FLAGS は受け付ける名前、GCP_REQUIRED は空を拒む名前。どちらも空白区切り。
-# 読んだ値は project, billing_account, image, state_bucket, region に入る。
-# region の既定は asia-northeast1。
+# 読んだ値は project, billing_account, image, state_bucket, region と、
+# firebase_api_key, firebase_auth_domain, firebase_app_id,
+# firebase_messaging_sender_id, firebase_project_id, firebase_storage_bucket に入る。
+# region の既定は asia-northeast1。firebase_storage_bucket は空でもよい。
 
 reject_gcp_value() {
   local name=$1
@@ -35,6 +37,12 @@ parse_gcp_args() {
   image=""
   state_bucket=""
   region="asia-northeast1"
+  firebase_api_key=""
+  firebase_auth_domain=""
+  firebase_app_id=""
+  firebase_messaging_sender_id=""
+  firebase_project_id=""
+  firebase_storage_bucket=""
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -118,6 +126,102 @@ parse_gcp_args() {
         region="${1#*=}"
         shift
         ;;
+      --firebase-api-key)
+        gcp_flag_allowed firebase-api-key || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_api_key="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-api-key=*)
+        gcp_flag_allowed firebase-api-key || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_api_key="${1#*=}"
+        shift
+        ;;
+      --firebase-auth-domain)
+        gcp_flag_allowed firebase-auth-domain || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_auth_domain="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-auth-domain=*)
+        gcp_flag_allowed firebase-auth-domain || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_auth_domain="${1#*=}"
+        shift
+        ;;
+      --firebase-app-id)
+        gcp_flag_allowed firebase-app-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_app_id="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-app-id=*)
+        gcp_flag_allowed firebase-app-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_app_id="${1#*=}"
+        shift
+        ;;
+      --firebase-messaging-sender-id)
+        gcp_flag_allowed firebase-messaging-sender-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_messaging_sender_id="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-messaging-sender-id=*)
+        gcp_flag_allowed firebase-messaging-sender-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_messaging_sender_id="${1#*=}"
+        shift
+        ;;
+      --firebase-project-id)
+        gcp_flag_allowed firebase-project-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_project_id="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-project-id=*)
+        gcp_flag_allowed firebase-project-id || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_project_id="${1#*=}"
+        shift
+        ;;
+      --firebase-storage-bucket)
+        gcp_flag_allowed firebase-storage-bucket || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_storage_bucket="${2-}"
+        shift 2 || usage
+        ;;
+      --firebase-storage-bucket=*)
+        gcp_flag_allowed firebase-storage-bucket || {
+          echo "不明な引数: $1" >&2
+          usage
+        }
+        firebase_storage_bucket="${1#*=}"
+        shift
+        ;;
       -h | --help) usage ;;
       *)
         echo "不明な引数: $1" >&2
@@ -134,6 +238,16 @@ parse_gcp_args() {
       image) reject_gcp_value "image" "$image" ;;
       state-bucket) reject_gcp_value "state-bucket" "$state_bucket" ;;
       region) reject_gcp_value "region" "$region" ;;
+      firebase-api-key) reject_gcp_value "firebase-api-key" "$firebase_api_key" ;;
+      firebase-auth-domain) reject_gcp_value "firebase-auth-domain" "$firebase_auth_domain" ;;
+      firebase-app-id) reject_gcp_value "firebase-app-id" "$firebase_app_id" ;;
+      firebase-messaging-sender-id) reject_gcp_value "firebase-messaging-sender-id" "$firebase_messaging_sender_id" ;;
+      firebase-project-id) reject_gcp_value "firebase-project-id" "$firebase_project_id" ;;
+      firebase-storage-bucket)
+        if [[ -n "$firebase_storage_bucket" ]]; then
+          reject_gcp_value "firebase-storage-bucket" "$firebase_storage_bucket"
+        fi
+        ;;
       *)
         echo "未知の必須引数: ${name}" >&2
         exit 2

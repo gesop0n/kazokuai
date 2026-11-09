@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Terraform の output で本番向けの Web 版をビルドし、Firebase Hosting に公開する。
+# 本番向けの Web 版をビルドし、Firebase Hosting に公開する。
 # プロジェクトは引数だけで決める。引数がなければ terraform も flutter も firebase も起動しない。
-# Firebase のクライアント設定はビルドの引数にだけ渡し、リポジトリのファイルには書かない。
+# Firebase のクライアント設定は、Terraform の output か引数から取る。リポジトリのファイルには書かない。
+# 引数で渡すときは Terraform を起動しない。GitHub Actions は状態のバケットを読まない。
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -11,21 +12,49 @@ source "$root/scripts/gcp_args.sh"
 usage() {
   cat <<'EOF' >&2
 使い方: scripts/deploy_web.sh --project=ID --state-bucket=BUCKET [--region=REGION]
+        scripts/deploy_web.sh --project=ID [--region=REGION] \
+          --firebase-api-key=KEY --firebase-auth-domain=DOMAIN \
+          --firebase-app-id=ID --firebase-messaging-sender-id=ID \
+          --firebase-project-id=ID [--firebase-storage-bucket=BUCKET]
 
-プロジェクト ID と状態のバケットは、毎回引数で渡す。
+プロジェクト ID は、毎回引数で渡す。
 Hosting の /api/** は firebase.json で asia-northeast1 のサービス kazokuai に回している。
-公開先は firebase.json の site で、Terraform の hosting_url と見比べる。
+公開先は firebase.json の site である。--state-bucket を付けたときは、Terraform の hosting_url と見比べる。
+Firebase の設定を引数で渡すときは、--state-bucket は付けない。
 EOF
   exit 2
 }
 
-GCP_FLAGS="project state-bucket region"
-GCP_REQUIRED="$GCP_FLAGS"
+GCP_FLAGS="project state-bucket region firebase-api-key firebase-auth-domain firebase-app-id firebase-messaging-sender-id firebase-project-id firebase-storage-bucket"
+GCP_REQUIRED="project region"
 parse_gcp_args "$@"
 
 if [[ "$region" != "asia-northeast1" ]]; then
   echo "Hosting の /api/** は firebase.json で asia-northeast1 の kazokuai に回しています。リージョンが違うと Web 版は公開しません。" >&2
   exit 1
+fi
+
+firebase_direct=0
+if [[ -n "$firebase_api_key$firebase_auth_domain$firebase_app_id$firebase_messaging_sender_id$firebase_project_id$firebase_storage_bucket" ]]; then
+  firebase_direct=1
+fi
+if [[ "$firebase_direct" -eq 1 && -n "$state_bucket" ]]; then
+  echo "Firebase の設定を引数で渡すときは、--state-bucket は付けません。" >&2
+  exit 2
+fi
+if [[ "$firebase_direct" -eq 0 && -z "$state_bucket" ]]; then
+  echo "--state-bucket か、Firebase の設定の引数が要ります。" >&2
+  exit 2
+fi
+if [[ "$firebase_direct" -eq 1 ]]; then
+  reject_gcp_value "firebase-api-key" "$firebase_api_key"
+  reject_gcp_value "firebase-auth-domain" "$firebase_auth_domain"
+  reject_gcp_value "firebase-app-id" "$firebase_app_id"
+  reject_gcp_value "firebase-messaging-sender-id" "$firebase_messaging_sender_id"
+  reject_gcp_value "firebase-project-id" "$firebase_project_id"
+  if [[ -n "$firebase_storage_bucket" ]]; then
+    reject_gcp_value "firebase-storage-bucket" "$firebase_storage_bucket"
+  fi
 fi
 
 if ! hosting_site=$(python3 -I - "$root/firebase/firebase.json" <<'PY'
@@ -48,18 +77,20 @@ fi
 
 export_gcp_project
 
-terraform -chdir="$root/infra" init \
-  -input=false \
-  -reconfigure \
-  -backend-config="bucket=${state_bucket}" \
-  -backend-config="prefix=kazokuai"
+cloud_run_uri=""
+if [[ "$firebase_direct" -eq 0 ]]; then
+  terraform -chdir="$root/infra" init \
+    -input=false \
+    -reconfigure \
+    -backend-config="bucket=${state_bucket}" \
+    -backend-config="prefix=kazokuai"
 
-out=$(mktemp)
-defs=$(mktemp)
-trap 'rm -f "$out" "$defs"' EXIT
-terraform -chdir="$root/infra" output -json >"$out"
+  out=$(mktemp)
+  defs=$(mktemp)
+  trap 'rm -f "$out" "$defs"' EXIT
+  terraform -chdir="$root/infra" output -json >"$out"
 
-python3 -I - "$out" >"$defs" <<'PY'
+  python3 -I - "$out" >"$defs" <<'PY'
 import json, shlex, sys
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -87,20 +118,24 @@ for name in names:
     print(f"{name}={shlex.quote(value)}")
 PY
 
-# shellcheck disable=SC1090
-source "$defs"
+  # shellcheck disable=SC1090
+  source "$defs"
+
+  if [[ "$cloud_run_region" != "asia-northeast1" || "$cloud_run_service" != "kazokuai" ]]; then
+    echo "Hosting の /api/** は firebase.json で asia-northeast1 の kazokuai に回しています。output が違うと Web 版は公開しません。" >&2
+    exit 1
+  fi
+  expected_url="https://${hosting_site}.web.app"
+  if [[ "$hosting_url" != "$expected_url" ]]; then
+    echo "firebase.json の site は ${hosting_site} です。Terraform の hosting_url（${hosting_url}）が ${expected_url} と違うと Web 版は公開しません。" >&2
+    exit 1
+  fi
+else
+  hosting_url="https://${hosting_site}.web.app"
+fi
 
 if [[ "$firebase_project_id" != "$project" ]]; then
-  echo "Terraform の firebase_project_id（${firebase_project_id}）が --project（${project}）と違います。" >&2
-  exit 1
-fi
-if [[ "$cloud_run_region" != "asia-northeast1" || "$cloud_run_service" != "kazokuai" ]]; then
-  echo "Hosting の /api/** は firebase.json で asia-northeast1 の kazokuai に回しています。output が違うと Web 版は公開しません。" >&2
-  exit 1
-fi
-expected_url="https://${hosting_site}.web.app"
-if [[ "$hosting_url" != "$expected_url" ]]; then
-  echo "firebase.json の site は ${hosting_site} です。Terraform の hosting_url（${hosting_url}）が ${expected_url} と違うと Web 版は公開しません。" >&2
+  echo "Firebase のプロジェクト ID（${firebase_project_id}）が --project（${project}）と違います。" >&2
   exit 1
 fi
 
@@ -129,4 +164,6 @@ cp -R "$root/mobile/build/web/." "$hosting_dir/"
 )
 
 printf 'Web 版: %s\n' "$hosting_url"
-printf '電話機がつなぐ URL: %s\n' "$cloud_run_uri"
+if [[ -n "$cloud_run_uri" ]]; then
+  printf '電話機がつなぐ URL: %s\n' "$cloud_run_uri"
+fi

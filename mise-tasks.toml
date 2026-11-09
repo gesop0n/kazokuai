@@ -72,12 +72,12 @@ dir = "{{config_root}}"
 run = "infra/run.sh untaint"
 
 ["deploy:backend"]
-description = "バックエンドのイメージを linux/amd64 で作り、Artifact Registry に上げ、そのイメージで apply する。例: mise run deploy:backend -- --project=ID --billing-account=ID --state-bucket=BUCKET"
+description = "バックエンドのイメージを linux/amd64 で作り、Artifact Registry に上げ、gcloud run deploy で新しいリビジョンにする。例: mise run deploy:backend -- --project=ID"
 dir = "{{config_root}}"
 run = "scripts/deploy_backend.sh"
 
 ["deploy:web"]
-description = "Terraform の output で本番向けの Web 版をビルドし、firebase.json の site へ公開する。例: mise run deploy:web -- --project=ID --state-bucket=BUCKET"
+description = "本番向けの Web 版をビルドし、firebase.json の site へ公開する。設定は Terraform の output か Firebase の引数。例: mise run deploy:web -- --project=ID --state-bucket=BUCKET"
 dir = "{{config_root}}"
 run = "scripts/deploy_web.sh"
 
