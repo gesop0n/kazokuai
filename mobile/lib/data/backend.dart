@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 
 // バックエンドのアドレス。ビルドするときに --dart-define=BACKEND_URL=<アドレス> で変えられる。
@@ -47,5 +48,49 @@ class Backend {
     if (response.statusCode != 201) {
       throw const RegisterWatchedPersonException();
     }
+  }
+
+  // 今すぐ通話を始める。電話機がつながっていなければ PhoneNotConnectedException、
+  // それ以外で始められなければ ImmediateCallException を投げる
+  Future<void> startImmediateCall({
+    required String idToken,
+    required String message,
+    required String script,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            Uri.parse('$_backendUrl/calls/now'),
+            headers: {
+              'Authorization': 'Bearer $idToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'message': message, 'script': script}),
+          )
+          .timeout(_timeout);
+    } on http.ClientException {
+      throw const ImmediateCallException();
+    } on TimeoutException {
+      throw const ImmediateCallException();
+    }
+    if (response.statusCode == 409 && _isPhoneNotConnected(response.body)) {
+      throw const PhoneNotConnectedException();
+    }
+    if (response.statusCode != 201) {
+      throw const ImmediateCallException();
+    }
+  }
+}
+
+// protocol.PhoneNotConnected と合わせる
+const _phoneNotConnected = 'phone_not_connected';
+
+bool _isPhoneNotConnected(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    return decoded is Map && decoded['error'] == _phoneNotConnected;
+  } on FormatException {
+    return false;
   }
 }

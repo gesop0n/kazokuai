@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -19,29 +20,50 @@ import (
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
-// Device は、バックエンドからトークンをもらい、電話機で電話をする。
+// Device は、バックエンドとつながり続け、来た指示ごとに電話をする。
 type Device struct {
 	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080
 	Backend string
-	Gemini  Gemini
-	Phone   Phone
+	// WatchedPerson は、この電話機の見守る方の ID である。起動するときに渡す。
+	WatchedPerson string
+	Gemini        Gemini
+	Phone         Phone
 	// Out は、開発者が見るターミナルである。両方の文字起こしを 1 行ずつ書く。
+	// 接続のつなぎ直しはここへ書かない。文字起こしの行と混ざる。
 	Out io.Writer
-	// Clock は、呼び出しの上限と電話の長さを測る。
+	// Clock は、呼び出しの上限と電話の長さと、つなぎ直す間隔を測る。
 	Clock Clock
+	// AfterCall は、1 回の電話が終わったときに、そのエラーを渡して呼ぶ。本番は nil。
+	// テストが、パッケージの外から電話の終わりを見るために使う。
+	AfterCall func(error)
+
+	mu         sync.Mutex
+	cancelCall context.CancelFunc
+	// stopping は、StopCall から、その電話を止めるまで真である。
+	// 指示を読み取る直前に止めても、その電話を始めない。
+	stopping bool
 }
 
 // errNoAnswer は、呼び出しの上限を過ぎても受話器が上がらなかったときである。
 var errNoAnswer = errors.New("見守る方が出ませんでした")
 
-// Call は 1 回の電話をする。呼び出しを始め、受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
+// place は、callID の電話を 1 回する。呼び出しを始め、受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
 // 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
-func (d *Device) Call(ctx context.Context) error {
-	// 報告の送信は、後始末の defer より先に登録する。
-	// defer は登録の逆順に動くので、送信はマイクを止め、まだ流していない音を捨て、接続を閉じ、ランプを消したあとに行われる。
+func (d *Device) place(ctx context.Context, link callLink, callID string) error {
+	// 待っているあいだの Enter を、この電話の受話器上げにしない。
+	d.Phone.Hook.Prepare()
+	// Rest を最初に登録する。defer は逆順なので、状態と報告を送り終えてからフックを戻す。
+	defer d.Phone.Hook.Rest()
+
+	// 報告の送信は、音声の後始末の defer より先に登録する。
+	// 送信はマイクを止め、まだ流していない音を捨て、接続を閉じ、ランプを消したあとに行われる。
 	// 送信は最大 reportTimeout 待つ。そのあいだ受話器の後始末を残すと、置いたあとも音声が流れ、ランプが点いたままになる。
 	var pending *protocol.CallReport
+	// 途中で失敗した電話は、つながらなかった。出なかったときと、受話器が上がったあとは、下の処理が書き換える。
+	endState := protocol.StateFailed
 	defer func() {
+		// 電話の context が取り消されたあとも、最後の状態は届ける。
+		d.sendState(link, callID, endState)
 		if pending == nil {
 			return
 		}
@@ -51,7 +73,7 @@ func (d *Device) Call(ctx context.Context) error {
 		}
 	}()
 
-	token, err := d.fetchToken(ctx)
+	token, err := d.fetchToken(ctx, callID)
 	if err != nil {
 		return fmt.Errorf("短命トークンをもらえなかった: %w", err)
 	}
@@ -77,6 +99,7 @@ func (d *Device) Call(ctx context.Context) error {
 	ringTimer := d.Clock.NewTimer(token.Times.RingTimeout)
 	defer ringTimer.Stop()
 	ringC := ringTimer.Chan()
+	d.sendState(link, callID, protocol.StateRinging)
 	d.Phone.Ringer.Ring()
 	ringing := true
 	defer func() {
@@ -104,7 +127,10 @@ func (d *Device) Call(ctx context.Context) error {
 		lines.flush()
 		if !lines.pickedUp.IsZero() {
 			built := lines.report(d.Clock.Now())
+			built.CallID = callID
+			built.WatchedPersonID = d.WatchedPerson
 			pending = &built
+			endState = protocol.StateEnded
 		}
 		closeMic()
 		d.Phone.Handset.Hush()
@@ -118,6 +144,7 @@ func (d *Device) Call(ctx context.Context) error {
 			return ctx.Err()
 
 		case <-ringC:
+			endState = protocol.StateMissed
 			return errNoAnswer
 
 		case <-wrapUpC:
@@ -137,6 +164,8 @@ func (d *Device) Call(ctx context.Context) error {
 				d.Phone.Ringer.Stop()
 				ringTimer.Stop()
 				ringC = nil
+				// 送れなくても、電話そのものは続ける。最後の状態は、終わるときに改めて送る。
+				d.sendState(link, callID, protocol.StateTalking)
 				untilCue := token.Times.MaxCall - token.Times.WrapUpBefore
 				if untilCue < 0 {
 					untilCue = 0
@@ -544,12 +573,35 @@ func (d *Device) sendReport(report protocol.CallReport) error {
 	return nil
 }
 
+// stateTimeout は、電話の状態を 1 通送るときに待つ上限である。
+const stateTimeout = 5 * time.Second
+
+// sendState は、電話の状態をバックエンドへ 1 通送る。失敗しても送り直さない。
+// 文字起こしのターミナルには書かない。
+func (d *Device) sendState(link callLink, callID, state string) {
+	ctx, cancel := context.WithTimeout(context.Background(), stateTimeout)
+	defer cancel()
+	err := link.Send(ctx, protocol.PhoneMessage{
+		Type:   protocol.PhoneTypeState,
+		CallID: callID,
+		State:  state,
+	})
+	if err != nil {
+		log.Printf("電話の状態 %s を送れなかった: %v", state, err)
+	}
+}
+
 // fetchToken は、バックエンドからこの電話の短命トークンをもらう。
-func (d *Device) fetchToken(ctx context.Context) (*protocol.TokenResponse, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.TokenPath, nil)
+func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.TokenResponse, error) {
+	body, err := json.Marshal(protocol.TokenRequest{CallID: callID, WatchedPersonID: d.WatchedPerson})
 	if err != nil {
 		return nil, err
 	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.TokenPath, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err

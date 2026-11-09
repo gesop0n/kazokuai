@@ -83,7 +83,7 @@ func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "見守る方を登録できなかった", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("見守る方を登録しました。この見守る方に電話をかけるときは、--watched-person %s で起動し直してください", id)
+	log.Printf("見守る方を登録しました。この見守る方の電話機は、--watched-person %s で起動してください", id)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(registered{ID: id})
@@ -110,12 +110,6 @@ func createWatchedPerson(ctx context.Context, store *firestore.Client, person wa
 		return "", err
 	}
 	return ref.ID, nil
-}
-
-// CheckWatchedPerson は、id の見守る方が Firestore にいて、名前と呼び方を読めることを確かめる。
-func CheckWatchedPerson(ctx context.Context, firebase Firebase, id string) error {
-	_, err := readWatchedPerson(ctx, firebase.Firestore, id)
-	return err
 }
 
 // readWatchedPerson は、id の見守る方を Firestore から読む。

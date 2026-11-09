@@ -86,10 +86,10 @@ const summaryInstruction = `あなたは、見守る方と AI の電話から、
 `
 
 // makeSummary は、保存した電話のまとめを裏で作り、結果をその電話に書く。
-func (s *server) makeSummary(callID string, report protocol.CallReport) {
+func (s *server) makeSummary(personID, callID string, report protocol.CallReport) {
 	ctx, cancel := context.WithTimeout(context.Background(), summaryTimeout)
 	defer cancel()
-	ref := s.firebase.Firestore.Collection(watchedPersons).Doc(s.config.WatchedPerson).Collection(callsCollection).Doc(callID)
+	ref := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection).Doc(callID)
 	var last error
 	for attempt := 1; attempt <= summaryAttempts; attempt++ {
 		if attempt > 1 && s.config.SummaryRetryWait > 0 {

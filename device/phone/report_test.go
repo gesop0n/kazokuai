@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 // morning は、報告のテストで電話を始める時刻である。ほかのテストの時刻と重ねない。
@@ -150,13 +152,12 @@ func TestCallReport(t *testing.T) {
 		}
 	})
 
-	t.Run("受話器が上がらなかった電話は、報告しない", func(t *testing.T) {
+	t.Run("受話器が上がらなかった電話は、出なかったになり、発話も始まりの時刻も残らない", func(t *testing.T) {
 		started := morning.Add(time.Hour)
 		s := newSystem(t, hanako, started)
 		c := s.startCall(t)
 		s.gemini.waitForSession(t, 1)
 		waitUntil(t, "呼び出し音が鳴らなかった", s.phone.isRinging)
-		before := len(callsOf(t))
 
 		s.clock.advance(time.Minute)
 
@@ -164,8 +165,12 @@ func TestCallReport(t *testing.T) {
 		if err == nil {
 			t.Fatal("見守る方が出なかったのに、電話が無事に終わった")
 		}
-		if got := len(callsOf(t)); got != before {
-			t.Errorf("電話の件数 = %d, want 報告しないので %d", got, before)
+		doc := waitState(t, c.id, protocol.StateMissed)
+		if _, ok := doc.Data()["startedAt"].(time.Time); ok {
+			t.Error("出なかった電話に始まりの時刻がある")
+		}
+		if got := utterancesOf(t, doc.Ref); len(got) != 0 {
+			t.Errorf("発話 = %+v, want 残さない", got)
 		}
 	})
 }
@@ -271,7 +276,7 @@ func waitCall(t *testing.T, started time.Time) *firestore.DocumentSnapshot {
 
 func callsOf(t *testing.T) []*firestore.DocumentSnapshot {
 	t.Helper()
-	docs, err := emulators.Firestore.Collection("watchedPersons").Doc(hanako.WatchedPerson).
+	docs, err := emulators.Firestore.Collection("watchedPersons").Doc(hanakoID).
 		Collection("calls").Documents(t.Context()).GetAll()
 	if err != nil {
 		t.Fatal(err)

@@ -1,9 +1,12 @@
 package phone_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +26,11 @@ import (
 
 const waitTimeout = 5 * time.Second
 
+const (
+	testMessage = "金曜の通院、10時に迎えに行くと伝えて"
+	testScript  = "「ハナさん、美咲さんからご伝言です。」"
+)
+
 // waitUntil は、cond が true を返すまで待つ。
 func waitUntil(t *testing.T, what string, cond func() bool) {
 	t.Helper()
@@ -35,7 +43,7 @@ func waitUntil(t *testing.T, what string, cond func() bool) {
 	}
 }
 
-// system は、テストの中で動かすバックエンドと、そこからトークンをもらうデバイスである。
+// system は、テストの中で動かすバックエンドと、そこへつながり続けるデバイスである。
 type system struct {
 	phone    *fakePhone
 	gemini   *fakeGemini
@@ -45,18 +53,27 @@ type system struct {
 	backend  *httptest.Server
 	// reportHold は、電話の報告の応答をテストが返すまで止める。止めていなければ素通りする。
 	reportHold reportHold
+	api        *server.Handler
+	swap       *swapHandler
+	config     server.Config
+	cancel     context.CancelFunc
+	// results は、終わった電話のエラーを 1 つだけ受け取る。前の電話が終わる前に、次の startCall を呼ばない。
+	results chan error
+	runDone chan struct{}
 }
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
-	s := &system{}
-	handler := server.New(config, emulators, gemini, gemini, clock)
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		s.reportHold.wait(r.URL.Path)
-		handler.ServeHTTP(w, r)
-	}))
+	s := &system{
+		config:  config,
+		results: make(chan error, 1),
+		runDone: make(chan struct{}),
+	}
+	s.api = server.New(config, emulators, gemini, gemini, clock)
+	s.swap = &swapHandler{handler: s.api, hold: &s.reportHold}
+	backend := httptest.NewServer(s.swap)
 	t.Cleanup(backend.Close)
 	p := &fakePhone{hook: make(chan phone.HookEvent, 4)}
 	term := &terminal{}
@@ -66,13 +83,85 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	s.clock = clock
 	s.backend = backend
 	s.device = &phone.Device{
-		Backend: backend.URL,
-		Gemini:  gemini,
-		Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
-		Out:     term,
-		Clock:   clock,
+		Backend:       backend.URL,
+		WatchedPerson: hanakoID,
+		Gemini:        gemini,
+		Phone:         phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
+		Out:           term,
+		Clock:         clock,
+		AfterCall: func(err error) {
+			s.results <- err
+		},
 	}
+	runCtx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	go func() {
+		defer close(s.runDone)
+		_ = s.device.Run(runCtx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-s.runDone:
+		case <-time.After(waitTimeout):
+			t.Error("テストの終わりに電話機が終わらなかった")
+		}
+	})
 	return s
+}
+
+// stopPhone は、電話機の接続を切る。バックエンドは動いたままである。
+func (s *system) stopPhone(t *testing.T) {
+	t.Helper()
+	s.cancel()
+	select {
+	case <-s.runDone:
+	case <-time.After(waitTimeout):
+		t.Fatal("電話機が終わらなかった")
+	}
+	waitUntil(t, "電話機がつながったまま", func() bool { return !s.api.Connected(hanakoID) })
+}
+
+// restartBackend は、バックエンドを止めてから空のメモリーで起動し直す。電話機がつなぎ直すまで待つ。
+func (s *system) restartBackend(t *testing.T) {
+	t.Helper()
+	s.api.Stop()
+	s.api = server.New(s.config, emulators, s.gemini, s.gemini, s.clock)
+	s.swap.set(s.api)
+	deadline := time.Now().Add(waitTimeout)
+	for !s.api.Connected(hanakoID) {
+		if time.Now().After(deadline) {
+			t.Fatal("待っても電話機がつなぎ直さなかった")
+		}
+		// タイマーは、切れてから作られる。進めても無ければ、次の周でまた進める。
+		s.clock.advance(time.Second)
+		time.Sleep(time.Millisecond)
+	}
+}
+
+// swapHandler は、テストの途中でバックエンドの Handler を差し替える。URL は変えない。
+type swapHandler struct {
+	mu      sync.RWMutex
+	handler http.Handler
+	hold    *reportHold
+}
+
+func (s *swapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.hold.wait(r.URL.Path)
+	s.mu.RLock()
+	h := s.handler
+	s.mu.RUnlock()
+	if h == nil {
+		http.Error(w, "止めています", http.StatusServiceUnavailable)
+		return
+	}
+	h.ServeHTTP(w, r)
+}
+
+func (s *swapHandler) set(h http.Handler) {
+	s.mu.Lock()
+	s.handler = h
+	s.mu.Unlock()
 }
 
 // holdReport は、このあとの電話の報告に、releaseReport まで応答しないようにする。
@@ -147,20 +236,31 @@ func (h *reportHold) wait(path string) {
 
 // call は、動いている 1 回の電話である。
 type call struct {
-	ended chan struct{}
-	err   error
+	id      string
+	ended   chan struct{}
+	err     error
+	abandon chan struct{}
 }
 
 func (s *system) startCall(t *testing.T) *call {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	c := &call{ended: make(chan struct{})}
+	waitUntil(t, "電話機がつながらなかった", func() bool { return s.api.Connected(hanakoID) })
+	c := &call{ended: make(chan struct{}), abandon: make(chan struct{})}
 	go func() {
-		c.err = s.device.Call(ctx)
+		select {
+		case c.err = <-s.results:
+		case <-c.abandon:
+		}
 		close(c.ended)
 	}()
+	id, err := postStart(s.backend.URL, familyToken, testMessage, testScript)
+	if err != nil {
+		close(c.abandon)
+		t.Fatalf("今すぐ通話を始められなかった: %v", err)
+	}
+	c.id = id
 	t.Cleanup(func() {
-		cancel()
+		s.device.StopCall()
 		select {
 		case <-c.ended:
 		case <-time.After(waitTimeout):
@@ -170,7 +270,50 @@ func (s *system) startCall(t *testing.T) *call {
 	return c
 }
 
-// result は、電話が終わるのを待ち、Call が返したエラーを返す。
+// postNow は、今すぐ通話の API を 1 回呼び、ステータスと本文を返す。
+func postNow(url, token, message, script string) (int, string, error) {
+	body, err := json.Marshal(map[string]string{"message": message, "script": script})
+	if err != nil {
+		return 0, "", err
+	}
+	req, err := http.NewRequest(http.MethodPost, url+protocol.StartCallPath, bytes.NewReader(body))
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	text, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+	return resp.StatusCode, string(text), nil
+}
+
+func postStart(url, token, message, script string) (string, error) {
+	status, text, err := postNow(url, token, message, script)
+	if err != nil {
+		return "", err
+	}
+	if status != http.StatusCreated {
+		return "", fmt.Errorf("今すぐ通話が %d を返した: %s", status, text)
+	}
+	var started struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(text), &started); err != nil {
+		return "", err
+	}
+	if started.ID == "" {
+		return "", errors.New("今すぐ通話が電話の ID を返さなかった")
+	}
+	return started.ID, nil
+}
+
+// result は、電話が終わるのを待ち、そのエラーを返す。
 func (c *call) result(t *testing.T) error {
 	t.Helper()
 	select {
@@ -311,6 +454,10 @@ func (p *fakePhone) Hush() {
 }
 
 func (p *fakePhone) Events() <-chan phone.HookEvent { return p.hook }
+
+// Prepare と Rest は何もしない。テストは、上げ下げを直接送る。
+func (p *fakePhone) Prepare() {}
+func (p *fakePhone) Rest()    {}
 
 func (p *fakePhone) Ring() { p.set(&p.ringing, true) }
 func (p *fakePhone) Stop() { p.set(&p.ringing, false) }

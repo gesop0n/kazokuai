@@ -1,10 +1,9 @@
-// backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録を受け、電話の報告からまとめを作るバックエンドのプログラムである。
-// 電話をかける見守る方は、アプリで登録したときの ID をフラグで渡す。名前と呼び方は、トークンを作るたびに Firestore から読む。
-// フラグがなければ、見守る方の登録だけを受ける。
+// backend は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話を受け、電話の報告からまとめを作るバックエンドのプログラムである。
+// 電話をかける見守る方は、電話機が接続するときに渡す。名前と呼び方は、トークンを作るたびに Firestore から読む。
 // Gemini の API キーは環境変数 GEMINI_API_KEY から読み、デバイスには渡さない。
 // Firebase は、環境変数 FIRESTORE_EMULATOR_HOST と FIREBASE_AUTH_EMULATOR_HOST のエミュレーターを使う。
 //
-//	mise run backend -- --watched-person <見守る方の ID>
+//	mise run backend
 package main
 
 import (
@@ -49,7 +48,6 @@ func main() {
 }
 
 func defineFlags(fs *flag.FlagSet, config *server.Config) {
-	fs.StringVar(&config.WatchedPerson, "watched-person", "", "電話をかける見守る方の ID。アプリで見守る方を登録すると、バックエンドのログに出る")
 	fs.StringVar(&config.Model, "model", defaultModel, "Live API のモデル")
 	fs.StringVar(&config.Voice, "voice", defaultVoice, "AI の声の名前")
 	fs.DurationVar(&config.RingTimeout, "ring-timeout", defaultRingTimeout, "呼び出しの上限")
@@ -93,12 +91,7 @@ func run(config server.Config) error {
 		return err
 	}
 	defer firebase.Firestore.Close()
-	if config.WatchedPerson == "" {
-		log.Print("--watched-person がないので、見守る方の登録だけを受けます。電話をかけるときは、アプリで登録した見守る方の ID を --watched-person で指定して、起動し直してください")
-	} else if err := server.CheckWatchedPerson(ctx, firebase, config.WatchedPerson); err != nil {
-		return fmt.Errorf("--watched-person=%s の見守る方を Firestore から読めないので、起動できません。エミュレーターを起動し直すと、登録した見守る方は消えます: %w", config.WatchedPerson, err)
-	}
-	log.Printf("http://%s でトークンを渡し、見守る方の登録と電話の報告を受けます。モデル: %s、声: %s、まとめ: %s", addr, config.Model, config.Voice, config.SummaryModel)
+	log.Printf("http://%s で電話機の接続とトークンを受け、見守る方の登録と今すぐ通話と電話の報告を受けます。モデル: %s、声: %s、まとめ: %s", addr, config.Model, config.Voice, config.SummaryModel)
 	return http.ListenAndServe(addr, server.New(config, firebase, client.AuthTokens, client.Models, systemClock{}))
 }
 

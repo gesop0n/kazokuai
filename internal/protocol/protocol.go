@@ -7,8 +7,42 @@ import (
 )
 
 // TokenPath は、電話を始めるときにデバイスが短命トークンをもらう、バックエンドのパスである。
-// デバイスは何も入れずに POST する。
+// デバイスは TokenRequest を JSON で入れて POST する。
 const TokenPath = "/token"
+
+// PhonePath は、電話機がつなぎ続ける WebSocket のパスである。
+// クエリ watchedPerson に、見守る方の ID を付ける。同期を作るまでは認証しない。
+const PhonePath = "/phone"
+
+// StartCallPath は、ログインした家族が今すぐ通話を始めるパスである。
+// Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に伝えたいことと通話内容を JSON で入れて POST する。
+const StartCallPath = "/calls/now"
+
+// PhoneNotConnected は、電話機がつながっていないので今すぐ通話を始められなかった、というエラーである。
+// アプリはこれを見て「電話機につながっていません」と出す。
+const PhoneNotConnected = "phone_not_connected"
+
+// WebSocket のメッセージの種類である。
+const (
+	// PhoneTypeCall は、バックエンドが電話機に送る、電話をかける指示である。
+	PhoneTypeCall = "call"
+	// PhoneTypeState は、電話機がバックエンドに送る、電話の状態である。
+	PhoneTypeState = "state"
+)
+
+// 電話の状態である。電話機が変わるたびに送り、バックエンドが電話の文書に書く。
+const (
+	// StateRinging は呼び出し中である。
+	StateRinging = "呼び出し中"
+	// StateTalking は通話中である。
+	StateTalking = "通話中"
+	// StateEnded は、受話器が上がった電話が終わったときである。
+	StateEnded = "終わった"
+	// StateMissed は、見守る方が出なかったときである。
+	StateMissed = "出なかった"
+	// StateFailed は、電話が終わる前に電話機が失敗したか、接続が切れたときである。
+	StateFailed = "つながらなかった"
+)
 
 // GeminiAPIVersion は、短命トークンを作るときと、それで Live API につなぐときに使う API のバージョンである。
 // Go の SDK では、短命トークンに v1alpha が要る。
@@ -53,7 +87,7 @@ type CallTimes struct {
 }
 
 // CallReportPath は、電話が終わったときにデバイスが報告を送る、バックエンドのパスである。
-// 認証は付けない。バックエンドは 202 Accepted をすぐ返す。
+// 認証は付けない。報告には、その電話の ID と見守る方の ID を付ける。バックエンドは 202 Accepted をすぐ返す。
 const CallReportPath = "/calls"
 
 // 発話の話した人である。
@@ -76,12 +110,34 @@ type Utterance struct {
 
 // CallReport は、受話器が上がった電話が終わったときの報告である。
 type CallReport struct {
+	// CallID は、この電話の ID である。
+	CallID string `json:"callId"`
+	// WatchedPersonID は、この電話の見守る方の ID である。
+	WatchedPersonID string `json:"watchedPersonId"`
 	// StartedAt は、受話器を上げた時刻である。
 	StartedAt time.Time `json:"startedAt"`
 	// DurationMs は、受話器を上げてから電話が終わるまでのミリ秒である。
 	DurationMs int64 `json:"durationMs"`
 	// Utterances は、始まった順の発話である。
 	Utterances []Utterance `json:"utterances"`
+}
+
+// TokenRequest は、TokenPath にデバイスが送る本文である。
+type TokenRequest struct {
+	// CallID は、トークンをもらう電話の ID である。
+	CallID string `json:"callId"`
+	// WatchedPersonID は、その電話の見守る方の ID である。
+	WatchedPersonID string `json:"watchedPersonId"`
+}
+
+// PhoneMessage は、電話機とバックエンドの WebSocket でやり取りする 1 通である。
+type PhoneMessage struct {
+	// Type は、PhoneTypeCall か PhoneTypeState である。
+	Type string `json:"type"`
+	// CallID は、このメッセージの電話の ID である。
+	CallID string `json:"callId"`
+	// State は、PhoneTypeState のときの電話の状態である。
+	State string `json:"state,omitempty"`
 }
 
 // TokenResponse は、TokenPath のレスポンスである。

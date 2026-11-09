@@ -37,14 +37,14 @@ description = "scripts/ のテスト"
 run = "python3 -I -m unittest discover -s {{config_root}}/scripts -p '*_test.py'"
 
 [backend]
-description = "バックエンドを起動する。GEMINI_API_KEY が要る。先に emulators を起動しておく。例: mise run backend -- --watched-person <見守る方の ID>"
+description = "バックエンドを起動する。GEMINI_API_KEY が要る。先に emulators を起動しておく。見守る方の ID は電話機に渡す"
 dir = "{{config_root}}"
 # firebase/firebase.json のポートと合わせる
 env = { FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099", FIRESTORE_EMULATOR_HOST = "127.0.0.1:8081" }
 run = "go run ./backend"
 
 [device]
-description = "Mac で電話機のプログラムを起動する。イヤホンを付けて使う。先に backend を起動しておく"
+description = "Mac で電話機のプログラムを起動する。イヤホンを付けて使う。先に backend を起動しておく。例: mise run device -- --watched-person <見守る方の ID>"
 dir = "{{config_root}}"
 run = "go run ./device"
 
