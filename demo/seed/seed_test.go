@@ -97,6 +97,7 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	if got.WatchedPersonID != "tanaka-hana" {
 		t.Fatalf("見守る方の ID = %s", got.WatchedPersonID)
 	}
+	assertJudgeName(t, ctx, accounts, got.UID)
 	if signInStatus(t, email, first) != http.StatusOK {
 		t.Fatal("最初のパスワードで審査員がログインできなかった")
 	}
@@ -151,11 +152,14 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	if _, err := store.Collection("tutorialSeen").Doc(other.UID).Set(ctx, map[string]any{"seen": true}); err != nil {
 		t.Fatal(err)
 	}
-
+	if _, err := accounts.UpdateUser(ctx, got.UID, (&auth.UserToUpdate{}).DisplayName("別の名前")); err != nil {
+		t.Fatal(err)
+	}
 	again := seedJudge(t, ctx, store, accounts, email, next, today)
 	if again.WatchedPersonID != got.WatchedPersonID || again.UID != got.UID {
 		t.Fatalf("戻したあとの ID = %+v, 最初 = %+v", again, got)
 	}
+	assertJudgeName(t, ctx, accounts, again.UID)
 	if signInStatus(t, email, next) != http.StatusOK {
 		t.Fatal("新しいパスワードで審査員がログインできなかった")
 	}
@@ -199,6 +203,17 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	}
 	if otherSeen.Data()["seen"] != true {
 		t.Fatalf("別の家族のチュートリアル = %v", otherSeen.Data())
+	}
+}
+
+func assertJudgeName(t *testing.T, ctx context.Context, accounts *auth.Client, uid string) {
+	t.Helper()
+	user, err := accounts.GetUser(ctx, uid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.DisplayName != judgeDisplayName {
+		t.Fatalf("審査員の名前 = %q", user.DisplayName)
 	}
 }
 

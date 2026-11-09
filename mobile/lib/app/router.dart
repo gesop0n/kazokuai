@@ -17,6 +17,9 @@ import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/settings/account_info_screen.dart';
+import 'package:kazokuai/features/settings/logout_screen.dart';
+import 'package:kazokuai/features/settings/settings_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 import 'package:kazokuai/features/tutorial/tutorial_shell.dart';
 
@@ -37,6 +40,9 @@ abstract final class AppRoutes {
   static const callDetailById = 'callDetailById';
   static const retryRule = 'retryRule';
   static const bookingEdit = 'bookingEdit';
+  static const settings = 'settings';
+  static const accountInfo = 'accountInfo';
+  static const logout = 'logout';
 }
 
 // ログインする前に開ける画面は、すべてこの下に置く
@@ -189,6 +195,26 @@ GoRouter createAppRouter({
         builder: (context, state) => const AskScreen(),
       ),
       GoRoute(
+        name: AppRoutes.settings,
+        path: '/settings',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const SettingsScreen(),
+        routes: [
+          GoRoute(
+            name: AppRoutes.accountInfo,
+            path: 'account',
+            builder: (context, state) => const AccountInfoScreen(),
+            routes: [
+              GoRoute(
+                name: AppRoutes.logout,
+                path: 'logout',
+                builder: (context, state) => const LogoutScreen(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      GoRoute(
         name: AppRoutes.bookingEdit,
         path: '/booking/edit/:index',
         parentNavigatorKey: rootNavigatorKey,
@@ -217,11 +243,14 @@ void popOrGoToParent(BuildContext context) {
   });
 }
 
-// 01 はホームからも予約電話からも開く。属するタブはホーム。
+// 01 と設定はホームからも開く。属するタブはホーム。
+// アカウント情報は設定の上、ログアウトの確認はその上に開く。
 // 予約の編集とかけなおしのルールは、予約電話の上に開く。
 String? _screenParent(String? routeName) {
   return switch (routeName) {
-    AppRoutes.ask => AppRoutes.home,
+    AppRoutes.ask || AppRoutes.settings => AppRoutes.home,
+    AppRoutes.accountInfo => AppRoutes.settings,
+    AppRoutes.logout => AppRoutes.accountInfo,
     AppRoutes.bookingEdit || AppRoutes.retryRule => AppRoutes.booking,
     _ => null,
   };

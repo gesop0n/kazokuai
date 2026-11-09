@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
@@ -33,7 +32,7 @@ class HomeScreen extends ConsumerWidget {
       return _Frame(
         person: shown.person,
         now: shown.now,
-        onOpenSettings: () => showComingSoon(context),
+        onOpenSettings: () => context.pushNamed(AppRoutes.settings),
         body: switch (status) {
           HomeStatus.normal => _HomeCards(data: shown),
           HomeStatus.missedCall => MissedCallView(
@@ -103,7 +102,7 @@ class _LiveHome extends StatelessWidget {
         return _Frame(
           person: view.person,
           now: view.now,
-          onOpenSettings: () => showComingSoon(context),
+          onOpenSettings: () => context.pushNamed(AppRoutes.settings),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             spacing: 12,

@@ -4,17 +4,31 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 
 // メールアドレスとパスワードの組を覚えておき、一致したときだけログインする
+// モックの 08e と同じ、見本の家族
+final sampleFamilyAccount = FamilyAccount(
+  name: '田中 太郎',
+  email: 'tanaka.taro@example.com',
+  signInMethod: SignInMethod.emailAndPassword,
+  registeredOn: DateTime(2026, 11, 5),
+);
+
 class FakeAuthRepository implements AuthRepository {
   FakeAuthRepository({
     bool signedIn = false,
     Map<String, String> accounts = const {},
     this.unreachable = false,
     this.resetFailures = 0,
+    this.nameUpdateFails = false,
+    FamilyAccount? account,
   }) : signedIn = ValueNotifier(signedIn),
+       account = ValueNotifier(account),
        accounts = Map<String, String>.of(accounts);
 
   @override
   final ValueNotifier<bool> signedIn;
+
+  @override
+  final ValueNotifier<FamilyAccount?> account;
 
   // メールアドレスからパスワードを引く。登録すると増える
   final Map<String, String> accounts;
@@ -31,6 +45,12 @@ class FakeAuthRepository implements AuthRepository {
 
   // 0 より大きいあいだ、再設定のメールは送れない。送ろうとするたびに 1 減る
   int resetFailures;
+
+  // true のときは、名前を保存できない
+  bool nameUpdateFails;
+
+  // updateName に渡された、いちばん新しい名前。失敗したときも残る
+  String? submittedName;
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -75,10 +95,25 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<void> signOut() async {
     signedIn.value = false;
+    account.value = null;
+  }
+
+  @override
+  Future<void> updateName(String name) async {
+    submittedName = name;
+    if (nameUpdateFails) throw const UpdateNameException();
+    final current = account.value;
+    if (current == null) throw const UpdateNameException();
+    account.value = FamilyAccount(
+      name: name,
+      email: current.email,
+      signInMethod: current.signInMethod,
+      registeredOn: current.registeredOn,
+    );
   }
 }
 
-// ログインしている家族としてアプリを開く
+// ログインしている家族としてアプリを開く。08e の見本も入っている
 Override signedInAuth() => authRepositoryProvider.overrideWithValue(
-  FakeAuthRepository(signedIn: true),
+  FakeAuthRepository(signedIn: true, account: sampleFamilyAccount),
 );
