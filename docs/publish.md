@@ -8,7 +8,7 @@ Gemini の API キー、電話機の合言葉、審査員のパスワードは�
 
 docker と gcloud は、このリポジトリの mise では入らない。人が用意する。
 
-以下の `PROJECT_ID` は、公開するプロジェクトの ID である。請求先アカウントは `XXXXXX-XXXXXX-XXXXXX`、リージョンは `asia-northeast1`、状態のバケットは名前だけである。`gs://` は付けない。`--region` は付けない。Hosting の `/api/**` は `firebase.json` で `asia-northeast1` のサービス `kazokuai` に回している。
+以下の `PROJECT_ID` は、Firebase のプロジェクト ID である。手順 2 で確かめる。請求先アカウントは `XXXXXX-XXXXXX-XXXXXX`、リージョンは `asia-northeast1`、状態のバケットは名前だけである。`gs://` は付けない。`--region` は付けない。Hosting の `/api/**` は `firebase.json` で `asia-northeast1` のサービス `kazokuai` に回している。
 
 ## 1. ログインする
 
@@ -20,15 +20,50 @@ gcloud auth application-default set-quota-project PROJECT_ID
 
 見本のデータを入れるタスクは、Cloud Run のサービスアカウントではなく、この人の認証情報で Firestore と Auth を書く。課金のプロジェクトは、上の `set-quota-project` でこのプロジェクトにする。
 
-## 2. 状態のバケットを作る
+## 2. Firebase を追加する
+
+公開する Google Cloud のプロジェクトが、まだ Firebase のプロジェクトでないときは、Firebase コンソールで、既存の Google Cloud プロジェクトに Firebase を追加する。
+
+Firebase のプロジェクト ID は、名前が似た Google Cloud のプロジェクトと違うことがある。末尾が `-574b3` のようになる。ここから先の `PROJECT_ID` は、Firebase コンソールに出ている ID にする。
+
+## 3. 状態のバケットを作る
 
 まだ無いときだけ作る。オブジェクトのバージョニングを付ける。コマンドは [infra/README.md](../infra/README.md) の「状態のバケット」にある。どちらにも `--project=PROJECT_ID` を付ける。
 
-## 3. すでにある資源を取り込む
+## 4. すでにある Hosting のサイトを取り込む
 
-Firestore の `(default)` や、プロジェクト ID と同じ Hosting のサイトが既にあるときは、作る前に取り込む。手順は [infra/README.md](../infra/README.md) の「すでに資源があるとき」にある。
+Firebase がプロジェクト ID と同じ名前の Hosting のサイトを既に作っているときは、手順 5 の bootstrap の apply の前に、状態へ取り込む。
 
-## 4. Cloud Run を作らずに apply する
+状態のバケットへまだ init していないときは、先に plan を 1 回実行する。
+
+```bash
+mise run infra:plan -- --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=asia-northeast1-docker.pkg.dev/PROJECT_ID/kazokuai/backend:bootstrap \
+  --state-bucket=BUCKET
+```
+
+import は `infra/run.sh` を通らない。プロジェクトは、次の環境変数で渡す。
+
+```bash
+export GOOGLE_PROJECT=PROJECT_ID
+export GOOGLE_CLOUD_PROJECT=PROJECT_ID
+export CLOUDSDK_CORE_PROJECT=PROJECT_ID
+export GOOGLE_BILLING_PROJECT=PROJECT_ID
+
+terraform -chdir=infra import \
+  -var=project_id=PROJECT_ID \
+  -var=region=asia-northeast1 \
+  -var=billing_account=XXXXXX-XXXXXX-XXXXXX \
+  -var=container_image=asia-northeast1-docker.pkg.dev/PROJECT_ID/kazokuai/backend:bootstrap \
+  google_firebase_hosting_site.web projects/PROJECT_ID/sites/PROJECT_ID
+```
+
+`container_image` は変数として要る。この URI は push しなくてよい。
+
+Firestore の `(default)` が既にあるときも、作る前に取り込む。コマンドは [infra/README.md](../infra/README.md) の「すでに資源があるとき」にある。
+
+## 5. Cloud Run を作らずに apply する
 
 `--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting、予算を作る。Cloud Run と、その公開の IAM は作らない。
 
@@ -44,7 +79,7 @@ mise run infra:apply -- --bootstrap \
 
 apply は確認を求める。API の有効化が行き渡る前に失敗したときは、同じコマンドをやり直す。
 
-## 5. 秘密の値を入れる
+## 6. 秘密の値を入れる
 
 値はコマンドの引数にも、リポジトリのファイルにも書かない。標準入力で渡す。
 
@@ -61,7 +96,7 @@ gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file
 - `PHONE_SECRET` は、`phone-shared-secret` に入れた合言葉と同じにする。電話機がこれを付ける。
 - `JUDGE_EMAIL` と `JUDGE_PASSWORD` は、審査員用アカウントである。パスワードは 6 文字以上にする。
 
-## 6. バックエンドを公開する
+## 7. バックエンドを公開する
 
 ```bash
 mise run deploy:backend -- \
@@ -74,9 +109,9 @@ Mac が Apple Silicon でも、イメージは `linux/amd64` で作る。Cloud R
 
 終わると、イメージの URI と、電話機がつなぐ URL を出す。
 
-push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 4 をやり直してから、もう一度このコマンドを実行する。`allUsers` の IAM で失敗したときは、手順 7 の組織ポリシーを直してからやり直す。Cloud Run が状態に tainted で残ったときは、うしろの「Cloud Run が tainted で残っているとき」で戻す。
+push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 5 をやり直してから、もう一度このコマンドを実行する。`allUsers` の IAM で失敗したときは、手順 8 の組織ポリシーを直してからやり直す。Cloud Run が状態に tainted で残ったときは、うしろの「Cloud Run が tainted で残っているとき」で戻す。
 
-## 7. コンソールでログインを有効にする
+## 8. コンソールでログインを有効にする
 
 審査員用アカウントを作る前に済ませる。
 
@@ -87,7 +122,7 @@ push が、Artifact Registry のリポジトリが無いと言って失敗した
 
 組織のポリシー `iam.allowedPolicyMemberDomains` が `allUsers` を拒むと、Cloud Run を公開する IAM が失敗する。そのときは、このプロジェクトで `allUsers` を許す。説明は [infra/README.md](../infra/README.md) の「公開の呼び出し」にある。
 
-## 8. Web 版を公開する
+## 9. Web 版を公開する
 
 ```bash
 mise run deploy:web -- --project=PROJECT_ID --state-bucket=BUCKET
@@ -97,7 +132,7 @@ Terraform の output をビルドの引数にして、Firebase Hosting に公開
 
 終わると `https://PROJECT_ID.web.app` を出す。スマホとパソコンのブラウザで開く。
 
-## 9. 審査員用アカウントを作る
+## 10. 審査員用アカウントを作る
 
 このシェルに `FIRESTORE_EMULATOR_HOST` や `FIREBASE_AUTH_EMULATOR_HOST` が残っていると、本物のプロジェクトには入れずに止まる。残っていれば unset する。
 
@@ -119,17 +154,17 @@ mise run demo:seed -- --project=PROJECT_ID
 - 予約電話は、アプリに初めから入っている見本である。Firestore には入っていない。
 - 通話記録のカレンダーは、電話がある日だけ印が付く。モックにある、行の無い日の印は付かない。
 
-## 10. 電話機をつなぐ
+## 11. 電話機をつなぐ
 
 この手順は、人が実行する。マイクとスピーカーを使う。
 
-`.env` の `PHONE_SECRET` を、手順 5 の合言葉と同じにしておく。mise が電話機に渡す。未設定のときは開発用の合言葉になるので、本番にはつながない。
+`.env` の `PHONE_SECRET` を、手順 6 の合言葉と同じにしておく。mise が電話機に渡す。未設定のときは開発用の合言葉になるので、本番にはつながない。
 
 ```bash
 mise run device -- --backend CLOUD_RUN_URI --watched-person tanaka-hana
 ```
 
-`CLOUD_RUN_URI` は、手順 6 が表示した URL である。`https` は `wss` になる。
+`CLOUD_RUN_URI` は、手順 7 が表示した URL である。`https` は `wss` になる。
 
 Web 版に審査員としてログインし、今すぐ通話を押すと、この電話機が鳴る。
 
@@ -145,7 +180,7 @@ Web 版に審査員としてログインし、今すぐ通話を押すと、こ�
 mise run infra:untaint -- --project=PROJECT_ID --state-bucket=BUCKET
 ```
 
-2. 手順 6 の `mise run deploy:backend` をやり直す。
+2. 手順 7 の `mise run deploy:backend` をやり直す。
 
 サービスを消して作り直すときは、上の untaint のあと、削除の保護を 1 回だけ外して apply する。イメージは、push 済みの URI にする。
 
