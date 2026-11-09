@@ -27,6 +27,8 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
   late bool _attemptsCustom;
   late final TextEditingController _minutesInput;
   late final TextEditingController _attemptsInput;
+  late final FocusNode _minutesFocus;
+  late final FocusNode _attemptsFocus;
 
   @override
   void initState() {
@@ -41,13 +43,24 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
     _attemptsInput = TextEditingController(
       text: _attemptsCustom ? '${rule.attempts}' : '',
     );
+    _minutesFocus = FocusNode();
+    _attemptsFocus = FocusNode();
   }
 
   @override
   void dispose() {
     _minutesInput.dispose();
     _attemptsInput.dispose();
+    _minutesFocus.dispose();
+    _attemptsFocus.dispose();
     super.dispose();
+  }
+
+  // 欄は選んだフレームで初めて木に入るので、描いたあとに入力の位置を移す
+  void _requestFocus(FocusNode node) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) node.requestFocus();
+    });
   }
 
   // 欄が空か範囲の外のあいだは、前の規則の流れを見せたまま保存させない
@@ -72,6 +85,7 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
         _draft = _draft.copyWith(interval: Duration(minutes: minutes));
       }
     });
+    _requestFocus(_minutesFocus);
   }
 
   void _onMinutesChanged(String text) {
@@ -98,6 +112,7 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
         _draft = _draft.copyWith(attempts: attempts);
       }
     });
+    _requestFocus(_attemptsFocus);
   }
 
   void _onAttemptsChanged(String text) {
@@ -139,15 +154,17 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                       customField: _minutesCustom
                           ? _NumberField(
                               controller: _minutesInput,
+                              focusNode: _minutesFocus,
+                              semanticLabel: 'かけなおす間隔を入力',
                               unit: '分',
                               onChanged: _onMinutesChanged,
                             )
                           : null,
                     ),
-                    // チップの上下の透明の余白 4 をふくめて、モックの間隔 20 になる
-                    const SizedBox(height: 16),
+                    // チップの下の余白 4 と合わせてモックの間隔 20。欄にはその余白がない
+                    SizedBox(height: _minutesCustom ? 20 : 16),
                     _ChoiceGroup(
-                      label: 'かける回数(最初の1回をふくむ)',
+                      label: 'かける回数',
                       choices: {
                         for (final attempts in RetryRule.attemptChoices)
                           attempts: '$attempts回',
@@ -159,12 +176,14 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                       customField: _attemptsCustom
                           ? _NumberField(
                               controller: _attemptsInput,
+                              focusNode: _attemptsFocus,
+                              semanticLabel: 'かける回数を入力',
                               unit: '回',
                               onChanged: _onAttemptsChanged,
                             )
                           : null,
                     ),
-                    const SizedBox(height: 16),
+                    SizedBox(height: _attemptsCustom ? 20 : 16),
                     AppCard(
                       variant: AppCardVariant.paper,
                       children: [
@@ -173,10 +192,14 @@ class _RetryRuleScreenState extends ConsumerState<RetryRuleScreen> {
                           style: AppTextStyles.labelM,
                         ),
                         _RetryFlow(rule: _draft),
+                        Text(
+                          _draft.flowSentence,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.inkSecondary,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-                    const _NotifiedPeople(),
                   ],
                 ),
               ),
@@ -233,9 +256,15 @@ class _ChoiceGroup<T> extends StatelessWidget {
               AppChip(
                 label: chipLabel,
                 selected: value == selected,
+                horizontalPadding: _retryChipPadding,
                 onTap: () => onSelected(value),
               ),
-            AppChip(label: '入力', selected: customSelected, onTap: onCustom),
+            AppChip(
+              label: 'その他',
+              selected: customSelected,
+              horizontalPadding: _retryChipPadding,
+              onTap: onCustom,
+            ),
           ],
         ),
         ?customField,
@@ -244,64 +273,64 @@ class _ChoiceGroup<T> extends StatelessWidget {
   }
 }
 
+// モックの [data-retry] .chip。面の高さは AppChip の 36、左右の余白だけ 12
+const _retryChipPadding = 12.0;
+
 class _NumberField extends StatelessWidget {
   const _NumberField({
     required this.controller,
+    required this.focusNode,
+    required this.semanticLabel,
     required this.unit,
     required this.onChanged,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
+  final String semanticLabel;
   final String unit;
   final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final style = AppTextStyles.labelL.copyWith(fontWeight: FontWeight.w400);
     return AppTextField(
       controller: controller,
-      semanticLabel: unit,
+      focusNode: focusNode,
+      semanticLabel: semanticLabel,
+      minHeight: 48,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      textStyle: style,
+      // モックの .field input。16/24 は labelL。500 は 400、数字の字間は 0
+      textStyle: AppTextStyles.labelL.copyWith(
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0,
+      ),
       onChanged: onChanged,
       trailing: ExcludeSemantics(
-        child: Text(unit, style: style.copyWith(color: AppColors.inkPrimary)),
+        child: Text(
+          unit,
+          style: AppTextStyles.labelM.copyWith(color: AppColors.inkPrimary),
+        ),
       ),
     );
   }
 }
 
-// モックの flowDot と flowLine。
+// モックの flowDot と flowLine。3 回より多いときは間を「…」にする
 class _RetryFlow extends StatelessWidget {
   const _RetryFlow({required this.rule});
-
-  // 朝 9:00 の電話を例にする
-  static final _firstCall = DateTime(2026, 11, 5, 9);
-
-  // 幅 68 の丸は幅 360 のカードに 4 つまで並ぶ。
-  // それを超えるときは 3 つずつに分け、最後の段は短くてよい。
-  static const _maxDotsInRow = 4;
-  static const _dotsInRowWhenSplit = 3;
 
   final RetryRule rule;
 
   @override
   Widget build(BuildContext context) {
-    final times = rule.attemptTimes(_firstCall);
-    final dots = [
-      for (final (index, time) in times.indexed)
-        _FlowDot(
-          icon: AppIcons.phone,
-          color: AppColors.inkPrimary,
-          time: formatTime(time),
-          label: Text(
-            '${index + 1}回目',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
-          ),
-          semanticLabel: '${formatTime(time)} ${index + 1}回目',
-        ),
+    final times = rule.attemptTimes(RetryRule.flowExampleStart);
+    final callIndexes = rule.attempts > 3
+        ? <int?>[0, null, rule.attempts - 1]
+        : <int?>[for (var i = 0; i < rule.attempts; i++) i];
+    final items = <Widget>[
+      for (final index in callIndexes)
+        index == null ? const _FlowEllipsis() : _callDot(times[index], index),
       _FlowDot(
         icon: AppIcons.bell,
         color: AppColors.stateAlert,
@@ -310,40 +339,55 @@ class _RetryFlow extends StatelessWidget {
         semanticLabel: '${formatTime(times.last)} 家族に通知',
       ),
     ];
-    final dotsInRow = dots.length <= _maxDotsInRow
-        ? dots.length
-        : _dotsInRowWhenSplit;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 12,
-      children: [
-        for (var start = 0; start < dots.length; start += dotsInRow)
-          _FlowRow(
-            dots.sublist(
-              start,
-              start + dotsInRow > dots.length ? dots.length : start + dotsInRow,
-            ),
-          ),
-      ],
+    return _FlowRow(items);
+  }
+
+  _FlowDot _callDot(DateTime time, int index) {
+    final clock = formatTime(time);
+    return _FlowDot(
+      icon: AppIcons.phone,
+      color: AppColors.inkPrimary,
+      time: clock,
+      label: Text(
+        '${index + 1}回目',
+        textAlign: TextAlign.center,
+        style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
+      ),
+      semanticLabel: '$clock ${index + 1}回目',
     );
   }
 }
 
 class _FlowRow extends StatelessWidget {
-  const _FlowRow(this.dots);
+  const _FlowRow(this.items);
 
-  final List<_FlowDot> dots;
+  final List<Widget> items;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final (index, dot) in dots.indexed) ...[
+        for (final (index, item) in items.indexed) ...[
           if (index > 0) const Expanded(child: _FlowLine()),
-          dot,
+          item,
         ],
       ],
+    );
+  }
+}
+
+class _FlowEllipsis extends StatelessWidget {
+  const _FlowEllipsis();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+      child: Text(
+        '…',
+        style: AppTextStyles.labelM.copyWith(color: AppColors.inkSecondary),
+      ),
     );
   }
 }
@@ -422,61 +466,6 @@ class _FlowLine extends StatelessWidget {
       height: 2,
       margin: const EdgeInsets.only(top: 17),
       color: AppColors.lineStrong,
-    );
-  }
-}
-
-class _NotifiedPeople extends StatelessWidget {
-  const _NotifiedPeople();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 8,
-      children: [
-        const Text('知らせる人', style: AppTextStyles.labelM),
-        AppCard(
-          variant: AppCardVariant.paper,
-          children: [
-            // このカードだけ間隔が 10 なので、1 つの Column にまとめる
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 10,
-              children: [
-                const _NotifiedPersonRow(name: '美咲(あなた)'),
-                Container(
-                  padding: const EdgeInsets.only(top: 10),
-                  decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: AppColors.line)),
-                  ),
-                  child: const _NotifiedPersonRow(name: '健太(弟)'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _NotifiedPersonRow extends StatelessWidget {
-  const _NotifiedPersonRow({required this.name});
-
-  final String name;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      spacing: 8,
-      children: [
-        Expanded(child: Text(name, style: AppTextStyles.labelL)),
-        Text(
-          'アプリに通知',
-          style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
-        ),
-      ],
     );
   }
 }

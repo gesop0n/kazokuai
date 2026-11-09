@@ -40,7 +40,7 @@ Future<void> _pumpRule(
   WidgetTester tester,
   LayoutCase layout, {
   RetryRule rule = const RetryRule(
-    interval: Duration(minutes: 10),
+    interval: Duration(minutes: 15),
     attempts: 3,
   ),
 }) => pumpScreenInLayout(
@@ -123,14 +123,13 @@ void main() {
   });
 
   group('07 の大きさがモックと同じ', () {
-    testWidgets('カードの高さは 146 と 103', (tester) async {
+    // モックの 07 を headless Chrome で測った。文は 2 行で、カードは高さ 198。
+    // 知らせる人のカードはない。
+    testWidgets('カードの高さは文をふくめて 198', (tester) async {
       await _pumpRule(tester, _mockLayout);
 
-      final cards = find.byType(AppCard);
-      expect(tester.getSize(cards.at(0)), const Size(361, 146));
-      await tester.ensureVisible(cards.at(1));
-      await tester.pumpAndSettle();
-      expect(tester.getSize(cards.at(1)), const Size(361, 103));
+      expect(find.byType(AppCard), findsOneWidget);
+      expect(tester.getSize(find.byType(AppCard)), const Size(361, 198));
     });
 
     testWidgets('見出しからカードまでの位置が同じ', (tester) async {
@@ -138,11 +137,11 @@ void main() {
 
       // モックは状態バーの 54 を引いた位置
       expect(tester.getTopLeft(find.text('かけなおす間隔')).dy, 114 - 54);
-      expect(tester.getTopLeft(find.text('かける回数(最初の1回をふくむ)')).dy, 198 - 54);
-      expect(tester.getTopLeft(find.byType(AppCard).first).dy, 282 - 54);
+      expect(tester.getTopLeft(find.text('かける回数')).dy, 198 - 54);
+      expect(tester.getTopLeft(find.byType(AppCard)).dy, 282 - 54);
 
       // チップの面は押せる領域の上下 4 の内側にある
-      final chip = tester.getTopLeft(find.widgetWithText(AppChip, '10分'));
+      final chip = tester.getTopLeft(find.widgetWithText(AppChip, '15分'));
       expect(chip.dy + 4, 142 - 54);
     });
 
@@ -180,7 +179,9 @@ void main() {
           final rule = RetryRule(interval: interval, attempts: attempts);
           await _pumpRule(tester, _narrowLargeLayout, rule: rule);
 
-          for (final time in rule.attemptTimes(DateTime(2026, 11, 5, 9))) {
+          final times = rule.attemptTimes(DateTime(2026, 11, 5, 9));
+          final shown = attempts > 3 ? [times.first, times.last] : times;
+          for (final time in shown) {
             final label =
                 '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
             for (final element in find.text(label).evaluate()) {
@@ -191,35 +192,34 @@ void main() {
               );
             }
           }
-          for (var i = 1; i <= attempts; i++) {
+          final attemptLabels = attempts > 3
+              ? ['1回目', '$attempts回目']
+              : [for (var i = 1; i <= attempts; i++) '$i回目'];
+          for (final label in attemptLabels) {
             expect(
-              tester.getSize(find.text('$i回目')).height,
+              tester.getSize(find.text(label)).height,
               _isOneLineOf(16, _narrowLargeLayout),
+              reason: label,
             );
           }
         });
       }
     }
 
-    testWidgets('60分おきに5回の時刻と回は 1 行に入る', (tester) async {
-      const rule = RetryRule(interval: Duration(minutes: 60), attempts: 5);
+    testWidgets('120分おきに10回の時刻と回は 1 行に入る', (tester) async {
+      const rule = RetryRule(interval: Duration(minutes: 120), attempts: 10);
       await _pumpRule(tester, _narrowLargeLayout, rule: rule);
 
-      for (final time in rule.attemptTimes(DateTime(2026, 11, 5, 9))) {
-        final label = '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
-        for (final element in find.text(label).evaluate()) {
+      for (final label in ['9:00', '3:00', '1回目', '10回目', '…']) {
+        final elements = find.text(label).evaluate();
+        expect(elements, isNotEmpty, reason: label);
+        for (final element in elements) {
           expect(
             (element.renderObject! as RenderBox).size.height,
-            _isOneLineOf(16, _narrowLargeLayout),
+            _isOneLineOf(label == '…' ? 20 : 16, _narrowLargeLayout),
             reason: label,
           );
         }
-      }
-      for (var i = 1; i <= rule.attempts; i++) {
-        expect(
-          tester.getSize(find.text('$i回目')).height,
-          _isOneLineOf(16, _narrowLargeLayout),
-        );
       }
     });
 

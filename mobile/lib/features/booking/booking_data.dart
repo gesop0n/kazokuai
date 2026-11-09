@@ -67,25 +67,27 @@ class RetryRule {
   static const intervalChoices = [
     Duration(minutes: 5),
     Duration(minutes: 10),
+    Duration(minutes: 15),
     Duration(minutes: 30),
   ];
   static const attemptChoices = [1, 2, 3];
 
-  // 「入力」で入れられる範囲。電話機が従うルールはここまで
+  // 「その他」で入れられる範囲。電話機が従うルールはここまで
   static const minimumMinutes = 1;
-  static const maximumMinutes = 60;
+  static const maximumMinutes = 120;
   static const minimumAttempts = 1;
-  static const maximumAttempts = 5;
+  static const maximumAttempts = 10;
+
+  // 朝 9:00 の電話を例にした、流れの文の起点
+  static final flowExampleStart = DateTime(2026, 11, 5, 9);
 
   final Duration interval;
 
   // 最初の 1 回をふくむ
   final int attempts;
 
-  // 45分。60分は1時間
-  static String intervalLabel(Duration interval) => interval.inMinutes < 60
-      ? '${interval.inMinutes}分'
-      : '${interval.inHours}時間';
+  // 間隔はいつも分で書く。90分は「90分」
+  static String intervalLabel(Duration interval) => '${interval.inMinutes}分';
 
   // 空、整数でない、範囲の外は null
   static int? minutesInRange(String text) =>
@@ -109,6 +111,16 @@ class RetryRule {
       ? '1回かけて、家族に通知'
       : '${intervalLabel(interval)}おきに$attempts回かけて、家族に通知';
 
+  // 07 の流れの下に出す文。1 回のときは、かけた時刻と同じ時刻に通知する
+  String get flowSentence {
+    final start = formatTime(flowExampleStart);
+    final notify = formatTime(attemptTimes(flowExampleStart).last);
+    if (attempts == 1) {
+      return '$startに1回かけて、出なければ$notifyに家族に通知します。';
+    }
+    return '$startから${intervalLabel(interval)}おきに$attempts回かけて、出なければ$notifyに家族に通知します。';
+  }
+
   // first を最初の回としたときの、各回の時刻
   List<DateTime> attemptTimes(DateTime first) => [
     for (var i = 0; i < attempts; i++) first.add(interval * i),
@@ -127,7 +139,7 @@ final retryRuleProvider = NotifierProvider<RetryRuleNotifier, RetryRule>(
 class RetryRuleNotifier extends Notifier<RetryRule> {
   @override
   RetryRule build() =>
-      const RetryRule(interval: Duration(minutes: 10), attempts: 3);
+      const RetryRule(interval: Duration(minutes: 15), attempts: 3);
 
   void save(RetryRule rule) => state = rule;
 }

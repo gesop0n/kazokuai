@@ -158,7 +158,7 @@ void main() {
     testWidgets('ルールの内容から文を作る', (tester) async {
       await _pumpBooking(tester);
 
-      expect(find.text('10分おきに3回かけて、家族に通知'), findsOneWidget);
+      expect(find.text('15分おきに3回かけて、家族に通知'), findsOneWidget);
 
       tester
           .container()
@@ -166,7 +166,7 @@ void main() {
           .save(const RetryRule(interval: Duration(hours: 1), attempts: 5));
       await tester.pump();
 
-      expect(find.text('1時間おきに5回かけて、家族に通知'), findsOneWidget);
+      expect(find.text('60分おきに5回かけて、家族に通知'), findsOneWidget);
     });
 
     testWidgets('1 回のルールは間隔を書かない', (tester) async {
@@ -225,7 +225,7 @@ void main() {
     testWidgets('ルールの行を押すと 07 を開く', (tester) async {
       await openBookingTab(tester);
 
-      await _tapVisible(tester, find.text('10分おきに3回かけて、家族に通知'));
+      await _tapVisible(tester, find.text('15分おきに3回かけて、家族に通知'));
 
       expect(find.byType(RetryRuleScreen), findsOneWidget);
     });
@@ -253,7 +253,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
-        tester.getBottomLeft(find.text('10分おきに3回かけて、家族に通知')).dy,
+        tester.getBottomLeft(find.text('15分おきに3回かけて、家族に通知')).dy,
         lessThanOrEqualTo(tester.getTopLeft(find.byType(AppTabBar)).dy),
       );
     });
@@ -276,7 +276,7 @@ void main() {
     testWidgets('ルールの行は名前と文をひとつのボタンとして読む', (tester) async {
       final handle = tester.ensureSemantics();
       await _pumpBooking(tester);
-      final row = find.bySemanticsLabel('かけなおしのルール\n10分おきに3回かけて、家族に通知');
+      final row = find.bySemanticsLabel('かけなおしのルール\n15分おきに3回かけて、家族に通知');
 
       expect(row, findsOneWidget);
       expect(
