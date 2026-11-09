@@ -43,8 +43,8 @@ void main() {
     expect(MediaQuery.textScalerOf(context).scale(10), 13);
   });
 
-  test('AppIcons は23個ある', () {
-    expect(AppIcons.values, hasLength(23));
+  test('AppIcons は22個ある', () {
+    expect(AppIcons.values, hasLength(22));
   });
 
   for (final icon in AppIcons.values) {

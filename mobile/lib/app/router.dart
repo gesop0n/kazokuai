@@ -151,6 +151,13 @@ GoRouter createAppRouter({
                 name: AppRoutes.calls,
                 path: '/calls',
                 builder: (context, state) => const CallsScreen(),
+                routes: [
+                  GoRoute(
+                    name: AppRoutes.callDetail,
+                    path: 'detail',
+                    builder: (context, state) => const CallDetailScreen(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -170,12 +177,6 @@ GoRouter createAppRouter({
         path: '/ask',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const AskScreen(),
-      ),
-      GoRoute(
-        name: AppRoutes.callDetail,
-        path: '/call-detail',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (context, state) => const CallDetailScreen(),
       ),
       GoRoute(
         name: AppRoutes.retryRule,

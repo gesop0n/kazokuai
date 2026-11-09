@@ -9,19 +9,17 @@ import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/home/home_format.dart';
 
-// 1 日分の見出しと行。見出しの合計は絞り込みによらず、その日の全部の電話を数える。
+// 1 日分の見出しと行。
 class CallDaySection extends StatelessWidget {
   const CallDaySection({
     super.key,
     required this.day,
-    required this.entries,
     required this.today,
     required this.headingKey,
     required this.onOpenCall,
   });
 
   final CallLogDay day;
-  final List<CallLogEntry> entries;
   final DateTime today;
   final Key headingKey;
   final VoidCallback onOpenCall;
@@ -37,7 +35,7 @@ class CallDaySection extends StatelessWidget {
           heading: formatDayHeading(day.date, today),
           total: formatDayTotal(day),
         ),
-        for (final entry in entries)
+        for (final entry in day.entries)
           switch (entry) {
             AnsweredCallEntry() => _CallRow(entry: entry, onTap: onOpenCall),
             MissedCallEntry() => _MissedRow(entry: entry),

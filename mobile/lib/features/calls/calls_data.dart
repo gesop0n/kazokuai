@@ -31,29 +31,6 @@ class MissedCallEntry extends CallLogEntry {
   const MissedCallEntry({required super.startedAt, required super.text});
 }
 
-enum CallFilter {
-  all('全部'),
-  health('体調'),
-  companion('話し相手'),
-  guidance('操作案内'),
-  missed('不在');
-
-  const CallFilter(this.label);
-
-  final String label;
-
-  bool matches(CallLogEntry entry) => switch (this) {
-    CallFilter.all => true,
-    CallFilter.health => _hasTopic(entry, CallTopic.health),
-    CallFilter.companion => _hasTopic(entry, CallTopic.companion),
-    CallFilter.guidance => _hasTopic(entry, CallTopic.guidance),
-    CallFilter.missed => entry is MissedCallEntry,
-  };
-
-  static bool _hasTopic(CallLogEntry entry, CallTopic topic) =>
-      entry is AnsweredCallEntry && entry.topic == topic;
-}
-
 class CallLogDay {
   const CallLogDay({required this.date, required this.entries});
 
@@ -64,9 +41,6 @@ class CallLogDay {
 
   Iterable<AnsweredCallEntry> get answeredEntries =>
       entries.whereType<AnsweredCallEntry>();
-
-  List<CallLogEntry> entriesMatching(CallFilter filter) =>
-      entries.where(filter.matches).toList();
 }
 
 enum DayMark { answered, missed }
@@ -86,9 +60,6 @@ class CallLog {
 
   // 電話に出た印はあるが、一覧に行がない日
   final Set<DateTime> answeredDaysWithoutRecord;
-
-  List<CallLogDay> daysMatching(CallFilter filter) =>
-      days.where((day) => day.entries.any(filter.matches)).toList();
 
   bool hasRecord(DateTime date) => days.any((day) => day.date == date);
 

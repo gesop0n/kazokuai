@@ -80,20 +80,6 @@ class GalleryScreen extends StatelessWidget {
               const _SectionLabel('入力欄の既定の高さ 56、AIのラベルの既定の色'),
               AppField(text: '話題を入力(例: 大相撲)', onTap: _noop),
               const AppAiTag(label: 'Geminiの言い方の案'),
-              const _SectionLabel('チップ 高さ 36(callChips)'),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final (index, label) in const [
-                    '全部',
-                    '体調',
-                    '話し相手',
-                    '操作案内',
-                    '不在',
-                  ].indexed)
-                    AppChip(label: label, selected: index == 0, onTap: _noop),
-                ],
-              ),
               const _SectionLabel('チップ 高さ 36、アイコンあり(topic)'),
               const Wrap(
                 spacing: 8,

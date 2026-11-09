@@ -55,6 +55,8 @@ void main() {
       '最後に話したとき',
       '7日間の電話',
       '朝の電話に出ていません',
+      '全部',
+      '操作案内',
     ]) {
       expect(find.textContaining(text), findsNothing, reason: text);
     }

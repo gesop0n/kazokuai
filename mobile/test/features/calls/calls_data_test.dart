@@ -30,51 +30,20 @@ void main() {
       );
     });
 
-    test('10月30日は印はあるが、記録はない', () {
-      final date = DateTime(2026, 10, 30);
+    test('10月23日から10月30日は印はあるが、記録はない', () {
+      for (var day = 23; day <= 30; day++) {
+        final date = DateTime(2026, 10, day);
 
-      expect(sampleCallLog.markOf(date), DayMark.answered);
-      expect(sampleCallLog.hasRecord(date), isFalse);
+        expect(sampleCallLog.markOf(date), DayMark.answered, reason: '$day');
+        expect(sampleCallLog.hasRecord(date), isFalse, reason: '$day');
+      }
     });
 
     test('印は電話に出た日、不在の日、印のない日に分かれる', () {
       expect(sampleCallLog.markOf(DateTime(2026, 11, 3)), DayMark.answered);
       expect(sampleCallLog.markOf(DateTime(2026, 11, 2)), DayMark.missed);
-      expect(sampleCallLog.markOf(DateTime(2026, 10, 29)), isNull);
+      expect(sampleCallLog.markOf(DateTime(2026, 10, 22)), isNull);
       expect(sampleCallLog.markOf(DateTime(2026, 11, 6)), isNull);
-    });
-  });
-
-  group('絞り込み', () {
-    List<DateTime> datesOf(CallFilter filter) =>
-        sampleCallLog.daysMatching(filter).map((day) => day.date).toList();
-
-    test('全部はすべての日を返す', () {
-      expect(datesOf(CallFilter.all), hasLength(6));
-    });
-
-    test('条件に合う電話がある日だけを返す', () {
-      expect(datesOf(CallFilter.health), [
-        DateTime(2026, 11, 5),
-        DateTime(2026, 11, 4),
-      ]);
-      expect(datesOf(CallFilter.companion), [
-        DateTime(2026, 11, 3),
-        DateTime(2026, 11, 1),
-        DateTime(2026, 10, 31),
-      ]);
-      expect(datesOf(CallFilter.guidance), [DateTime(2026, 11, 4)]);
-      expect(datesOf(CallFilter.missed), [DateTime(2026, 11, 2)]);
-    });
-
-    test('同じ日でも条件に合う行だけを返す', () {
-      final day = sampleCallLog.days[1];
-
-      expect(day.entriesMatching(CallFilter.all), hasLength(2));
-      expect(
-        day.entriesMatching(CallFilter.guidance).single.text,
-        'テレビの映し方を案内して解決',
-      );
     });
   });
 
