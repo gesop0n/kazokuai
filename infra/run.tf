@@ -7,6 +7,20 @@ resource "google_cloud_run_v2_service" "backend" {
   # 既定は true。外す 1 回は infra/run.sh apply --allow-replace を使う。
   deletion_protection = var.deletion_protection
 
+  # プロバイダーの deletion_policy。ForceNew ではないので、状態の値をその場で変える。
+  # PREVENT が状態に入ったあと、apply がこのサービスを消そうとすると失敗する。
+  deletion_policy = "PREVENT"
+
+  # gcloud run deploy が載せるイメージと、そのクライアント名を戻さない。
+  # タグは付けない。タグを付けると、次の plan がリビジョンの差分を出す。
+  lifecycle {
+    ignore_changes = [
+      client,
+      client_version,
+      template[0].containers[0].image,
+    ]
+  }
+
   # サービス全体の上限。改訂を切り替えているあいだも、インスタンスは 1 つを超えない。
   scaling {
     min_instance_count = 0
