@@ -146,6 +146,12 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if _, err := store.Collection("tutorialSeen").Doc(got.UID).Set(ctx, map[string]any{"seen": true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Collection("tutorialSeen").Doc(other.UID).Set(ctx, map[string]any{"seen": true}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := accounts.UpdateUser(ctx, got.UID, (&auth.UserToUpdate{}).DisplayName("別の名前")); err != nil {
 		t.Fatal(err)
 	}
@@ -187,6 +193,16 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	}
 	if _, err := shared.Collection("calls").Doc("keep").Get(ctx); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := store.Collection("tutorialSeen").Doc(got.UID).Get(ctx); err == nil {
+		t.Fatal("審査員のチュートリアルの記録が残っている")
+	}
+	otherSeen, err := store.Collection("tutorialSeen").Doc(other.UID).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if otherSeen.Data()["seen"] != true {
+		t.Fatalf("別の家族のチュートリアル = %v", otherSeen.Data())
 	}
 }
 

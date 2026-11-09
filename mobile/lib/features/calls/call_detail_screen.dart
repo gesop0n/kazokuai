@@ -16,6 +16,8 @@ import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 import 'package:kazokuai/features/calls/sample_calls_data.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 class CallDetailScreen extends ConsumerStatefulWidget {
   const CallDetailScreen({super.key, this.detail, this.callId});
@@ -138,11 +140,14 @@ class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: 12,
                   children: [
-                    _SummaryCard(
-                      detail: detail,
-                      onOpenUtterance: (at) =>
-                          _scrollToUtterance(detail.utterances, at),
-                      onCorrect: () => showComingSoon(context),
+                    TutorialAnchor(
+                      part: TutorialPart.summary,
+                      child: _SummaryCard(
+                        detail: detail,
+                        onOpenUtterance: (at) =>
+                            _scrollToUtterance(detail.utterances, at),
+                        onCorrect: () => showComingSoon(context),
+                      ),
                     ),
                     const Text('会話の内容', style: AppTextStyles.titleM),
                     for (

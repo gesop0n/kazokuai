@@ -1,7 +1,7 @@
 rules_version = '2';
 
-// アプリは家族としてログインして読むだけで、Firestore に何も書かない。
-// 書き込みはすべてバックエンドを通し、バックエンドのサーバーの SDK はこのルールに縛られない
+// アプリは家族としてログインして読む。書くのは、その家族が見たチュートリアルの記録だけ。
+// ほかの書き込みはすべてバックエンドを通し、バックエンドのサーバーの SDK はこのルールに縛られない
 service cloud.firestore {
   match /databases/{database}/documents {
     // 見守る方。familyUids は、その見守る方に結び付いた家族の uid の一覧である
@@ -22,6 +22,11 @@ service cloud.firestore {
     function isFamily(watchedPerson) {
       return request.auth != null
         && request.auth.uid in get(/databases/$(database)/documents/watchedPersons/$(watchedPerson)).data.familyUids;
+    }
+
+    // 使い方を見た記録。ドキュメント ID は家族の uid。自分の記録だけを読み書きできる
+    match /tutorialSeen/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
     match /{document=**} {

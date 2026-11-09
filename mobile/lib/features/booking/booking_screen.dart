@@ -11,6 +11,8 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 class BookingScreen extends StatelessWidget {
   const BookingScreen({super.key});
@@ -31,17 +33,26 @@ class BookingScreen extends StatelessWidget {
           children: [
             const Text('予約電話', style: AppTextStyles.titleL),
             const SizedBox(height: 8),
-            const _BookedCallsCard(),
-            const SizedBox(height: 12),
-            AppButton(
-              label: '新しい予約',
-              variant: AppButtonVariant.primary,
-              size: AppButtonSize.l,
-              leadingIcon: AppIcons.plus,
-              onTap: () => context.pushNamed(AppRoutes.ask),
+            const TutorialAnchor(
+              part: TutorialPart.booked,
+              child: _BookedCallsCard(),
             ),
             const SizedBox(height: 12),
-            const _RetryRuleRow(),
+            TutorialAnchor(
+              part: TutorialPart.newBooking,
+              child: AppButton(
+                label: '新しい予約',
+                variant: AppButtonVariant.primary,
+                size: AppButtonSize.l,
+                leadingIcon: AppIcons.plus,
+                onTap: () => context.pushNamed(AppRoutes.ask),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const TutorialAnchor(
+              part: TutorialPart.retryRule,
+              child: _RetryRuleRow(),
+            ),
           ],
         ),
       ),
