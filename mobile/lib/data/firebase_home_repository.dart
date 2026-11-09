@@ -39,8 +39,20 @@ class FirebaseHomeRepository
   @override
   ValueListenable<HomeView?> get view => _view;
 
+  // 同期が終わってから、phoneId の知らせが届くまでのあいだ true
+  bool _linkedUntilSnapshot = false;
+
+  @override
+  void notePhoneLinked() {
+    _linkedUntilSnapshot = true;
+    final current = _view.value;
+    if (current == null || current.person.hasPhone) return;
+    _view.value = current.withLinkedPhone();
+  }
+
   void _watch(User? user) {
     _stop();
+    _linkedUntilSnapshot = false;
     _view.value = null;
     if (user == null) return;
     _personSubscription = _firestore
@@ -56,10 +68,14 @@ class FirebaseHomeRepository
     if (snapshot.docs.isEmpty) {
       if (snapshot.metadata.isFromCache) return;
       _stopCalls();
+      _linkedUntilSnapshot = false;
       _view.value = null;
       return;
     }
     final doc = snapshot.docs.first;
+    if (_personId != null && _personId != doc.id) {
+      _linkedUntilSnapshot = false;
+    }
     _person = doc.data();
     if (_personId == doc.id) {
       _publish();
@@ -93,7 +109,13 @@ class FirebaseHomeRepository
     final person = _person;
     final calls = _calls;
     if (person == null || calls == null) return;
-    _view.value = homeViewFrom(person: person, calls: calls, now: _now());
+    var next = homeViewFrom(person: person, calls: calls, now: _now());
+    if (_linkedUntilSnapshot && !next.person.hasPhone) {
+      next = next.withLinkedPhone();
+    } else if (next.person.hasPhone) {
+      _linkedUntilSnapshot = false;
+    }
+    _view.value = next;
     _armDateChange();
   }
 

@@ -3,11 +3,15 @@ class WatchedPerson {
     required this.name,
     required this.callName,
     required this.initial,
+    this.hasPhone = false,
   });
 
   final String name;
   final String callName;
   final String initial;
+
+  // 電話機が結び付いている。Firestore の phoneId があるとき
+  final bool hasPhone;
 }
 
 enum ConditionKind { meal, sleep, health }
@@ -83,6 +87,20 @@ class HomeView {
 
   // 伝言への返答。それより新しい電話のまとめが作れたら null
   final Reply? reply;
+
+  // 同期の直後、知らせが届くまでのあいだ電話機があることにする
+  HomeView withLinkedPhone() => HomeView(
+    person: WatchedPerson(
+      name: person.name,
+      callName: person.callName,
+      initial: person.initial,
+      hasPhone: true,
+    ),
+    now: now,
+    latestCall: latestCall,
+    todayCall: todayCall,
+    reply: reply,
+  );
 }
 
 class MissedCall {

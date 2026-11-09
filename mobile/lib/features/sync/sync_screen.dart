@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/auth_repository.dart';
+import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/data/sync_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
@@ -21,10 +22,14 @@ enum _Issue { wrong, ended, unsent }
 
 enum _StartIssue { failed, limited }
 
-// L3、L3w、L3k、L3+。新規登録で、見守る方がいないときに開く。
-// 「もどる」はログアウトする。認証コードを受け付けると L5 を開く。
+// L3、L3w、L3k、L3+。
+// 新規登録では「もどる」がログアウトする。設定から開いたときは、設定へ戻る。
+// 認証コードを受け付けると L5 を開く。
 class SyncScreen extends ConsumerStatefulWidget {
-  const SyncScreen({super.key});
+  const SyncScreen({super.key, this.fromSettings = false});
+
+  // 設定(08)から開いた同期。もどる先と、完了のボタンが違う
+  final bool fromSettings;
 
   @override
   ConsumerState<SyncScreen> createState() => _SyncScreenState();
@@ -64,6 +69,8 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     final router = GoRouter.of(context);
     final watched = ref.read(watchedPersonRepositoryProvider);
     final sync = ref.read(syncRepositoryProvider);
+    final home = ref.read(homeRepositoryProvider);
+    final fromSettings = widget.fromSettings;
     setState(() {
       _sending = true;
       _issue = null;
@@ -71,7 +78,10 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     try {
       await sync.sendCode(_digits);
       watched.noteLinkedWithoutName();
-      router.goNamed(AppRoutes.syncDone);
+      if (fromSettings) home.notePhoneLinked();
+      router.goNamed(
+        fromSettings ? AppRoutes.settingsSyncDone : AppRoutes.syncDone,
+      );
     } on SyncCodeWrongException {
       if (mounted) setState(() => _issue = _Issue.wrong);
     } on SyncPrepEndedException {
@@ -142,7 +152,9 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     return switch (_page) {
       _Page.start => AppNavBar(
         title: '電話機と同期',
-        onLeadingTap: () => ref.read(authRepositoryProvider).signOut(),
+        onLeadingTap: widget.fromSettings
+            ? () => popOrGoToParent(context)
+            : () => ref.read(authRepositoryProvider).signOut(),
       ),
       _Page.waiting => AppNavBar(
         title: '電話機と同期',
@@ -228,12 +240,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
   }
 }
 
-// L5。認証コードを受け付けたあとに開く。閉じるも進むも、名前の入力へ行く。
+// L5。認証コードを受け付けたあとに開く。
+// 新規登録では閉じるも進むも名前の入力へ行く。設定から来たときは、どちらも設定へ戻る。
 class SyncDoneScreen extends ConsumerWidget {
-  const SyncDoneScreen({super.key});
+  const SyncDoneScreen({super.key, this.fromSettings = false});
+
+  final bool fromSettings;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final leave = fromSettings
+        ? () => context.goNamed(AppRoutes.settings)
+        : () => _openName(context, ref);
     return Scaffold(
       body: SafeArea(
         minimum: const EdgeInsets.only(bottom: 8),
@@ -244,7 +262,7 @@ class SyncDoneScreen extends ConsumerWidget {
               title: '電話機と同期',
               leadingIcon: AppIcons.x,
               leadingLabel: '閉じる',
-              onLeadingTap: () => _openName(context, ref),
+              onLeadingTap: leave,
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -270,10 +288,10 @@ class SyncDoneScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: AppButton(
-                label: 'セットアップへ進む',
+                label: fromSettings ? '設定にもどる' : 'セットアップへ進む',
                 variant: AppButtonVariant.primary,
                 size: AppButtonSize.l,
-                onTap: () => _openName(context, ref),
+                onTap: leave,
               ),
             ),
           ],

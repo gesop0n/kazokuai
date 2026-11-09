@@ -11,6 +11,13 @@ class FakeHomeRepository implements HomeRepository {
 
   @override
   final ValueNotifier<HomeView?> view;
+
+  @override
+  void notePhoneLinked() {
+    final current = view.value;
+    if (current == null || current.person.hasPhone) return;
+    view.value = current.withLinkedPhone();
+  }
 }
 
 // 見本のホーム。アプリ全体のテストが、Firestore を起動せずに今までどおり進むために使う

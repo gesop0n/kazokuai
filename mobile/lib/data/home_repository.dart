@@ -12,6 +12,9 @@ import 'package:kazokuai/features/home/home_data.dart';
 abstract interface class HomeRepository {
   // まだ読み終えていないときは null。読み終えると、電話が 1 件もなくても値がある
   ValueListenable<HomeView?> get view;
+
+  // 同期が終わったとき、Firestore の知らせを待たずに電話機があることにする。
+  void notePhoneLinked();
 }
 
 // テストでは偽物に差し替える

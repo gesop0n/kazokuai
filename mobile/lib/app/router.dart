@@ -46,6 +46,8 @@ abstract final class AppRoutes {
   static const settings = 'settings';
   static const accountInfo = 'accountInfo';
   static const logout = 'logout';
+  static const settingsSync = 'settingsSync';
+  static const settingsSyncDone = 'settingsSyncDone';
 }
 
 // ログインする前に開ける画面は、すべてこの下に置く
@@ -97,7 +99,8 @@ GoRouter createAppRouter({
           }
           return _watchedPersonNamePath;
         case WatchedPersonStatus.registered:
-          // 同期の画面は戻さない。設定から開き直すのは、別のチケット
+          // ログイン前の画面と名前の入力からはホームへ。
+          // 設定から開いた同期の画面は、ここに残す
           final isBeforeHome =
               location.startsWith(_signedOutPath) ||
               location == _loadingPath ||
@@ -238,6 +241,20 @@ GoRouter createAppRouter({
               ),
             ],
           ),
+          // 設定から開く同期。新規登録の /sync とは、もどる先が違う
+          GoRoute(
+            name: AppRoutes.settingsSync,
+            path: 'sync',
+            builder: (context, state) => const SyncScreen(fromSettings: true),
+            routes: [
+              GoRoute(
+                name: AppRoutes.settingsSyncDone,
+                path: 'done',
+                builder: (context, state) =>
+                    const SyncDoneScreen(fromSettings: true),
+              ),
+            ],
+          ),
         ],
       ),
       GoRoute(
@@ -270,12 +287,12 @@ void popOrGoToParent(BuildContext context) {
 }
 
 // 01 と設定はホームからも開く。属するタブはホーム。
-// アカウント情報は設定の上、ログアウトの確認はその上に開く。
+// アカウント情報と、設定から開いた同期は、設定の上に開く。ログアウトの確認はアカウント情報の上に開く。
 // 予約の編集とかけなおしのルールは、予約電話の上に開く。
 String? _screenParent(String? routeName) {
   return switch (routeName) {
     AppRoutes.ask || AppRoutes.settings => AppRoutes.home,
-    AppRoutes.accountInfo => AppRoutes.settings,
+    AppRoutes.accountInfo || AppRoutes.settingsSync => AppRoutes.settings,
     AppRoutes.logout => AppRoutes.accountInfo,
     AppRoutes.bookingEdit || AppRoutes.retryRule => AppRoutes.booking,
     _ => null,

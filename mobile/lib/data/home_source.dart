@@ -38,12 +38,19 @@ HomeView homeViewFrom({
       name: name,
       callName: callName,
       initial: _initial(callName, name),
+      hasPhone: _linkedPhone(person),
     ),
     now: now,
     latestCall: parsed.isEmpty ? null : parsed.first.call,
     todayCall: todayCall,
     reply: _replyUntilLaterSummary(parsed),
   );
+}
+
+// phoneId が空白だけ、または無いときは、電話機が結び付いていない
+bool _linkedPhone(Map<String, dynamic> person) {
+  final id = person['phoneId'];
+  return id is String && id.trim().isNotEmpty;
 }
 
 // 返答のある電話のうち最新のものを、それより新しい電話のまとめが作れたときまで出す。
