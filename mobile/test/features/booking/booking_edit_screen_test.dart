@@ -11,6 +11,7 @@ import 'package:kazokuai/features/booking/booking_edit_screen.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
@@ -29,7 +30,12 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
 Future<void> openBookingTab(WidgetTester tester) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
+      overrides: [
+        signedInAuth(),
+        registeredWatchedPerson(),
+        sampleHome(),
+        sampleCalls(),
+      ],
       child: const KazokuAiApp(),
     ),
   );

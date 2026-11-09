@@ -202,6 +202,48 @@ void main() {
       expect(find.text('昨日の夕方から膝が痛くてね。階段がつらいの。').hitTestable(), findsOneWidget);
     });
 
+    testWidgets('同じ時刻のAIと見守る方の発言を、両方出してその時刻へ動く', (tester) async {
+      const at = Duration(minutes: 4, seconds: 12);
+      await pumpScreenInLayout(
+        tester,
+        const LayoutCase(360, 1.0),
+        CallDetailScreen(
+          detail: CallDetail(
+            title: '朝の電話',
+            startedAt: DateTime(2026, 11, 5, 9, 2),
+            duration: const Duration(minutes: 6, seconds: 12),
+            parentCallName: 'ハナさん',
+            points: const [SummaryPoint(text: '同時に話した', at: at)],
+            utterances: [
+              for (var index = 0; index < 20; index++)
+                Utterance(
+                  at: Duration(seconds: index),
+                  speaker: Speaker.ai,
+                  text: 'つなぎ$index',
+                ),
+              const Utterance(at: at, speaker: Speaker.ai, text: '同じ時刻のAI'),
+              const Utterance(
+                at: at,
+                speaker: Speaker.parent,
+                text: '同じ時刻のハナさん',
+              ),
+            ],
+          ),
+        ),
+      );
+      tester.view.physicalSize = const Size(360, 480);
+      await tester.pumpAndSettle();
+
+      expect(find.text('同じ時刻のAI'), findsOneWidget);
+      expect(find.text('同じ時刻のハナさん'), findsOneWidget);
+
+      await tapSemantics(tester, '4:12の発言へ移動');
+
+      expect(_position(tester).pixels, greaterThan(0));
+      expect(find.text('同じ時刻のAI').hitTestable(), findsOneWidget);
+      expect(find.text('同じ時刻のハナさん'), findsOneWidget);
+    });
+
     testWidgets('4:12 は最後の発言まで動かす', (tester) async {
       await _pumpDetail(tester, _mockLayout);
 

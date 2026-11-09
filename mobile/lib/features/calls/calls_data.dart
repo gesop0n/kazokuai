@@ -21,10 +21,15 @@ class AnsweredCallEntry extends CallLogEntry {
     required super.text,
     required this.duration,
     required this.topic,
+    this.id,
   });
 
+  // Firestore の電話の ID。見本の行にはない
+  final String? id;
   final Duration duration;
-  final CallTopic topic;
+
+  // まとめを作れなかった電話には、話の種類がない
+  final CallTopic? topic;
 }
 
 class MissedCallEntry extends CallLogEntry {
@@ -108,6 +113,7 @@ class CallDetail {
     required this.parentCallName,
     required this.points,
     required this.utterances,
+    this.summaryFailure,
   });
 
   final String title;
@@ -116,4 +122,7 @@ class CallDetail {
   final String parentCallName;
   final List<SummaryPoint> points;
   final List<Utterance> utterances;
+
+  // まとめを作れなかったときに、詳細へ出す文。作れたときは null
+  final String? summaryFailure;
 }

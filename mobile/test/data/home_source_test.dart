@@ -48,6 +48,7 @@ void main() {
     expect(home.now, _now);
 
     final latest = home.latestCall!;
+    expect(latest.id, 'newer');
     expect(latest.startedAt, DateTime(2026, 11, 5, 9, 2));
     expect(latest.duration, const Duration(milliseconds: 400000));
     expect(latest.summary.headline, '朝ごはんを食べたそうです。');
@@ -253,7 +254,9 @@ Future<HomeView> _home(FakeFirebaseFirestore firestore, DateTime now) async {
   final calls = await person.reference.collection('calls').get();
   return homeViewFrom(
     person: person.data()!,
-    calls: [for (final call in calls.docs) call.data()],
+    calls: [
+      for (final call in calls.docs) {...call.data(), 'id': call.id},
+    ],
     now: now,
   );
 }

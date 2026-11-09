@@ -6,8 +6,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
+import 'package:kazokuai/features/calls/sample_calls_data.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
 import '../../support/layout_matrix.dart';
@@ -25,7 +27,12 @@ Future<void> pumpCallsTab(WidgetTester tester) async {
   useMockScreen(tester);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [signedInAuth(), registeredWatchedPerson(), sampleHome()],
+      overrides: [
+        signedInAuth(),
+        registeredWatchedPerson(),
+        sampleHome(),
+        sampleCalls(),
+      ],
       child: const KazokuAiApp(),
     ),
   );
@@ -37,7 +44,11 @@ Future<void> pumpCallsTab(WidgetTester tester) async {
 }
 
 Future<void> pumpCallsScreen(WidgetTester tester, LayoutCase layout) async {
-  await pumpScreenInLayout(tester, layout, const Scaffold(body: CallsScreen()));
+  await pumpScreenInLayout(
+    tester,
+    layout,
+    Scaffold(body: CallsScreen(log: sampleCallLog)),
+  );
   await tester.pumpAndSettle();
 }
 

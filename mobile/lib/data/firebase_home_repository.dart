@@ -77,7 +77,9 @@ class FirebaseHomeRepository
   void _onCalls(QuerySnapshot<Map<String, dynamic>> snapshot) {
     // 空のキャッシュだけで、電話がまだないと決めない
     if (snapshot.docs.isEmpty && snapshot.metadata.isFromCache) return;
-    _calls = [for (final doc in snapshot.docs) doc.data()];
+    _calls = [
+      for (final doc in snapshot.docs) {...doc.data(), 'id': doc.id},
+    ];
     _publish();
   }
 

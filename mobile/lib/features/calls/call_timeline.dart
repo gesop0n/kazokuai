@@ -22,7 +22,7 @@ class CallDaySection extends StatelessWidget {
   final CallLogDay day;
   final DateTime today;
   final Key headingKey;
-  final VoidCallback onOpenCall;
+  final void Function(AnsweredCallEntry entry) onOpenCall;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +37,10 @@ class CallDaySection extends StatelessWidget {
         ),
         for (final entry in day.entries)
           switch (entry) {
-            AnsweredCallEntry() => _CallRow(entry: entry, onTap: onOpenCall),
+            AnsweredCallEntry() => _CallRow(
+              entry: entry,
+              onTap: () => onOpenCall(entry),
+            ),
             MissedCallEntry() => _MissedRow(entry: entry),
           },
       ],
@@ -176,7 +179,10 @@ class _CallRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final minutes = '${entry.duration.inMinutes}分';
-    final topic = entry.topic.label;
+    final topic = entry.topic?.label;
+    final label = topic == null
+        ? '${formatTime(entry.startedAt)}の電話。${entry.text}。$minutes'
+        : '${formatTime(entry.startedAt)}の電話。${entry.text}。$topic。$minutes';
     return GestureDetector(
       // カードの外の時刻とレールを押しても開く
       behavior: HitTestBehavior.opaque,
@@ -195,8 +201,7 @@ class _CallRow extends StatelessWidget {
             side: const BorderSide(color: AppColors.line),
           ),
           padding: const EdgeInsets.all(12),
-          semanticLabel:
-              '${formatTime(entry.startedAt)}の電話。${entry.text}。$topic。$minutes',
+          semanticLabel: label,
           child: ExcludeSemantics(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -217,7 +222,7 @@ class _CallRow extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        topic,
+                        topic ?? '',
                         style: AppTextStyles.labelS.copyWith(
                           color: AppColors.inkSecondary,
                         ),

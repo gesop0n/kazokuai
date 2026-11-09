@@ -43,6 +43,7 @@ void main() {
         repository.view.value!.latestCall!.summary.headline,
         '朝ごはんを食べたそうです。',
       );
+      expect(repository.view.value!.latestCall!.id, 'morning');
     } finally {
       repository.dispose();
     }

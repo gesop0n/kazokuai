@@ -34,6 +34,7 @@ abstract final class AppRoutes {
   static const booking = 'booking';
   static const ask = 'ask';
   static const callDetail = 'callDetail';
+  static const callDetailById = 'callDetailById';
   static const retryRule = 'retryRule';
   static const bookingEdit = 'bookingEdit';
 }
@@ -158,6 +159,14 @@ GoRouter createAppRouter({
                     name: AppRoutes.callDetail,
                     path: 'detail',
                     builder: (context, state) => const CallDetailScreen(),
+                  ),
+                  // 見本の子にすると、戻る先が見本の詳細になる
+                  GoRoute(
+                    name: AppRoutes.callDetailById,
+                    path: 'detail/:callId',
+                    builder: (context, state) => CallDetailScreen(
+                      callId: state.pathParameters['callId'],
+                    ),
                   ),
                 ],
               ),

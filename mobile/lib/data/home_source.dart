@@ -50,7 +50,9 @@ Call? _callFrom(Map<String, dynamic> data) {
   final state = _string(data['summaryState']);
   final made = state == _summaryMade;
   final summary = _map(data['summary']);
+  final id = _string(data['id']);
   return Call(
+    id: id.isEmpty ? null : id,
     startedAt: startedAt,
     duration: Duration(milliseconds: _int(data['durationMs'])),
     summary: CallSummary(
