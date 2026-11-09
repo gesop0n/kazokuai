@@ -52,6 +52,8 @@ class FirebaseCallsRepository
 
   void _watch(User? user) {
     _stop();
+    // 開く操作が最初の認証通知より先でも、その電話は残す。サインアウトでは閉じる
+    if (user == null) _openCallId = null;
     _log.value = null;
     _detail.value = null;
     if (user == null) return;
@@ -219,7 +221,6 @@ class FirebaseCallsRepository
     _dateChange?.cancel();
     _personSubscription?.cancel();
     _personSubscription = null;
-    _openCallId = null;
     _stopCalls();
   }
 

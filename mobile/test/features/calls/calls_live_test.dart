@@ -1,9 +1,14 @@
+import 'dart:async';
+
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/calls_repository.dart';
+import 'package:kazokuai/data/firebase_calls_repository.dart';
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
@@ -269,7 +274,7 @@ void main() {
     expect(find.text('朝食と薬は済み。膝を気にしている'), findsNothing);
   });
 
-  testWidgets('ホームの会話を見るは、その電話の詳細を開く', (tester) async {
+  testWidgets('ホームの会話を見るは、その電話の詳細を開き、通話記録に戻る', (tester) async {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
       ProviderScope(
@@ -301,7 +306,132 @@ void main() {
     await tester.tap(find.text('会話を見る'));
     await tester.pumpAndSettle();
 
+    expect(find.byType(CallDetailScreen), findsOneWidget);
     expect(find.text('薬は飲んだよ'), findsOneWidget);
     expect(find.text('よく眠れたよ。朝ごはんも食べたしね。'), findsNothing);
+
+    await tester.tap(find.bySemanticsLabel('通話記録にもどる'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CallDetailScreen), findsNothing);
+    expect(find.text('朝に薬を飲んだ'), findsOneWidget);
+    expect(find.text('よく眠れたよ。朝ごはんも食べたしね。'), findsNothing);
   });
+
+  testWidgets('認証より先に開いた電話も、ホームから詳細に出す', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await firestore.collection('watchedPersons').doc('hanako').set({
+      'name': '田中ハナ',
+      'callName': 'ハナさん',
+      'familyUids': ['misaki'],
+    });
+    await firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls')
+        .doc('morning')
+        .set({
+          'startedAt': DateTime(2026, 11, 5, 9, 2),
+          'durationMs': 372000,
+          'summaryState': '作れた',
+          'summary': {
+            'headline': '朝のまとめ',
+            'topic': '体調',
+            'points': [
+              {'text': '薬を飲んだ', 'offsetMs': 252000},
+            ],
+          },
+        });
+    await firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls')
+        .doc('morning')
+        .collection('utterances')
+        .doc('0000')
+        .set({
+          'index': 0,
+          'speaker': '見守る方',
+          'offsetMs': 252000,
+          'text': '薬は飲んだよ',
+        });
+    final auth = _HeldAuth();
+    final repository = FirebaseCallsRepository(
+      auth: auth,
+      firestore: firestore,
+      now: () => DateTime(2026, 11, 5, 10),
+      binding: tester.binding,
+    );
+    addTearDown(tester.view.reset);
+    try {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            signedInAuth(),
+            registeredWatchedPerson(),
+            homeRepositoryProvider.overrideWithValue(
+              FakeHomeRepository(
+                HomeView(
+                  person: sampleHomeData.person,
+                  now: DateTime(2026, 11, 5, 10, 24),
+                  latestCall: Call(
+                    id: 'morning',
+                    startedAt: DateTime(2026, 11, 5, 9, 2),
+                    duration: const Duration(minutes: 6, seconds: 12),
+                    summary: const CallSummary(
+                      headline: '朝のまとめ',
+                      conditions: [],
+                    ),
+                  ),
+                  todayCall: null,
+                ),
+              ),
+            ),
+            callsRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: const KazokuAiApp(),
+        ),
+      );
+      // 深夜までのタイマーがあるので、settle せずに決まった時間だけ進める
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      await tester.tap(find.text('会話を見る'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(find.text('薬は飲んだよ'), findsNothing);
+
+      auth.emit();
+      await tester.pump(Duration.zero);
+      await tester.pump();
+
+      expect(repository.detail.value?.utterances.single.text, '薬は飲んだよ');
+      expect(find.text('薬は飲んだよ'), findsOneWidget);
+      expect(find.text('よく眠れたよ。朝ごはんも食べたしね。'), findsNothing);
+    } finally {
+      // 画面が購読したままでは捨てられない。タイマーを止める前に外す
+      final binding = tester.binding;
+      binding.attachRootWidget(
+        binding.wrapWithDefaultView(const SizedBox.shrink()),
+      );
+      binding.buildOwner!.buildScope(binding.rootElement!);
+      repository.dispose();
+    }
+  });
+}
+
+// 最初の認証通知を、詳細を開いたあとまで止める
+class _HeldAuth extends Fake implements FirebaseAuth {
+  final _users = StreamController<User?>();
+
+  void emit() => _users.add(_HeldUser());
+
+  @override
+  Stream<User?> authStateChanges() => _users.stream;
+}
+
+class _HeldUser extends Fake implements User {
+  @override
+  String get uid => 'misaki';
 }

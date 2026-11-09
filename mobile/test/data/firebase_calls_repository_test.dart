@@ -9,6 +9,53 @@ import 'package:kazokuai/features/calls/calls_data.dart';
 const _uid = 'misaki';
 
 void main() {
+  testWidgets('認証の最初の通知より先に開いた電話も、詳細を出す', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls')
+        .doc('morning')
+        .set(
+          _made(
+            at: DateTime(2026, 11, 5, 9, 2),
+            headline: '朝食と薬は済み。膝を気にしている',
+            points: [
+              {'text': '朝ごはんを食べたそうです', 'offsetMs': 11000},
+            ],
+          ),
+        );
+    await firestore
+        .collection('watchedPersons')
+        .doc('hanako')
+        .collection('calls')
+        .doc('morning')
+        .collection('utterances')
+        .doc('0000')
+        .set({
+          'index': 0,
+          'speaker': '見守る方',
+          'offsetMs': 11000,
+          'text': '朝ごはんも食べたしね。',
+        });
+    final repository = _open(tester, firestore);
+    // コンストラクタが認証を待ち始めたあと、最初の通知より先に開く
+    repository.open('morning');
+    try {
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        repository.log.value!.days.single.answeredEntries.single.id,
+        'morning',
+      );
+      expect(repository.detail.value?.utterances.single.text, '朝ごはんも食べたしね。');
+    } finally {
+      repository.dispose();
+    }
+  });
+
   testWidgets('ログインした家族の電話だけを、通話記録と詳細にする', (tester) async {
     final firestore = FakeFirebaseFirestore();
     await firestore.collection('watchedPersons').doc('other').set({

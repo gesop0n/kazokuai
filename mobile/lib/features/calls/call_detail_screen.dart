@@ -29,7 +29,7 @@ class CallDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
-  final _utteranceKeys = <Duration, GlobalKey>{};
+  final _utteranceKeys = <int, GlobalKey>{};
   CallsRepository? _live;
 
   @override
@@ -60,11 +60,14 @@ class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
     super.dispose();
   }
 
-  void _scrollToUtterance(Duration at) {
-    final utterance = _utteranceKeys[at]?.currentContext;
-    if (utterance == null) return;
+  // 時刻が同じ発言が並んでも、キーは行ごとに分ける。時刻の移動先は、その時刻の最初の行
+  void _scrollToUtterance(List<Utterance> utterances, Duration at) {
+    final index = utterances.indexWhere((utterance) => utterance.at == at);
+    if (index < 0) return;
+    final target = _utteranceKeys[index]?.currentContext;
+    if (target == null) return;
     Scrollable.ensureVisible(
-      utterance,
+      target,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
     );
@@ -136,17 +139,19 @@ class _CallDetailScreenState extends ConsumerState<CallDetailScreen> {
                   children: [
                     _SummaryCard(
                       detail: detail,
-                      onOpenUtterance: _scrollToUtterance,
+                      onOpenUtterance: (at) =>
+                          _scrollToUtterance(detail.utterances, at),
                       onCorrect: () => showComingSoon(context),
                     ),
                     const Text('会話の内容', style: AppTextStyles.titleM),
-                    for (final utterance in detail.utterances)
+                    for (
+                      var index = 0;
+                      index < detail.utterances.length;
+                      index++
+                    )
                       _UtteranceRow(
-                        key: _utteranceKeys.putIfAbsent(
-                          utterance.at,
-                          GlobalKey.new,
-                        ),
-                        utterance: utterance,
+                        key: _utteranceKeys.putIfAbsent(index, GlobalKey.new),
+                        utterance: detail.utterances[index],
                         parentCallName: detail.parentCallName,
                       ),
                   ],

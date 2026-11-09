@@ -159,15 +159,14 @@ GoRouter createAppRouter({
                     name: AppRoutes.callDetail,
                     path: 'detail',
                     builder: (context, state) => const CallDetailScreen(),
-                    routes: [
-                      GoRoute(
-                        name: AppRoutes.callDetailById,
-                        path: ':callId',
-                        builder: (context, state) => CallDetailScreen(
-                          callId: state.pathParameters['callId'],
-                        ),
-                      ),
-                    ],
+                  ),
+                  // 見本の子にすると、戻る先が見本の詳細になる
+                  GoRoute(
+                    name: AppRoutes.callDetailById,
+                    path: 'detail/:callId',
+                    builder: (context, state) => CallDetailScreen(
+                      callId: state.pathParameters['callId'],
+                    ),
                   ),
                 ],
               ),
