@@ -48,7 +48,7 @@ func TestCheckRunsOnThePhone(t *testing.T) {
 	if runtime.GOOS != "darwin" {
 		t.Skip("Linux では部品を開くので、ここでは動かさない")
 	}
-	for _, part := range []string{"hook", "keypad"} {
+	for _, part := range []string{"hook", "ringer", "keypad"} {
 		err := run([]string{"check", part})
 		if err == nil || !strings.Contains(err.Error(), "電話機") {
 			t.Fatalf("Mac の %s = %v", part, err)

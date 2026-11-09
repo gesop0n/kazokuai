@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,49 @@ func TestMicCheckSaysWhenNothingWasRecorded(t *testing.T) {
 	}
 	if len(fake.played) != 0 {
 		t.Fatal("録音が無いのに再生した")
+	}
+}
+
+func TestRingerCheckRingsUntilThePersonStopsIt(t *testing.T) {
+	pin := &fakePin{}
+	clk := newStepClock()
+	ctx, cancel := context.WithCancel(context.Background())
+	var out bytes.Buffer
+	done := make(chan error, 1)
+	go func() {
+		done <- runCheck(ctx, "ringer", hardware{
+			out: &out,
+			bell: func() (bell, error) {
+				return newRinger(pin, clk, io.Discard), nil
+			},
+		})
+	}()
+	waitLevel(t, pin, 1)
+	cancel()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if pin.Level() != 0 {
+		t.Fatal("止めたあとも鳴っている")
+	}
+	clk.Advance(time.Second)
+	if pin.Level() != 0 || clk.hasPending() {
+		t.Fatal("止めたあとにまた鳴った")
+	}
+	text := out.String()
+	if !strings.Contains(text, "本体のスピーカーを鳴らします。Ctrl+C で止めます。") || !strings.Contains(text, "停止しました。") {
+		t.Fatalf("表示 =\n%s", text)
+	}
+}
+
+func waitLevel(t *testing.T, pin *fakePin, level int) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for pin.Level() != level {
+		if time.Now().After(deadline) {
+			t.Fatalf("線が %d にならなかった。今は %d", level, pin.Level())
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

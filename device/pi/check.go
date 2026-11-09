@@ -29,6 +29,7 @@ type hardware struct {
 	list   func() (string, error)
 	open   func() (ear, error)
 	line   func() (Line, error)
+	bell   func() (bell, error)
 	record time.Duration
 	tail   time.Duration
 	tone   time.Duration
@@ -45,6 +46,8 @@ func runCheck(ctx context.Context, part string, hw hardware) error {
 		err = checkMic(ctx, hw)
 	case "hook":
 		err = checkHook(ctx, hw)
+	case "ringer":
+		err = checkRinger(ctx, hw)
 	case "keypad":
 		err = checkKeypad(ctx, hw)
 	default:
@@ -102,6 +105,27 @@ func checkMic(ctx context.Context, hw hardware) error {
 	// マイクは 16 kHz、スピーカーは 24 kHz である。そのまま流すと、5 秒が約 3.3 秒になり、声が高くなる。
 	h.Play(toSpeakerRate(recording))
 	return waitUntilQuiet(ctx, h, hw.record+time.Second, hw.tail)
+}
+
+// bell は、確認が止めるまで鳴らす呼び出し音である。
+type bell interface {
+	Ring()
+	Close() error
+}
+
+func checkRinger(ctx context.Context, hw hardware) error {
+	if hw.bell == nil {
+		return errors.New("呼び出し音がありません")
+	}
+	ringer, err := hw.bell()
+	if err != nil {
+		return err
+	}
+	defer ringer.Close()
+	fmt.Fprintln(hw.out, "本体のスピーカーを鳴らします。Ctrl+C で止めます。")
+	ringer.Ring()
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func checkHook(ctx context.Context, hw hardware) error {

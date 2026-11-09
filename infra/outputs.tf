@@ -29,8 +29,8 @@ output "firebase_storage_bucket" {
 }
 
 output "hosting_url" {
-  description = "Firebase Hosting の URL。"
-  value       = "https://${google_firebase_hosting_site.web.site_id}.web.app"
+  description = "Web 版を公開する Firebase Hosting の URL。サイト ID は hosting_site_id。"
+  value       = "https://${google_firebase_hosting_site.published.site_id}.web.app"
 }
 
 output "cloud_run_service" {

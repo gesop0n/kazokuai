@@ -10,6 +10,8 @@ docker と gcloud は、このリポジトリの mise では入らない。人�
 
 以下の `PROJECT_ID` は、Firebase のプロジェクト ID である。手順 2 で確かめる。請求先アカウントは `XXXXXX-XXXXXX-XXXXXX`、リージョンは `asia-northeast1`、状態のバケットは名前だけである。`gs://` は付けない。`--region` は付けない。Hosting の `/api/**` は `firebase.json` で `asia-northeast1` のサービス `kazokuai` に回している。
 
+Web 版の URL は `https://kazokuai.web.app` である。プロジェクト ID のサイト（`https://PROJECT_ID.web.app`）には出さない。
+
 ## 1. ログインする
 
 ```bash
@@ -61,11 +63,13 @@ terraform -chdir=infra import \
 
 `container_image` は変数として要る。この URI は push しなくてよい。
 
+取り込むのは、プロジェクト ID と同じ既定のサイトだけである。資源のアドレスは `google_firebase_hosting_site.web` のままにする。Web 版のサイトは別に作る。サイト ID の既定は `kazokuai`（変数 `hosting_site_id`）である。これはまだ状態に無いので、import しない。手順 5 の apply が作る。
+
 Firestore の `(default)` が既にあるときも、作る前に取り込む。コマンドは [infra/README.md](../infra/README.md) の「すでに資源があるとき」にある。
 
 ## 5. Cloud Run を作らずに apply する
 
-`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting、予算を作る。Cloud Run と、その公開の IAM は作らない。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと、サイト ID `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM は作らない。
 
 `IMAGE` は Terraform の変数なので要る。この URI は push しなくてよい。Cloud Run はここから先の手順で作る。
 
@@ -119,6 +123,7 @@ push が、Artifact Registry のリポジトリが無いと言って失敗した
 2. ログイン方法の「メール / パスワード」を有効にする。
 3. メールリンクは無効のままにする。
 4. 承認済みドメインに、`localhost`、`PROJECT_ID.firebaseapp.com`、`PROJECT_ID.web.app` があることを確かめる。
+5. 承認済みドメインに `kazokuai.web.app` と `kazokuai.firebaseapp.com` を足す。Firebase が自動で足すのは、既定のサイトのドメイン（`PROJECT_ID.web.app` と `PROJECT_ID.firebaseapp.com`）だけである。`kazokuai` のサイトのドメインは、コンソールで足す。サイト ID を変えたときは、その ID の `web.app` と `firebaseapp.com` を足す。
 
 組織のポリシー `iam.allowedPolicyMemberDomains` が `allUsers` を拒むと、Cloud Run を公開する IAM が失敗する。そのときは、このプロジェクトで `allUsers` を許す。説明は [infra/README.md](../infra/README.md) の「公開の呼び出し」にある。
 
@@ -128,9 +133,9 @@ push が、Artifact Registry のリポジトリが無いと言って失敗した
 mise run deploy:web -- --project=PROJECT_ID --state-bucket=BUCKET
 ```
 
-Terraform の output をビルドの引数にして、Firebase Hosting に公開する。クライアントの API キーは、リポジトリにも、このコマンドの表示にも出さない。output のプロジェクトが `--project` と違うとき、または Cloud Run のリージョンとサービス名が `firebase.json` と違うときは、公開しない。
+Terraform の output をビルドの引数にして、ビルド結果を `firebase/hosting` に写し、`firebase.json` の `site`（`kazokuai`）へ公開する。Firebase CLI は、`firebase.json` の外のディレクトリを受け取らない。クライアントの API キーは、リポジトリにも、このコマンドの表示にも出さない。output のプロジェクトが `--project` と違うとき、Cloud Run のリージョンとサービス名が `firebase.json` と違うとき、または `hosting_url` が `https://kazokuai.web.app` と違うときは、公開しない。
 
-終わると `https://PROJECT_ID.web.app` を出す。スマホとパソコンのブラウザで開く。
+終わると `https://kazokuai.web.app` を出す。スマホとパソコンのブラウザで開く。`/api/**` は、このサイトから Cloud Run に届く。審査員には、この URL を渡す。
 
 ## 10. 審査員用アカウントを作る
 
@@ -144,7 +149,7 @@ mise run demo:seed -- --project=PROJECT_ID
 
 作るものは、審査員のアカウント、見守る方「田中 ハナ」（ID は `tanaka-hana`）、2026-10-31 から 2026-11-05 までの電話である。11 月 2 日の朝は、出なかった電話である。もう一度実行すると、パスワードを入れ直し、このアカウントの電話を見本に戻す。このアカウントだけが家族になっている見守る方は消す。ほかの家族が残る見守る方からは、このアカウントだけを外し、その電話は残す。
 
-審査員には、メールアドレスとパスワードを伝える。リポジトリには書かない。
+審査員には、手順 9 の URL と、メールアドレスとパスワードを伝える。リポジトリには書かない。
 
 ログインしたあとに見えるもの:
 

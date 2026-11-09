@@ -229,8 +229,8 @@ func TestKeypadRejectsAMapThatDoesNotMatchThePins(t *testing.T) {
 }
 
 func TestKeypadFloatsTheRowWhenAReadFails(t *testing.T) {
-	row := &fakePin{}
-	col := &fakePin{err: errors.New("read failed")}
+	row := &keypadPin{}
+	col := &keypadPin{err: errors.New("read failed")}
 	k, err := newKeypad([]pin{row}, []pin{col}, [][]string{{"1"}}, 30*time.Millisecond, clocktest.New(time.Unix(0, 0)))
 	if err != nil {
 		t.Fatal(err)
@@ -461,14 +461,14 @@ func (p colPin) Close() error {
 	return nil
 }
 
-type fakePin struct {
+type keypadPin struct {
 	low bool
 	err error
 }
 
-func (p *fakePin) DriveLow() error { p.low = true; return nil }
-func (p *fakePin) Float() error    { p.low = false; return nil }
-func (p *fakePin) Value() (int, error) {
+func (p *keypadPin) DriveLow() error { p.low = true; return nil }
+func (p *keypadPin) Float() error    { p.low = false; return nil }
+func (p *keypadPin) Value() (int, error) {
 	if p.err != nil {
 		return 0, p.err
 	}
@@ -477,4 +477,4 @@ func (p *fakePin) Value() (int, error) {
 	}
 	return 1, nil
 }
-func (p *fakePin) Close() error { return p.Float() }
+func (p *keypadPin) Close() error { return p.Float() }

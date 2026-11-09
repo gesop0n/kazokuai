@@ -14,6 +14,7 @@ usage() {
 
 プロジェクト ID と状態のバケットは、毎回引数で渡す。
 Hosting の /api/** は firebase.json で asia-northeast1 のサービス kazokuai に回している。
+公開先は firebase.json の site で、Terraform の hosting_url と見比べる。
 EOF
   exit 2
 }
@@ -24,6 +25,24 @@ parse_gcp_args "$@"
 
 if [[ "$region" != "asia-northeast1" ]]; then
   echo "Hosting の /api/** は firebase.json で asia-northeast1 の kazokuai に回しています。リージョンが違うと Web 版は公開しません。" >&2
+  exit 1
+fi
+
+if ! hosting_site=$(python3 -I - "$root/firebase/firebase.json" <<'PY'
+import json, re, sys
+
+path = sys.argv[1]
+try:
+    data = json.load(open(path, encoding="utf-8"))
+except (OSError, json.JSONDecodeError) as error:
+    sys.exit(f"firebase.json を読めない: {error}")
+hosting = data.get("hosting")
+site = hosting.get("site") if isinstance(hosting, dict) else None
+if not isinstance(site, str) or re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,28}[a-z0-9])?", site) is None:
+    sys.exit("firebase.json の hosting.site がサイト ID の形ではない")
+print(site)
+PY
+); then
   exit 1
 fi
 
@@ -79,6 +98,11 @@ if [[ "$cloud_run_region" != "asia-northeast1" || "$cloud_run_service" != "kazok
   echo "Hosting の /api/** は firebase.json で asia-northeast1 の kazokuai に回しています。output が違うと Web 版は公開しません。" >&2
   exit 1
 fi
+expected_url="https://${hosting_site}.web.app"
+if [[ "$hosting_url" != "$expected_url" ]]; then
+  echo "firebase.json の site は ${hosting_site} です。Terraform の hosting_url（${hosting_url}）が ${expected_url} と違うと Web 版は公開しません。" >&2
+  exit 1
+fi
 
 (
   cd "$root/mobile"
@@ -92,9 +116,16 @@ fi
     --dart-define="FIREBASE_STORAGE_BUCKET=${firebase_storage_bucket}"
 )
 
+# Firebase CLI は、firebase.json のあるディレクトリの外を公開しない。
+# ビルド結果を firebase/hosting へ写してから公開する。
+hosting_dir="$root/firebase/hosting"
+rm -rf "$hosting_dir"
+mkdir -p "$hosting_dir"
+cp -R "$root/mobile/build/web/." "$hosting_dir/"
+
 (
   cd "$root/firebase"
-  firebase deploy --only hosting --project="$project" --non-interactive
+  firebase deploy --only "hosting:${hosting_site}" --project="$project" --non-interactive
 )
 
 printf 'Web 版: %s\n' "$hosting_url"

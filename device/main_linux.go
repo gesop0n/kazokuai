@@ -26,12 +26,19 @@ func openPhone(out io.Writer) (phone.Phone, func(), error) {
 		handset.Close()
 		return phone.Phone{}, nil, err
 	}
+	ringer, err := pi.OpenRinger(cfg, out)
+	if err != nil {
+		hook.Close()
+		handset.Close()
+		return phone.Phone{}, nil, err
+	}
 	return phone.Phone{
 		Handset: handset,
 		Hook:    hook,
-		Ringer:  pi.Ringer{Out: out},
+		Ringer:  ringer,
 		Lamp:    pi.Lamp{Out: out},
 	}, func() {
+		ringer.Close()
 		hook.Close()
 		handset.Close()
 	}, nil

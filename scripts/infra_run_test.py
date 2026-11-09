@@ -44,6 +44,8 @@ class InfraRunTest(unittest.TestCase):
             f"{sh_quote(log)}\n"
             "printf 'TF_VAR_project_id=%s\\n' \"$TF_VAR_project_id\" >> "
             f"{sh_quote(log)}\n"
+            "printf 'TF_VAR_hosting_site_id=%s\\n' \"$TF_VAR_hosting_site_id\" >> "
+            f"{sh_quote(log)}\n"
             "printf 'GOOGLE_APPLICATION_CREDENTIALS=%s\\n' "
             "\"$GOOGLE_APPLICATION_CREDENTIALS\" >> "
             f"{sh_quote(log)}\n"
@@ -62,6 +64,7 @@ class InfraRunTest(unittest.TestCase):
         env["CLOUDSDK_CORE_PROJECT"] = AMBIENT
         env["GOOGLE_BILLING_PROJECT"] = AMBIENT
         env["TF_VAR_project_id"] = AMBIENT
+        env["TF_VAR_hosting_site_id"] = AMBIENT
         env["GOOGLE_APPLICATION_CREDENTIALS"] = "/tmp/kazokuai-adc.json"
         return env
 
@@ -131,6 +134,7 @@ class InfraRunTest(unittest.TestCase):
         self.assertIn(f"CLOUDSDK_CORE_PROJECT={PROJECT}", log)
         self.assertIn(f"GOOGLE_BILLING_PROJECT={PROJECT}", log)
         self.assertIn("TF_VAR_project_id=\n", log)
+        self.assertIn("TF_VAR_hosting_site_id=\n", log)
         self.assertIn("GOOGLE_APPLICATION_CREDENTIALS=/tmp/kazokuai-adc.json", log)
         self.assertFalse(self.gcloud_log.exists())
         self.assertEqual(log.split("---")[0].splitlines()[1], "init")
@@ -179,6 +183,7 @@ class InfraRunTest(unittest.TestCase):
             "google_firebaserules_release.firestore",
             "google_firebase_web_app.web",
             "google_firebase_hosting_site.web",
+            "google_firebase_hosting_site.published",
             "google_billing_budget.monthly",
         ):
             self.assertIn(f"-target={target}", apply)
