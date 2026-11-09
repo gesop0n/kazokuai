@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"runtime"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -107,6 +109,128 @@ func TestRingerRingsAgainAfterItHasStopped(t *testing.T) {
 	if got := clk.pendingFor(); got != pulseOn1200 {
 		t.Fatalf("もう一度の入り = %s, want %s", got, pulseOn1200)
 	}
+}
+
+func TestRingerHoldsThePitchAndDutyOnTheRealClock(t *testing.T) {
+	// 中央値を見るので、忙しいマシンで一拍だけ遅れても失敗しない。
+	// 幅は指定の 0.7–1.3 倍と、デューティー比 4–25% である。
+	// タイマー待ちの実測（260 Hz 前後、約 50%）はこの幅の外にある。
+	// mise run check は -short を付けない。-short のときだけ、この実時計の測定を飛ばす。
+	if testing.Short() {
+		t.Skip("実時計の音程は -short では測らない")
+	}
+	t.Run("1200", func(t *testing.T) {
+		pin := &timedPin{}
+		ringer := newRinger(pin, clock.Real{}, io.Discard)
+		ringer.Ring()
+		waitForCycles(t, pin, 12)
+		started := time.Now()
+		ringer.Stop()
+		if elapsed := time.Since(started); elapsed > 20*time.Millisecond {
+			t.Fatalf("止めるのに %s かかった", elapsed)
+		}
+		if pin.Level() != 0 {
+			t.Fatal("止めたあとも鳴っている")
+		}
+		periods, duties := cycleStats(pin.snapshot(), 12)
+		assertPitch(t, 1200, periods, duties)
+	})
+	t.Run("1600", func(t *testing.T) {
+		pin := &timedPin{}
+		ringer := newRinger(pin, clock.Real{}, io.Discard)
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		if !ringer.tone(make(chan struct{}), ringerHighHz, 15*time.Millisecond) {
+			t.Fatal("1,600 Hz が途中で止まった")
+		}
+		periods, duties := cycleStats(pin.snapshot(), 12)
+		assertPitch(t, 1600, periods, duties)
+	})
+}
+
+func TestPauseWaitsOnTheClockSoStopEndsIt(t *testing.T) {
+	ringer := newRinger(&fakePin{}, clock.Real{}, io.Discard)
+	stop := make(chan struct{})
+	done := make(chan bool, 1)
+	go func() {
+		done <- ringer.wait(stop, ringerPause)
+	}()
+	time.Sleep(20 * time.Millisecond)
+	close(stop)
+	select {
+	case cont := <-done:
+		if cont {
+			t.Fatal("止めたのに休みが終わった")
+		}
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("休みをすぐ止められなかった")
+	}
+}
+
+func waitForCycles(t *testing.T, pin *timedPin, n int) {
+	t.Helper()
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for pin.cycles() < n {
+		if time.Now().After(deadline) {
+			t.Fatalf("周期が %d しかなかった", pin.cycles())
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func assertPitch(t *testing.T, hz int, periods []time.Duration, duties []float64) {
+	t.Helper()
+	if len(periods) < 8 {
+		t.Fatalf("%d Hz の周期が %d しかなかった", hz, len(periods))
+	}
+	freq := float64(time.Second) / float64(medianDuration(periods))
+	duty := medianFloat(duties)
+	lo, hi := float64(hz)*0.7, float64(hz)*1.3
+	if freq < lo || freq > hi {
+		t.Fatalf("%d Hz の実測 = %.0f Hz, 許容 %.0f–%.0f。デューティー比 = %.1f%%", hz, freq, lo, hi, duty*100)
+	}
+	if duty < 0.04 || duty > 0.25 {
+		t.Fatalf("%d Hz のデューティー比 = %.1f%%, 許容 4–25%%。実測 = %.0f Hz", hz, duty*100, freq)
+	}
+}
+
+func cycleStats(edges []pinEdge, limit int) ([]time.Duration, []float64) {
+	var periods []time.Duration
+	var duties []float64
+	for i := 0; i+2 < len(edges) && len(periods) < limit; i += 2 {
+		if edges[i].level != 1 || edges[i+1].level != 0 || edges[i+2].level != 1 {
+			continue
+		}
+		high := edges[i+1].at.Sub(edges[i].at)
+		low := edges[i+2].at.Sub(edges[i+1].at)
+		period := high + low
+		if period <= 0 {
+			continue
+		}
+		periods = append(periods, period)
+		duties = append(duties, float64(high)/float64(period))
+	}
+	return periods, duties
+}
+
+func medianDuration(values []time.Duration) time.Duration {
+	sorted := append([]time.Duration(nil), values...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
+}
+
+func medianFloat(values []float64) float64 {
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	n := len(sorted)
+	if n%2 == 1 {
+		return sorted[n/2]
+	}
+	return (sorted[n/2-1] + sorted[n/2]) / 2
 }
 
 func TestRingingAgainWhileItRingsKeepsASingleTone(t *testing.T) {
@@ -273,6 +397,51 @@ func (p *fakePin) Level() int {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.level
+}
+
+// timedPin は、線を入れたり切ったりした時刻を残す。
+type timedPin struct {
+	mu    sync.Mutex
+	level int
+	edges []pinEdge
+}
+
+type pinEdge struct {
+	level int
+	at    time.Time
+}
+
+func (p *timedPin) Set(level int) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if n := len(p.edges); n > 0 && p.edges[n-1].level == level {
+		p.level = level
+		return nil
+	}
+	p.level = level
+	p.edges = append(p.edges, pinEdge{level: level, at: time.Now()})
+	return nil
+}
+
+func (p *timedPin) Close() error { return nil }
+
+func (p *timedPin) Level() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.level
+}
+
+func (p *timedPin) snapshot() []pinEdge {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]pinEdge, len(p.edges))
+	copy(out, p.edges)
+	return out
+}
+
+func (p *timedPin) cycles() int {
+	periods, _ := cycleStats(p.snapshot(), 1<<20)
+	return len(periods)
 }
 
 // stepClock は、呼び出し音が待つまで Advance を進めない時計である。

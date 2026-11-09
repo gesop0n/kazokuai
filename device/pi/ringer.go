@@ -3,6 +3,7 @@ package pi
 import (
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -19,6 +20,9 @@ const (
 	ringerPairs = 16
 	ringerSlice = time.Second / 32
 	ringerPause = 2 * time.Second
+	// ringerTimerMin より短い待ちは、Go のタイマーでは音程が崩れるので回して待つ。
+	// 入れ切りは 1ms より短い。2 秒の休みはこれより長い。
+	ringerTimerMin = time.Millisecond
 )
 
 // Pin は、呼び出し音が駆動する GPIO である。1 で入れ、0 で切る。
@@ -29,11 +33,14 @@ type Pin interface {
 
 // Ringer は、GPIO をゴルーチンで入れたり切ったりして、本体のスピーカーを鳴らす。
 // 1,200 Hz と 1,600 Hz を 1/32 秒ずつ 1 秒鳴らし、2 秒止める。入れている時間は周期の 10% である。
-// CPU が忙しいと周期は少しぶれる。
+// 短い入れ切りは、そのゴルーチンを OS のスレッドに固定し、単調時計を回して待つ。
+// 止める合図は一拍が終わるたびに見る。2 秒の休みは普通のタイマーで待つ。
+// 鳴らしている 1 秒は CPU を 1 つ使う。CPU が忙しいと周期は少しぶれる。
 type Ringer struct {
-	pin   Pin
-	clock clock.Clock
-	out   io.Writer
+	pin        Pin
+	clock      clock.Clock
+	out        io.Writer
+	spinPulses bool
 
 	mu     sync.Mutex
 	stop   chan struct{}
@@ -42,13 +49,18 @@ type Ringer struct {
 }
 
 func newRinger(pin Pin, clk clock.Clock, out io.Writer) *Ringer {
+	// 偽の時計は待ちを一拍ずつ進める。本番の時計だけ、短い入れ切りを回して待つ。
+	spinPulses := false
 	if clk == nil {
 		clk = clock.Real{}
+		spinPulses = true
+	} else if _, ok := clk.(clock.Real); ok {
+		spinPulses = true
 	}
 	if out == nil {
 		out = io.Discard
 	}
-	return &Ringer{pin: pin, clock: clk, out: out}
+	return &Ringer{pin: pin, clock: clk, out: out, spinPulses: spinPulses}
 }
 
 // Ring は呼び出し音を鳴らす。すでに鳴っていれば、何もしない。
@@ -66,7 +78,8 @@ func (r *Ringer) Ring() {
 	go r.run(stop, done)
 }
 
-// Stop は、周期の途中でもすぐ線を切る。鳴っていなければ、切ったままにする。
+// Stop はすぐ線を切る。短い入れ切りの途中なら、その一拍が終わってから切る。
+// 鳴っていなければ、切ったままにする。
 func (r *Ringer) Stop() {
 	r.mu.Lock()
 	stop := r.stop
@@ -113,6 +126,10 @@ func (r *Ringer) run(stop <-chan struct{}, done chan struct{}) {
 }
 
 func (r *Ringer) burst(stop <-chan struct{}) bool {
+	if r.spinPulses {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+	}
 	for i := 0; i < ringerPairs; i++ {
 		for _, hz := range []int{ringerLowHz, ringerHighHz} {
 			if !r.tone(stop, hz, ringerSlice) {
@@ -154,6 +171,9 @@ func (r *Ringer) tone(stop <-chan struct{}, hz int, length time.Duration) bool {
 }
 
 func (r *Ringer) wait(stop <-chan struct{}, d time.Duration) bool {
+	if r.spinPulses && d < ringerTimerMin {
+		return spinFor(stop, d)
+	}
 	timer := r.clock.NewTimer(d)
 	defer timer.Stop()
 	select {
@@ -162,6 +182,22 @@ func (r *Ringer) wait(stop <-chan struct{}, d time.Duration) bool {
 	case <-timer.Chan():
 		return true
 	}
+}
+
+// spinFor は、d のあいだ単調時計を回して待つ。止める合図は、回し始める前だけ見る。
+func spinFor(stop <-chan struct{}, d time.Duration) bool {
+	select {
+	case <-stop:
+		return false
+	default:
+	}
+	if d <= 0 {
+		return true
+	}
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+	}
+	return true
 }
 
 func (r *Ringer) drive(level int) bool {
