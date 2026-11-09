@@ -22,6 +22,10 @@ const PhonePath = "/phone"
 // 電話機は PhoneIDHeader と PhoneKeyHeader に ID と鍵を付け、PhoneSecretHeader に合言葉を付ける。
 const PhoneRegisterPath = "/phones"
 
+// PhoneCodePath は、電話機が認証コードを頼むパスである。/api の下には置かない。
+// 電話機は PhoneIDHeader と PhoneKeyHeader に ID と鍵を付ける。
+const PhoneCodePath = "/phones/code"
+
 // PhoneSecretHeader は、登録するときの合言葉と、古い道の /token、/calls、WebSocket の合言葉のヘッダーである。
 const PhoneSecretHeader = "Kazokuai-Secret"
 
@@ -41,6 +45,9 @@ const (
 	PhoneAnswerBadKey = "鍵が違います"
 	// PhoneAnswerOtherPerson は、リクエストが名乗った見守る方が、結び付きと違うときである。
 	PhoneAnswerOtherPerson = "別の見守る方の電話機ではありません"
+	// PhoneAnswerSyncClosed は、同期済みの電話機が、その見守る方の家族が同期の準備を始めていないあいだに認証コードを頼んだときである。
+	// 電話機は何も流さない。ほかのエラーとは文を分ける。
+	PhoneAnswerSyncClosed = "同期の準備が始まっていません"
 )
 
 // DevPhoneSecret は、手元の demo- プロジェクトで、環境変数 PHONE_SECRET が無いときに使う合言葉である。
@@ -62,6 +69,15 @@ const StartCallPath = "/calls/now"
 // 呼び方は、その家族の見守る方から読む。Live API は使わない。
 const DraftScriptPath = "/calls/script"
 
+// SyncPreparePath は、ログインした家族が同期の準備を始めるパスである。/api の下にも置く。
+// Authorization ヘッダーに家族の ID トークンを Bearer で入れて POST する。
+// すでに始まっているときは、それを返し、新しいものとしては数えない。
+const SyncPreparePath = "/sync"
+
+// SyncCodePath は、ログインした家族が認証コードを送るパスである。/api の下にも置く。
+// Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に 6 桁の認証コードを JSON の code で入れて POST する。
+const SyncCodePath = "/sync/code"
+
 // PhoneNotConnected は、電話機がつながっていないので今すぐ通話を始められなかった、というエラーである。
 // アプリはこれを見て「電話機につながっていません」と出す。
 const PhoneNotConnected = "phone_not_connected"
@@ -70,12 +86,27 @@ const PhoneNotConnected = "phone_not_connected"
 // アプリはこれを見て「通話中です」と出す。
 const CallInProgress = "call_in_progress"
 
+// 同期でアプリが見分けるエラーである。本文の error に入る。
+const (
+	// SyncCodeWrong は、認証コードが違うときである。同期の準備はまだ続く。
+	SyncCodeWrong = "sync_code_wrong"
+	// SyncPrepEnded は、同期の準備が終わっているときである。切れたときと、5 回目の間違いを含む。
+	SyncPrepEnded = "sync_prep_ended"
+	// SyncPrepLimited は、1 時間に始めた同期の準備が 5 回を超えたときである。
+	SyncPrepLimited = "sync_prep_limited"
+)
+
 // WebSocket のメッセージの種類である。
 const (
 	// PhoneTypeCall は、バックエンドが電話機に送る、電話をかける指示である。
 	PhoneTypeCall = "call"
 	// PhoneTypeState は、電話機がバックエンドに送る、電話の状態である。
 	PhoneTypeState = "state"
+	// PhoneTypeSynced は、バックエンドが電話機に送る、同期済みになったという知らせである。
+	PhoneTypeSynced = "synced"
+	// PhoneTypeNotSynced は、バックエンドが電話機に送る、同期していない電話機に戻ったという知らせである。
+	// つないだときに、まだ同期していないことも、これで知らせる。
+	PhoneTypeNotSynced = "not_synced"
 )
 
 // 電話の状態である。電話機が変わるたびに送り、バックエンドが電話の文書に書く。
@@ -183,7 +214,7 @@ type TokenRequest struct {
 
 // PhoneMessage は、電話機とバックエンドの WebSocket でやり取りする 1 通である。
 type PhoneMessage struct {
-	// Type は、PhoneTypeCall か PhoneTypeState である。
+	// Type は、PhoneTypeCall、PhoneTypeState、PhoneTypeSynced、PhoneTypeNotSynced のいずれかである。
 	Type string `json:"type"`
 	// CallID は、このメッセージの電話の ID である。
 	CallID string `json:"callId"`

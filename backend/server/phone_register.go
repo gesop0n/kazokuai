@@ -29,6 +29,8 @@ type phoneRecord struct {
 	KeyHash         string    `firestore:"keyHash"`
 	WatchedPersonID string    `firestore:"watchedPersonId"`
 	RegisteredAt    time.Time `firestore:"registeredAt"`
+	// SyncedAt は、この電話機を見守る方に結び付けた時刻である。同期していないときは空である。
+	SyncedAt time.Time `firestore:"syncedAt,omitempty"`
 }
 
 // phoneIdentity は、リクエストを認証した電話機である。

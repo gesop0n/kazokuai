@@ -192,6 +192,40 @@ func (b *phoneBook) sendPhone(phoneID, personID string, msg protocol.PhoneMessag
 	return nil
 }
 
+// notify は、phoneID の電話機に知らせを送る。電話の追跡は変えない。
+func (b *phoneBook) notify(phoneID string, msg protocol.PhoneMessage) error {
+	b.mu.Lock()
+	link := b.byPhone[phoneID]
+	b.mu.Unlock()
+	if link == nil {
+		return errPhoneNotConnected
+	}
+	body, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	link.mu.Lock()
+	defer link.mu.Unlock()
+	ctx, cancel := context.WithTimeout(link.ctx, 5*time.Second)
+	defer cancel()
+	return link.conn.Write(ctx, websocket.MessageText, body)
+}
+
+// detachPerson は、phoneID の接続が覚えていた見守る方と電話を外す。
+// 同期していない電話機に戻したあとに届く状態で、終えた電話を上書きしない。
+func (b *phoneBook) detachPerson(phoneID string) {
+	b.mu.Lock()
+	link := b.byPhone[phoneID]
+	b.mu.Unlock()
+	if link == nil {
+		return
+	}
+	link.mu.Lock()
+	link.personID = ""
+	link.callID = ""
+	link.mu.Unlock()
+}
+
 // phone は、電話機からの WebSocket を受け、切れるまで状態を読む。
 // ID と鍵で認証した電話機は、電話機の ID ごとに持つ。古い道は、名乗った見守る方ごとに持つ。
 func (s *server) phone(w http.ResponseWriter, r *http.Request) {
@@ -275,6 +309,8 @@ func (s *server) phoneWithKey(w http.ResponseWriter, r *http.Request, identity p
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
 	s.logf("電話機がつながりました。見守る方: %s", identity.personID)
+	// つながっていなかった電話機は、つないだときに自分の状態を知る。
+	s.tellSyncState(identity.phoneID, identity.personID != "")
 	defer s.disconnectPhone(identity.phoneID, link)
 	go keepalive.Run(ctx, s.clock, conn)
 

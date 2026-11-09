@@ -128,6 +128,10 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
 	}
+	// 電話が始まったら、その電話機の認証コードは捨てる。有効なあいだの「＃」で同じコードを返さない。
+	if linked {
+		s.syncs.dropCode(phoneID)
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(startedCall{ID: ref.ID})
