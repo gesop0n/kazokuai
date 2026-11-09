@@ -37,7 +37,9 @@ func TestSpeakerCheckPlaysAOneSecondTone(t *testing.T) {
 }
 
 func TestMicCheckPlaysBackWhatItRecorded(t *testing.T) {
-	fake := &fakeEar{mic: pcm16(16384, -16384)}
+	// 16 kHz で 1 周期の波を、24 kHz でも同じ時間・同じ高さになるサンプル数で再生する。
+	mic := pcm16(16384, 0, -16384, 0)
+	fake := &fakeEar{mic: mic}
 	var out bytes.Buffer
 	err := runCheck(context.Background(), "mic", hardware{
 		out:    &out,
@@ -50,8 +52,13 @@ func TestMicCheckPlaysBackWhatItRecorded(t *testing.T) {
 	if !strings.Contains(out.String(), "ピーク: 0.5000") {
 		t.Fatalf("表示 =\n%s", out.String())
 	}
-	if !bytes.Equal(fake.played, fake.mic) {
-		t.Fatalf("再生 = %v, want 録音 %v", fake.played, fake.mic)
+	wantN := len(mic) / 2 * phone.SpeakerSampleRate / phone.MicSampleRate
+	if got := len(fake.played) / 2; got != wantN {
+		t.Fatalf("再生 = %d サンプル, want %d。録音と同じ時間になる", got, wantN)
+	}
+	want := pcm16(16384, 5461, -5461, -16384, -5461, 0)
+	if !bytes.Equal(fake.played, want) {
+		t.Fatalf("再生 = %v, want %v", samples(fake.played), samples(want))
 	}
 }
 
@@ -123,6 +130,14 @@ func pcm16(samples ...int16) []byte {
 
 func sample(buf []byte, i int) int16 {
 	return int16(binary.LittleEndian.Uint16(buf[i*2:]))
+}
+
+func samples(buf []byte) []int16 {
+	out := make([]int16, len(buf)/2)
+	for i := range out {
+		out[i] = sample(buf, i)
+	}
+	return out
 }
 
 func maxAbs(buf []byte) int {

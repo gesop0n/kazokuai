@@ -21,10 +21,13 @@ type Hook struct {
 	out              io.Writer
 	events           chan phone.HookEvent
 
-	mu      sync.Mutex
-	cancel  context.CancelFunc
-	stopped chan struct{}
-	started chan struct{}
+	mu        sync.Mutex
+	cancel    context.CancelFunc
+	stopped   chan struct{}
+	started   chan struct{}
+	arm       chan struct{}
+	armed     chan struct{}
+	listening bool
 }
 
 func newHook(line Line, cfg Config, clk clock.Clock, out io.Writer) *Hook {
@@ -46,19 +49,25 @@ func newHook(line Line, cfg Config, clk clock.Clock, out io.Writer) *Hook {
 
 // Prepare は、受話器を置いた状態から、この電話の上げ下げを知らせ始める。
 // 待っているあいだの変化は、次の電話の受話器上げにしない。
+// 接点の基準は Prepare ではなく、電話が受け取りを始めたときに取り直す。
 func (h *Hook) Prepare() {
 	h.Rest()
 	ctx, cancel := context.WithCancel(context.Background())
 	stopped := make(chan struct{})
 	started := make(chan struct{})
+	arm := make(chan struct{})
+	armed := make(chan struct{})
 	h.mu.Lock()
 	h.cancel = cancel
 	h.stopped = stopped
 	h.started = started
+	h.arm = arm
+	h.armed = armed
+	h.listening = false
 	h.mu.Unlock()
 	go func() {
 		defer close(stopped)
-		h.watch(ctx, started)
+		h.watch(ctx, started, arm, armed)
 	}()
 }
 
@@ -82,7 +91,24 @@ func (h *Hook) Rest() {
 	}
 }
 
-func (h *Hook) Events() <-chan phone.HookEvent { return h.events }
+// Events は、上げ下げを受け取り始めたときの接点を、その電話の始めにする。
+// Prepare は短命トークンと接続より前に呼ばれる。そのあいだに上げた受話器は、
+// 呼び出しの開始時には上がったままなので、ここでは出さない。
+func (h *Hook) Events() <-chan phone.HookEvent {
+	h.mu.Lock()
+	if h.listening || h.arm == nil {
+		ch := h.events
+		h.mu.Unlock()
+		return ch
+	}
+	h.listening = true
+	arm := h.arm
+	armed := h.armed
+	h.mu.Unlock()
+	close(arm)
+	<-armed
+	return h.events
+}
 
 // Close は、この電話の監視をやめ、接点を放す。
 func (h *Hook) Close() error {
@@ -93,10 +119,20 @@ func (h *Hook) Close() error {
 	return h.line.Close()
 }
 
-func (h *Hook) watch(ctx context.Context, started chan struct{}) {
-	var once sync.Once
-	ready := func() { once.Do(func() { close(started) }) }
-	defer ready()
+func (h *Hook) watch(ctx context.Context, started, arm, armed chan struct{}) {
+	var startOnce sync.Once
+	markStarted := func() { startOnce.Do(func() { close(started) }) }
+	defer markStarted()
+	var armOnce sync.Once
+	finishArm := func() { armOnce.Do(func() { close(armed) }) }
+	defer finishArm()
+
+	markStarted()
+	select {
+	case <-ctx.Done():
+		return
+	case <-arm:
+	}
 
 	h.drain()
 	raw, err := h.line.Value()
@@ -105,7 +141,7 @@ func (h *Hook) watch(ctx context.Context, started chan struct{}) {
 		return
 	}
 	state := newContact(raw, h.clock.Now(), h.liftedWhenClosed, h.debounce)
-	ready()
+	finishArm()
 	for {
 		if ev, ok := state.level(raw, h.clock.Now()); ok {
 			if !h.send(ctx, ev) {
