@@ -135,7 +135,7 @@ func findFamilyPerson(ctx context.Context, store *firestore.Client, uid string) 
 	return docs[0].Ref.ID, nil
 }
 
-// reportCall は、認証なしで電話の報告を受け取り、その電話に発話を足して、すぐに 202 Accepted を返す。
+// reportCall は、合言葉を確かめた電話の報告を受け取り、その電話に発話を足して、すぐに 202 Accepted を返す。
 func (s *server) reportCall(w http.ResponseWriter, r *http.Request) {
 	var report protocol.CallReport
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCallReport)).Decode(&report); err != nil {

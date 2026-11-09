@@ -35,4 +35,7 @@ cat >"$work/firebase.json" <<EOF
 }
 EOF
 
+# テストのバックエンドはプロジェクトを環境変数から読む。エミュレーターのプロジェクトに固定し、
+# 外から GOOGLE_CLOUD_PROJECT が渡っていても本物のプロジェクトにはつながない。
+export GOOGLE_CLOUD_PROJECT=demo-kazokuai
 firebase emulators:exec --config "$work/firebase.json" --project demo-kazokuai --only auth,firestore "$1"

@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"google.golang.org/genai"
 
+	"github.com/gesop0n/kazokuai/internal/clock"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -35,6 +36,10 @@ type Config struct {
 	// SummaryRetryWait は、まとめの generateContent が失敗してから、次を試すまでの時間である。
 	// 0 なら待たない。
 	SummaryRetryWait time.Duration
+	// ProjectID は、Firebase のプロジェクトである。demo- で始まるときだけ、localhost からの CORS を許す。
+	ProjectID string
+	// PhoneSecret は、電話機の合言葉である。/token、/calls、WebSocket は、これが無いと断る。
+	PhoneSecret string
 }
 
 // DefaultSummaryModel は、まとめに使うモデルの既定値である。
@@ -48,11 +53,6 @@ type Tokens interface {
 // Summarizer は、会話からまとめを 1 回の generateContent で作る。genai.Client の Models がこれを満たす。
 type Summarizer interface {
 	GenerateContent(ctx context.Context, model string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error)
-}
-
-// Clock は今の時刻を返す。
-type Clock interface {
-	Now() time.Time
 }
 
 // Handler は、バックエンドの HTTP サーバーである。Stop で電話機との接続を閉じる。
@@ -71,25 +71,41 @@ func (h *Handler) Connected(personID string) bool { return h.phones.connected(pe
 // New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
 // watchedPersonsPath でアプリから見守る方の登録を受け、protocol.DraftScriptPath で通話内容の案を作り、
 // protocol.StartCallPath で今すぐ通話を始め、protocol.CallReportPath でデバイスから電話の報告を受ける Handler を返す。
-func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clock Clock) *Handler {
+// アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
+// 電話機の道（/token、/calls、WebSocket）は、今の道のままである。
+// clk が nil のとき、タイマーは実時間で進む。
+func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
 	s := &server{
 		config:     config,
 		firebase:   firebase,
 		tokens:     tokens,
 		summarizer: summarizer,
-		clock:      clock,
+		clock:      clk,
 		phones:     newPhoneBook(),
 		base:       ctx,
 	}
 	router := chi.NewRouter()
-	router.Get(protocol.PhonePath, s.phone)
-	router.Post(protocol.TokenPath, s.token)
-	router.Post(watchedPersonsPath, s.registerWatchedPerson)
-	router.Post(protocol.DraftScriptPath, s.draftScript)
-	router.Post(protocol.StartCallPath, s.startCall)
-	router.Post(protocol.CallReportPath, s.reportCall)
-	return &Handler{Handler: router, stop: stop, phones: s.phones}
+	router.Get(protocol.PhonePath, s.requirePhone(s.phone))
+	router.Post(protocol.TokenPath, s.requirePhone(s.token))
+	router.Post(protocol.CallReportPath, s.requirePhone(s.reportCall))
+	s.mountApp(router)
+	router.Route("/api", s.mountApp)
+	return &Handler{Handler: s.withCORS(router), stop: stop, phones: s.phones}
+}
+
+// mountApp は、アプリが呼ぶ道を r に付ける。
+func (s *server) mountApp(r chi.Router) {
+	r.Post(watchedPersonsPath, s.registerWatchedPerson)
+	r.Post(protocol.DraftScriptPath, s.draftScript)
+	r.Post(protocol.StartCallPath, s.startCall)
+}
+
+func (s *server) newTimer(d time.Duration) clock.Timer {
+	if s.clock == nil {
+		return clock.Real{}.NewTimer(d)
+	}
+	return s.clock.NewTimer(d)
 }
 
 type server struct {
@@ -97,8 +113,9 @@ type server struct {
 	firebase   Firebase
 	tokens     Tokens
 	summarizer Summarizer
-	clock      Clock
 	phones     *phoneBook
+	// clock は、トークンの期限と、ping と、切れた接続の猶予を進める。nil なら実時間である。
+	clock clock.Clock
 	// base は、このサーバーが止まるまで生きている context である。電話機の接続はこれに従う。
 	base context.Context
 }

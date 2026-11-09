@@ -155,6 +155,7 @@ func signUp(t *testing.T) firebasetest.Family {
 type response struct {
 	status int
 	body   []byte
+	header http.Header
 }
 
 // register は、アプリの L6 と同じように見守る方の登録を頼む。authorization が空なら、ヘッダーを付けない。
