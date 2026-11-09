@@ -152,6 +152,28 @@ void main() {
       expect(find.byType(HomeScreen), findsNothing);
     });
 
+    testWidgets('見守る方がいない家族は、完了の画面を開いても L3 に戻る', (tester) async {
+      await pumpApp(
+        tester,
+        auth: FakeAuthRepository(signedIn: true),
+        watchedPerson: FakeWatchedPersonRepository(
+          status: WatchedPersonStatus.none,
+        ),
+      );
+      final router = GoRouter.of(tester.element(find.byType(SyncScreen)));
+
+      router.go('/sync/done');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SyncScreen), findsOneWidget);
+      expect(find.text('電話機との同期を始めます。'), findsOneWidget);
+      expect(find.byType(SyncDoneScreen), findsNothing);
+      expect(find.text('同期が完了しました！'), findsNothing);
+      expect(find.widgetWithText(AppButton, 'セットアップへ進む'), findsNothing);
+      expect(find.byType(HomeScreen), findsNothing);
+      expect(find.byType(WatchedPersonNameScreen), findsNothing);
+    });
+
     testWidgets('見守る方がいるかを読み終えるまでは、L3 も L6 もホームも開かない', (tester) async {
       final watchedPerson = FakeWatchedPersonRepository(
         status: WatchedPersonStatus.unknown,

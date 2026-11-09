@@ -53,7 +53,14 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
     });
     try {
       await ref.read(syncRepositoryProvider).start();
-      if (mounted) setState(() => _page = _Page.waiting);
+      // 前の準備が終わっていても、新しい準備では入力と知らせを消す
+      if (mounted) {
+        setState(() {
+          _page = _Page.waiting;
+          _digits = '';
+          _issue = null;
+        });
+      }
     } on SyncPrepLimitedException {
       if (mounted) setState(() => _startIssue = _StartIssue.limited);
     } on SyncFailedException {
@@ -267,20 +274,20 @@ class SyncDoneScreen extends ConsumerWidget {
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: 20,
                   children: [
-                    PhoneIllustration(showHash: false),
+                    const PhoneIllustration(showHash: false),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       spacing: 4,
                       children: [
-                        Text('同期が完了しました！', style: AppTextStyles.titleL),
+                        const Text('同期が完了しました！', style: AppTextStyles.titleL),
                         Text('以下の電話機からAIが電話できるようになりました。', style: _mutedBody),
                       ],
                     ),
-                    _PhoneCard(),
+                    const _PhoneCard(),
                   ],
                 ),
               ),
@@ -332,16 +339,16 @@ class _WaitingBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 20,
       children: [
-        PhoneIllustration(showHash: true),
+        const PhoneIllustration(showHash: true),
         Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           spacing: 8,
           children: [
-            Text('電話機の受話器を上げて\n「＃」を押してください', style: AppTextStyles.titleL),
+            const Text('電話機の受話器を上げて\n「＃」を押してください', style: AppTextStyles.titleL),
             Text('受話器から6桁の認証コードが流れます。', style: _mutedBody),
           ],
         ),
@@ -371,7 +378,7 @@ class _CodeBody extends StatelessWidget {
         const Text('受話器から聞こえた\n6桁の数字を入力してください', style: AppTextStyles.titleL),
         _CodeBoxes(digits: digits, wrong: issue == _Issue.wrong),
         if (issue == null)
-          const Text('聞きのがしたときは、電話機の「＃」をもう一度押します。', style: _mutedNote)
+          Text('聞きのがしたときは、電話機の「＃」をもう一度押します。', style: _mutedNote)
         else
           _notice(issue!),
         AppButton(
@@ -670,25 +677,9 @@ class _PhoneIcon extends StatelessWidget {
   }
 }
 
-const _mutedBody = TextStyle(
-  fontFamily: 'BIZUDPGothic',
-  fontWeight: FontWeight.w400,
-  fontSize: 15,
-  height: 24 / 15,
-  letterSpacing: .02 * 15,
-  leadingDistribution: TextLeadingDistribution.even,
-  color: AppColors.inkSecondary,
-);
+final _mutedBody = AppTextStyles.bodyM.copyWith(color: AppColors.inkSecondary);
 
-const _mutedNote = TextStyle(
-  fontFamily: 'BIZUDPGothic',
-  fontWeight: FontWeight.w400,
-  fontSize: 13,
-  height: 20 / 13,
-  letterSpacing: .02 * 13,
-  leadingDistribution: TextLeadingDistribution.even,
-  color: AppColors.inkSecondary,
-);
+final _mutedNote = AppTextStyles.bodyS.copyWith(color: AppColors.inkSecondary);
 
 const _digitStyle = TextStyle(
   fontFamily: 'BIZUDPGothic',
