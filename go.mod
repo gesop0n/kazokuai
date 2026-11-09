@@ -5,8 +5,10 @@ go 1.27.3
 require (
 	cloud.google.com/go/firestore v1.29.2
 	firebase.google.com/go/v4 v4.22.0
+	github.com/coder/websocket v1.8.13
 	github.com/gen2brain/malgo v0.11.27
 	github.com/go-chi/chi/v5 v5.5.0
+	github.com/warthog618/go-gpiocdev v0.10.0
 	google.golang.org/genai v1.77.0
 )
 
@@ -26,7 +28,6 @@ require (
 	github.com/MicahParks/keyfunc v1.9.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
-	github.com/coder/websocket v1.8.13 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect

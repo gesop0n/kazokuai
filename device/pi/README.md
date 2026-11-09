@@ -1,20 +1,20 @@
 # 電話機を Pi に入れる
 
-新しい SD カードから電話機を作り直す手順です。配線、OS、起動時に動かす設定、実行ファイルの受け取り方をここにまとめます。
+新しい SD カードから電話機を作り直す手順です。配線、安全、設定、部品の確認、OS、起動時に動かす設定、実行ファイルの受け取り方をここにまとめます。
 
 Pi を触るのは人です。指揮役は Pi に入りません。実行ファイルは、人が `pi-release` を main から早送りして push すると、GitHub Actions が作ります。Pi の上でビルドするのは予備です。
 
-## 今の実行ファイルでできること
+## この実行ファイル
 
-今の実行ファイルは、バックエンドへつなぎ、切れたら自分でつなぎ直します。起動時に動き、失敗したら動き直します。再起動のあとも、systemd が起動し、ひとりでにバックエンドへつなぎます。
+Linux の実行ファイルは、バックエンドへつなぎ、切れたら自分でつなぎ直します。起動時に動き、失敗したら動き直します。再起動のあとも、systemd が起動し、ひとりでにバックエンドへつなぎます。
 
-受話器の GPIO、フック、キーパッド、呼び出し音、音量の倍率は、まだこの実行ファイルにはありません。見本の `device.env` には、そのプログラムが読む設定の名前と既定値だけを置いてあります。今の実行ファイルは読みません。確認の手順は、そのプログラムの README と、こちらがマージで重なったときにまとめます。今のフックはキーボードの Enter なので、systemd の下では受話器の上げ下げになりません。通話そのものは、その部品が入ってから Pi の上で確認します。
+受話器は、`KAZOKUAI_AUDIO_DEVICE` に書いた名前の USB オーディオを開きます。音には `KAZOKUAI_SPEAKER_GAIN` を掛け、`KAZOKUAI_SPEAKER_LIMIT` を超えた分を切ります。フックは GPIO で読みます。呼び出し音とランプは、まだ音も光も出さず、ログに「呼び出し中です。」「ランプが点きました。」と書きます。キーパッドの読み取りは、まだこの実行ファイルにはありません。
 
-起動時にスピーカーを開きます。開けないとプロセスは終わり、systemd が動き直します。ログに「スピーカーを開けなかった」と出たら、下の「音声」を見てください。
+macOS で手元から動かすときは、既定のマイクとスピーカー、Enter キーのフックのままです。ここから下は Pi の手順です。
 
 ## OS と Wi-Fi
 
-[Raspberry Pi Imager](https://www.raspberrypi.com/software/) で書きます。OS は Raspberry Pi OS Lite（64 ビット）の bookworm にします。ビルドに使う `debian:bookworm` と glibc が揃います。bookworm で作った実行ファイルは、より新しい glibc（Trixie など）の上でも動きます。Imager の一覧に bookworm が無いときは、Lite の 64 ビットを選び、この README のビルドと同じ世代かどうかを確認してください。
+[Raspberry Pi Imager](https://www.raspberrypi.com/software/) で書きます。機種は Raspberry Pi 4 Model B、OS は Raspberry Pi OS Lite（64 ビット）の bookworm にします。ビルドに使う `debian:bookworm` と glibc が揃います。bookworm で作った実行ファイルは、より新しい glibc（Trixie など）の上でも動きます。Imager の一覧に bookworm が無いときは、Lite の 64 ビットを選び、この README のビルドと同じ世代かどうかを確認してください。
 
 Imager の設定で、次を入れます。
 
@@ -27,7 +27,7 @@ Imager の設定で、次を入れます。
 
 ## PWM の 1 行
 
-呼び出し音は GPIO18 のハードウェア PWM を使います。Raspberry Pi OS の bookworm と Trixie では、設定ファイルは `/boot/firmware/config.txt` です。電源を切ってからカードを別のパソコンに挿すか、Pi の上で編集します。
+呼び出し音は GPIO18 のハードウェア PWM を使います。今の実行ファイルは PWM を動かさず、ログだけを書きます。配線と OS は、音を出す変更が入る前に揃えておきます。Raspberry Pi OS の bookworm と Trixie では、設定ファイルは `/boot/firmware/config.txt` です。電源を切ってからカードを別のパソコンに挿すか、Pi の上で編集します。
 
 ファイルの末尾に、次の 1 行だけ足します。
 
@@ -39,7 +39,7 @@ dtoverlay=pwm
 
 ## 配線
 
-電源を切ってから配線します。受話器のスピーカーとマイクは、動作を確認してある USB オーディオアダプターにつなぎます。キーパッドは 3 列 4 行です。表に無い端子（C4、VSS、そのほか）はつなぎません。
+電源を切ってから配線します。受話器のスピーカーとマイクは、動作を確認してある USB オーディオアダプターにつなぎます。1 つのアダプターを、マイクと受話口の両方に使います。キーパッドは 3 列 4 行です。表に無い端子（C4、VSS、そのほか）はつなぎません。番号は BCM です。
 
 | 用途 | BCM 番号 | 物理ピン |
 |---|---|---|
@@ -49,9 +49,13 @@ dtoverlay=pwm
 | 受話器スイッチ | 5 | 29 |
 | スイッチのもう片方 | GND | 30 |
 
-複数のキーが同時に押されているあいだは、全部離すまで入力にしません。
+キーの並びの既定は、上の行から `1 2 3`、`4 5 6`、`7 8 9`、`* 0 #` です。5 以外は実機で確かめてから使います。複数のキーが同時に押されているあいだは、全部離すまで入力にしません。この読み取りは、まだこの実行ファイルにはありません。
 
-受話器スイッチは、元の電話回路から電気的に切り離した無電圧接点にします。切替接点のときは、使わない側も含めて接点の組全体を切り離します。GPIO に電話回線や元の基板の電圧を加えないでください。上げると接点が閉じる向きが既定で、見本の `KAZOKUAI_LIFTED_WHEN_CLOSED` は `true` です。今の実行ファイルは、この値を読みません。
+同じ GPIO を、同時に 2 つのプログラムで使わないでください。
+
+## 安全
+
+受話器スイッチは、元の電話回路から電気的に切り離した無電圧接点にします。切替接点のときは、使わない側も含めて接点の組全体を切り離します。GPIO に電話回線や元の基板の電圧を加えないでください。上げると接点が閉じる向きが既定で、見本の `KAZOKUAI_LIFTED_WHEN_CLOSED` は `true` です。違いは、下の `check hook` で確かめます。
 
 呼び出し音は PAM8012（入力コンデンサーを内蔵したモジュールを想定）です。
 
@@ -61,19 +65,61 @@ dtoverlay=pwm
 - SPK+ と SPK− は、本体の 8Ω スピーカーだけにつなぐ
 - SPK− を GND や USB の音声端子につなげない
 
-### 音量
-
-仕様の音量は、音に 0.15 を掛け、フルスケールの 0.1 を超えた分を切る、です。見本の `KAZOKUAI_SPEAKER_GAIN` と `KAZOKUAI_SPEAKER_LIMIT` がその既定です。tel-base の確認は倍率 0.5 から始めていました。今の実行ファイルは、どちらの倍率もまだ掛けません。ソフトの振幅制限は、耳元の音圧を保証しません。音を確認するときは、耳から離します。
-
-### 音声
-
-実行ファイルは malgo で既定の再生装置を開きます。見本の `KAZOKUAI_AUDIO_DEVICE` は空です。今の実行ファイルは名前では選ばず、既定の再生装置を開きます。USB オーディオアダプターを挿し、それが既定の再生装置になるようにします。
+音は、倍率を掛けたあと、上限を超えた分だけを切ります。既定は倍率 `0.15`、上限 `0.1` です。tel-base の倍率 0.5 は、音全体を上限まで縮めるときの値です。ソフトの振幅制限は、耳元の音圧を保証しません。音の出る確認は、受話器を耳から離してから始めます。
 
 スピーカーを開けないときは、Raspberry Pi OS（bookworm）で次を入れます。malgo は実行時に `libasound.so.2` を開きます。
 
 ```bash
 sudo apt install -y libasound2
 ```
+
+## 設定
+
+見本は `device/pi/device.env` です。本物は Pi の `/etc/kazokuai/device.env` だけに置きます。合言葉と見守る方の ID は、人がそのファイルに書きます。見本のその 2 つは空です。値をリポジトリに写しません。
+
+人が入れる項目です。
+
+| 変数 | 見本 | 意味 |
+|---|---|---|
+| `KAZOKUAI_BACKEND` | `http://localhost:8080` | バックエンドの URL。https は wss でつなぐ。Pi では、届くアドレスに書き換える。localhost は Pi 自身 |
+| `KAZOKUAI_WATCHED_PERSON` | 空 | 見守る方の ID。登録したときのバックエンドのログに、`--watched-person` に続けて出る |
+| `PHONE_SECRET` | 空 | 合言葉。Cloud Run ではバックエンドと同じものを、このファイルにだけ書く。空なら手元の開発用の合言葉 |
+| `KAZOKUAI_AUDIO_DEVICE` | 空 | USB アダプターの名前の一部。音声を開くときは要る。番号は再起動や接続の順で変わるので、名前で選ぶ |
+
+Linux の実行ファイルが読む、受話器とフックの既定です。空の項目は、この既定のまま動きます。音声の名前だけは、空だと開けません。
+
+| 変数 | 既定 | 意味 |
+|---|---|---|
+| `KAZOKUAI_MIC_CHANNEL` | `0` | マイクのチャンネル。最初が 0 |
+| `KAZOKUAI_SPEAKER_GAIN` | `0.15` | スピーカーの音に掛ける倍率。0 より大きく 4 以下 |
+| `KAZOKUAI_SPEAKER_LIMIT` | `0.1` | フルスケールに対する上限。0 より大きく 1 以下 |
+| `KAZOKUAI_GPIO_CHIP` | `gpiochip0` | GPIO のチップ |
+| `KAZOKUAI_HOOK_GPIO` | `5` | フックの BCM 番号 |
+| `KAZOKUAI_LIFTED_WHEN_CLOSED` | `true` | 上げると接点が閉じるなら true、開くなら false |
+| `KAZOKUAI_HOOK_DEBOUNCE` | `50ms` | フックが安定したとみなす時間 |
+
+## 部品の確認
+
+実行ファイルを入れたあと、電話機の上で部品を 1 つずつ確かめます。終わるまで続くものは Ctrl+C で止めます。音の出る確認は、受話器を耳から離してから始めます。
+
+設定ファイルは root の 0640 です。確認コマンドは、サービスと同じ読み方でそのファイルを渡します。
+
+```bash
+sudo systemd-run --pty --wait --collect \
+  --property=EnvironmentFile=/etc/kazokuai/device.env \
+  /usr/local/bin/kazokuai-device check devices
+```
+
+`check` のうしろを、次のどれかに替えます。
+
+| コマンド | 動作 |
+|---|---|
+| `device check devices` | 音声の機器の名前を並べる |
+| `device check speaker` | 受話器で 1 秒の音を鳴らす |
+| `device check mic` | 5 秒録って、受話器から流す |
+| `device check hook` | 受話器が上がっているか、置かれているかを出す |
+
+`devices` で見た名前の、他の機器と重ならない一部を `KAZOKUAI_AUDIO_DEVICE` に入れます。`hook` で、上げると接点が閉じるかを見ます。違うときは `KAZOKUAI_LIFTED_WHEN_CLOSED` を変えます。
 
 ## Pi に道具を入れる
 
@@ -178,17 +224,18 @@ mise run --skip-tools device:install -- ~/kazokuai-device
 
 2 回目以降は、clone の代わりに `git fetch origin` と、同じ `git switch --detach` を使います。
 
-最初の 1 回は、見本を `/etc/kazokuai/device.env` に置き（権限 0640）、見守る方の ID が空なので終了コード 1 で終わります。サービスはまだ有効にしません。すでにファイルがあるときは上書きしません。合言葉は、そのファイルの中にだけ書きます。
+最初の 1 回は、見本を `/etc/kazokuai/device.env` に置き（権限 0640）、見守る方の ID が空なので終了コード 1 で終わります。実行ファイルは入ります。サービスはまだ有効にしません。すでにファイルがあるときは上書きしません。合言葉は、そのファイルの中にだけ書きます。
+
+機器の名前を見てから、設定を書きます。
 
 ```bash
+sudo /usr/local/bin/kazokuai-device check devices
 sudoedit /etc/kazokuai/device.env
 ```
 
-人が書くのは次の 3 つです。見本の合言葉と ID は空です。値をリポジトリに写しません。受話器とフックの項目は既定のまま残します。今の実行ファイルは読みません。
+書くものは、バックエンドの URL、見守る方の ID、合言葉、音声の機器名です。受話器とフックの残りの項目は、既定のまま残します。ID は、家族がアプリで見守る方を登録したとき、バックエンドのログに `--watched-person` に続けて出ます。見本やこの README には書きません。
 
-- `KAZOKUAI_BACKEND`: Pi から届くバックエンドの URL。`https://…` の Cloud Run、または同じ LAN の URL。`http://localhost:8080` は Pi 自身です。Pi の上ではバックエンドになりません。
-- `KAZOKUAI_WATCHED_PERSON`: 見守る方の ID。家族がアプリで見守る方を登録したとき、バックエンドのログに `--watched-person` に続けて出ます。その文字列を写します。見本やこの README には書きません。
-- `PHONE_SECRET`: 合言葉。Cloud Run のバックエンドと同じものを、Pi のこのファイルにだけ書きます。手元の demo 用バックエンドで、バックエンド側も空のまま開発用の合言葉を使うときだけ、空のままにします。
+`KAZOKUAI_AUDIO_DEVICE` が空のままだと、サービスは音声を開けずに動き直します。スピーカー、マイク、フックは、サービスを有効にする前に、上の確認コマンドで見ておけます。
 
 保存したら、同じコマンドをもう一度動かします。
 
@@ -204,7 +251,7 @@ mise run --skip-tools device:install -- ~/kazokuai-device
 sudo reboot
 ```
 
-起動したあと、もう一度入って次を見ます。`active` のまま、`バックエンドとの接続が切れたので` が繰り返されなければ、つながっています。その文が繰り返されるときは、URL と合言葉を見ます。スピーカーを開けないと、その前にプロセスが終わり、systemd が動き直します。
+起動したあと、もう一度入って次を見ます。`active` のまま、`バックエンドとの接続が切れたので` が繰り返されなければ、つながっています。その文が繰り返されるときは、URL と合言葉を見ます。`音声の機器の名前が要ります` や `スピーカーを開けなかった` と出るときは、機器名と `libasound2` を見ます。
 
 ```bash
 systemctl status kazokuai-device
@@ -213,7 +260,7 @@ journalctl -u kazokuai-device -f
 
 ## 入れ直す
 
-新しいコミットを配るときは、main を `pi-release` へ早送りして push し、Actions が終わるのを待ちます。新しい実行ファイルと sha256 を落とし、一致を確認してから Pi のホームへ送ります。Pi では配ったコミットを checkout し、`mise run --skip-tools device:install -- ~/kazokuai-device` を動かします。`/etc/kazokuai/device.env` はそのまま残します。
+新しいコミットを配るときは、main を `pi-release` へ早送りして push し、Actions が終わるのを待ちます。新しい実行ファイルと sha256 を落とし、一致を確認してから Pi のホームへ送ります。Pi では配ったコミットを checkout し、`mise run --skip-tools device:install -- ~/kazokuai-device` を動かします。`/etc/kazokuai/device.env` はそのまま残します。見本に項目が増えたときは、足りない行だけ人が足します。
 
 ## 予備: 自分でビルドする
 
@@ -247,17 +294,17 @@ docker run --rm --platform linux/arm64 \
 
 リポジトリのルートに `kazokuai-device` と `kazokuai-device.sha256` ができます。この 2 つはコミットしません。sha256 を確認し、`kazokuai-device` を Pi へ送って、`mise run --skip-tools device:install -- ~/kazokuai-device` に渡します。
 
-## サービスが読む設定
+## サービス
 
-見本は `device/pi/device.env` です。本物は Pi の `/etc/kazokuai/device.env` だけに置きます。ユニットは `device/pi/kazokuai-device.service` で、このファイルを `EnvironmentFile` として読みます。
+ユニットは `device/pi/kazokuai-device.service` です。`EnvironmentFile` で `/etc/kazokuai/device.env` を読みます。
 
 - 実行ファイルは `/usr/local/bin/kazokuai-device`
 - `Restart=on-failure`、`RestartSec=5`、起動回数の上限は切りません
 - ネットワークが来てから起動し、多ユーザー起動で有効になります
-- root で動きます。あとの GPIO と PWM を、追加の権限なしで使えるようにするためです
-- 停止信号は SIGINT です。今のプロセスが扱うのがこちらのためです
+- root で動きます。GPIO と、あとの PWM を、追加の権限なしで使えるようにするためです
+- 停止信号は SIGINT です。プロセスが扱うのがこちらのためです
 
-ファイルの項目は、すべてプロセスの環境に入ります。今の実行ファイルが使うのは、バックエンドの URL、見守る方の ID、合言葉です。`KAZOKUAI_WATCHED_PERSON` か `KAZOKUAI_BACKEND` が空、または空白を含むときは、ファイルは置いたままサービスを起動しません。
+ファイルの項目は、すべてプロセスの環境に入ります。`KAZOKUAI_WATCHED_PERSON` か `KAZOKUAI_BACKEND` が空、または空白を含むときは、ファイルは置いたままサービスを起動しません。
 
 ## tel-base
 

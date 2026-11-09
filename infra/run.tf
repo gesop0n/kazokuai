@@ -4,8 +4,8 @@ resource "google_cloud_run_v2_service" "backend" {
   location = var.region
   ingress  = "INGRESS_TRAFFIC_ALL"
 
-  # 既定が true。消すときは、ここを false にしてから destroy する。
-  deletion_protection = true
+  # 既定は true。外す 1 回は infra/run.sh apply --allow-replace を使う。
+  deletion_protection = var.deletion_protection
 
   # サービス全体の上限。改訂を切り替えているあいだも、インスタンスは 1 つを超えない。
   scaling {
@@ -55,7 +55,8 @@ resource "google_cloud_run_v2_service" "backend" {
       }
 
       env {
-        name = "PHONE_SHARED_SECRET"
+        # プロセスは PHONE_SECRET を読む。Secret Manager の名前は phone-shared-secret のまま。
+        name = "PHONE_SECRET"
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.phone_shared_secret.secret_id
