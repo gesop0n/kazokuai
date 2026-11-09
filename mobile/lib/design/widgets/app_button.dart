@@ -49,7 +49,6 @@ enum AppButtonSize {
 
 enum AppButtonVariant {
   primary(background: AppColors.inkPrimary, foreground: AppColors.paperRaised),
-  record(background: AppColors.accentCall, foreground: AppColors.onAccentCall),
   secondary(
     background: AppColors.paperRaised,
     foreground: AppColors.inkPrimary,

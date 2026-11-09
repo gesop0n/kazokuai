@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/coming_soon.dart';
@@ -10,17 +11,23 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
-import 'package:kazokuai/features/ask/voice_setting.dart';
+import 'package:kazokuai/features/booking/booking_data.dart';
+import 'package:kazokuai/features/booking/date_time_pick.dart';
 
-class AskScreen extends StatefulWidget {
+// 文は ADR 0002 のとおり固定で、入力の内容によって変えない
+const _callScript = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
+
+class AskScreen extends ConsumerStatefulWidget {
   const AskScreen({super.key});
 
   @override
-  State<AskScreen> createState() => _AskScreenState();
+  ConsumerState<AskScreen> createState() => _AskScreenState();
 }
 
-class _AskScreenState extends State<AskScreen> {
+class _AskScreenState extends ConsumerState<AskScreen> {
   final _messageController = TextEditingController();
+  DateTime _date = DateTime(2026, 11, 6);
+  TimeOfDay _time = const TimeOfDay(hour: 8, minute: 30);
 
   @override
   void dispose() {
@@ -28,13 +35,29 @@ class _AskScreenState extends State<AskScreen> {
     super.dispose();
   }
 
+  void _book(String message) {
+    ref
+        .read(bookedCallsProvider.notifier)
+        .add(
+          at: DateTime(
+            _date.year,
+            _date.month,
+            _date.day,
+            _time.hour,
+            _time.minute,
+          ),
+          message: message,
+          script: _callScript,
+        );
+    context.goNamed(AppRoutes.booking);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasMessage = _messageController.text.trim().isNotEmpty;
+    final message = _messageController.text.trim();
+    final hasMessage = message.isNotEmpty;
     return Scaffold(
       body: SafeArea(
-        // キーボードが出るとホームバーの余白がなくなるので、ボタンがキーボードに付かないようにする
-        minimum: const EdgeInsets.only(bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -50,17 +73,24 @@ class _AskScreenState extends State<AskScreen> {
                       controller: _messageController,
                       onChanged: (_) => setState(() {}),
                     ),
-                    if (hasMessage) const _SuggestionCard(),
-                    const _VoiceSettings(),
+                    if (hasMessage) const _ScriptCard(),
+                    DateTimeFields(
+                      date: _date,
+                      time: _time,
+                      onDateChanged: (date) => setState(() => _date = date),
+                      onTimeChanged: (time) => setState(() => _time = time),
+                    ),
                   ],
                 ),
               ),
             ),
+            // モックの foot はボタンとホームバーの間も 8 空ける。キーボードでホームバーが
+            // 隠れるときは、この 8 がボタンとキーボードの間隔になる
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: _AskActions(
+                onBook: hasMessage ? () => _book(message) : null,
                 onCall: hasMessage ? () => showComingSoon(context) : null,
-                onBook: () => context.goNamed(AppRoutes.booking),
               ),
             ),
           ],
@@ -99,9 +129,8 @@ class _MessageField extends StatelessWidget {
   }
 }
 
-// 文は ADR 0002 のとおり固定で、入力の内容によって変えない
-class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard();
+class _ScriptCard extends StatelessWidget {
+  const _ScriptCard();
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +140,7 @@ class _SuggestionCard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Flexible(child: AppAiTag(label: 'Geminiの言い方の案')),
+            const Flexible(child: AppAiTag(label: '通話内容')),
             AppButton(
               label: 'なおす',
               variant: AppButtonVariant.ghost,
@@ -121,50 +150,17 @@ class _SuggestionCard extends StatelessWidget {
             ),
           ],
         ),
-        const Text(
-          '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」',
-          style: AppTextStyles.capM,
-        ),
-      ],
-    );
-  }
-}
-
-class _VoiceSettings extends StatelessWidget {
-  const _VoiceSettings();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      // チップの上下の透明の余白 6 と合わせて、見た目の間隔をモックの 8 にする
-      spacing: 2,
-      children: [
-        Text('話し方', style: AppTextStyles.labelM),
-        VoiceSetting(
-          label: 'はやさ',
-          alternativeLabel: 'ゆっくり',
-          minLabel: 'おそい',
-          maxLabel: 'はやい',
-          initialValue: 35,
-        ),
-        VoiceSetting(
-          label: 'ボリューム',
-          alternativeLabel: 'おおきい',
-          minLabel: '小さい',
-          maxLabel: '大きい',
-          initialValue: 70,
-        ),
+        const Text(_callScript, style: AppTextStyles.capM),
       ],
     );
   }
 }
 
 class _AskActions extends StatelessWidget {
-  const _AskActions({required this.onCall, required this.onBook});
+  const _AskActions({required this.onBook, required this.onCall});
 
+  final VoidCallback? onBook;
   final VoidCallback? onCall;
-  final VoidCallback onBook;
 
   @override
   Widget build(BuildContext context) {
@@ -173,17 +169,18 @@ class _AskActions extends StatelessWidget {
       spacing: 8,
       children: [
         AppButton(
-          label: '通話',
-          variant: AppButtonVariant.record,
+          label: 'この日時で予約する',
+          variant: AppButtonVariant.primary,
           size: AppButtonSize.l,
-          leadingIcon: AppIcons.phone,
-          onTap: onCall,
+          leadingIcon: AppIcons.calendarClock,
+          onTap: onBook,
         ),
         AppButton(
-          label: '日時を決めて予約する',
+          label: '今すぐ通話',
           variant: AppButtonVariant.secondary,
           size: AppButtonSize.m,
-          onTap: onBook,
+          leadingIcon: AppIcons.phone,
+          onTap: onCall,
         ),
       ],
     );

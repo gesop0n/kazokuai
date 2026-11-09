@@ -79,7 +79,7 @@ class GalleryScreen extends StatelessWidget {
               ),
               const _SectionLabel('入力欄の既定の高さ 56、AIのラベルの既定の色'),
               AppField(text: '話題を入力(例: 大相撲)', onTap: _noop),
-              const AppAiTag(label: 'Geminiの言い方の案'),
+              const AppAiTag(label: '通話内容'),
               const _SectionLabel('チップ 高さ 36、アイコンあり(topic)'),
               const Wrap(
                 spacing: 8,
@@ -94,30 +94,6 @@ class GalleryScreen extends StatelessWidget {
                     label: '大相撲',
                     selected: false,
                     icon: AppIcons.plus,
-                    onTap: _noop,
-                  ),
-                ],
-              ),
-              const _SectionLabel('チップ 高さ 32(voiceSetting)'),
-              const Wrap(
-                spacing: 6,
-                children: [
-                  AppChip(
-                    label: 'ふつう',
-                    selected: false,
-                    size: AppChipSize.s,
-                    onTap: _noop,
-                  ),
-                  AppChip(
-                    label: 'ゆっくり',
-                    selected: false,
-                    size: AppChipSize.s,
-                    onTap: _noop,
-                  ),
-                  AppChip(
-                    label: 'カスタマイズ',
-                    selected: true,
-                    size: AppChipSize.s,
                     onTap: _noop,
                   ),
                 ],
@@ -176,9 +152,17 @@ class GalleryScreen extends StatelessWidget {
               ),
               const _SectionLabel('押せないボタン(disabledBtn)'),
               const AppButton(
-                label: '現在通話中です',
-                variant: AppButtonVariant.record,
+                label: 'この日時で予約する',
+                variant: AppButtonVariant.primary,
                 size: AppButtonSize.l,
+                leadingIcon: AppIcons.calendarClock,
+                onTap: null,
+              ),
+              const AppButton(
+                label: '今すぐ通話',
+                variant: AppButtonVariant.secondary,
+                size: AppButtonSize.m,
+                leadingIcon: AppIcons.phone,
                 onTap: null,
               ),
               const _SectionLabel('電話に出なかったとき(07b)'),
@@ -198,12 +182,6 @@ class GalleryScreen extends StatelessWidget {
               const _FilledTextField(
                 text: '金曜の通院、10時に迎えに行くと伝えて',
                 minHeight: 60,
-              ),
-              const _SectionLabel('テキスト入力 複数行、高さ 72、文字 labelM(06)'),
-              const _FilledTextField(
-                text: '今日は通院の日です。10時に迎えに行くと伝えて',
-                minHeight: 72,
-                textStyle: AppTextStyles.labelM,
               ),
             ],
           ),
@@ -282,15 +260,10 @@ class _RecentCard extends StatelessWidget {
 }
 
 class _FilledTextField extends StatefulWidget {
-  const _FilledTextField({
-    required this.text,
-    required this.minHeight,
-    this.textStyle,
-  });
+  const _FilledTextField({required this.text, required this.minHeight});
 
   final String text;
   final double minHeight;
-  final TextStyle? textStyle;
 
   @override
   State<_FilledTextField> createState() => _FilledTextFieldState();
@@ -313,7 +286,6 @@ class _FilledTextFieldState extends State<_FilledTextField> {
       controller: _controller,
       minHeight: widget.minHeight,
       maxLines: null,
-      textStyle: widget.textStyle,
     );
   }
 }
