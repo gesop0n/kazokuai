@@ -116,6 +116,13 @@ fi
     --dart-define="FIREBASE_STORAGE_BUCKET=${firebase_storage_bucket}"
 )
 
+# Firebase CLI は、firebase.json のあるディレクトリの外を公開しない。
+# ビルド結果を firebase/hosting へ写してから公開する。
+hosting_dir="$root/firebase/hosting"
+rm -rf "$hosting_dir"
+mkdir -p "$hosting_dir"
+cp -R "$root/mobile/build/web/." "$hosting_dir/"
+
 (
   cd "$root/firebase"
   firebase deploy --only "hosting:${hosting_site}" --project="$project" --non-interactive

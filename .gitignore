@@ -10,6 +10,9 @@ __pycache__/
 # firebase/ でエミュレーターを起動すると firebase-tools が作る
 *-debug.log
 
+# deploy:web が Flutter のビルドを firebase/ の中へ写す先。CLI はプロジェクトの外を公開できない
+firebase/hosting/
+
 # firebase/ のルールのテストに使う。npm ci で入れる
 node_modules/
 

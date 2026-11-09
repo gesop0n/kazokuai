@@ -5,7 +5,7 @@
   },
   "hosting": {
     "site": "kazokuai",
-    "public": "../mobile/build/web",
+    "public": "hosting",
     "ignore": [
       "firebase.json",
       "**/.*",

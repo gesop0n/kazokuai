@@ -133,7 +133,7 @@ push が、Artifact Registry のリポジトリが無いと言って失敗した
 mise run deploy:web -- --project=PROJECT_ID --state-bucket=BUCKET
 ```
 
-Terraform の output をビルドの引数にして、`firebase.json` の `site`（`kazokuai`）へ公開する。クライアントの API キーは、リポジトリにも、このコマンドの表示にも出さない。output のプロジェクトが `--project` と違うとき、Cloud Run のリージョンとサービス名が `firebase.json` と違うとき、または `hosting_url` が `https://kazokuai.web.app` と違うときは、公開しない。
+Terraform の output をビルドの引数にして、ビルド結果を `firebase/hosting` に写し、`firebase.json` の `site`（`kazokuai`）へ公開する。Firebase CLI は、`firebase.json` の外のディレクトリを受け取らない。クライアントの API キーは、リポジトリにも、このコマンドの表示にも出さない。output のプロジェクトが `--project` と違うとき、Cloud Run のリージョンとサービス名が `firebase.json` と違うとき、または `hosting_url` が `https://kazokuai.web.app` と違うときは、公開しない。
 
 終わると `https://kazokuai.web.app` を出す。スマホとパソコンのブラウザで開く。`/api/**` は、このサイトから Cloud Run に届く。審査員には、この URL を渡す。
 

@@ -1,9 +1,12 @@
+import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +19,8 @@ BUCKET = "kazokuai-tfstate"
 AMBIENT = "other-default-project"
 REGION = "asia-northeast1"
 IMAGE_PREFIX = f"{REGION}-docker.pkg.dev/{PROJECT}/kazokuai/backend:"
+WEB_SENTINEL = "kazokuai-web-build"
+HOSTING_DIR = ROOT / "firebase" / "hosting"
 
 TF_JSON = """{
   "firebase_api_key": {"value": "test-api-key"},
@@ -82,6 +87,10 @@ class DeployScriptTest(unittest.TestCase):
             f"{sh_quote(log)}\n"
             "printf 'GOOGLE_BILLING_PROJECT=%s\\n' \"$GOOGLE_BILLING_PROJECT\" >> "
             f"{sh_quote(log)}\n"
+            "if [ -f hosting/index.html ]; then\n"
+            "  printf 'HOSTING_INDEX=%s\\n' \"$(cat hosting/index.html)\" >> "
+            f"{sh_quote(log)}\n"
+            "fi\n"
             "printf '%s\\n' '---' >> "
             f"{sh_quote(log)}\n"
             + extra
@@ -207,7 +216,8 @@ class DeployScriptTest(unittest.TestCase):
         self.assert_untouched()
 
     def test_web_builds_with_terraform_output_and_deploys_that_project(self):
-        result = self.run_script(WEB, f"--project={PROJECT}", f"--state-bucket={BUCKET}")
+        with staged_web_build():
+            result = self.run_script(WEB, f"--project={PROJECT}", f"--state-bucket={BUCKET}")
         self.assertEqual(result.returncode, 0, result.stderr)
         terraform = self.terraform_log.read_text(encoding="utf-8")
         flutter = self.flutter_log.read_text(encoding="utf-8")
@@ -234,6 +244,25 @@ class DeployScriptTest(unittest.TestCase):
         self.assertIn("Web 版: https://kazokuai.web.app\n", result.stdout)
         self.assertNotIn("test-api-key", result.stdout)
         self.assertFalse(self.docker_log.exists())
+
+    def test_web_deploys_the_build_from_inside_the_firebase_directory(self):
+        config = json.loads((ROOT / "firebase" / "firebase.json").read_text(encoding="utf-8"))
+        public = config["hosting"]["public"]
+        firebase_dir = (ROOT / "firebase").resolve()
+        public_dir = (firebase_dir / public).resolve()
+        self.assertEqual(public, "hosting")
+        self.assertTrue(public_dir.is_relative_to(firebase_dir), public)
+        self.assertIn("firebase/hosting/", (ROOT / ".gitignore").read_text(encoding="utf-8"))
+
+        with staged_web_build():
+            result = self.run_script(WEB, f"--project={PROJECT}", f"--state-bucket={BUCKET}")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            firebase = self.firebase_log.read_text(encoding="utf-8")
+            self.assertIn(f"HOSTING_INDEX={WEB_SENTINEL}", firebase)
+            self.assertTrue(any(line.startswith("PWD=") and line.endswith("/firebase") for line in firebase.splitlines()))
+            self.assertEqual((HOSTING_DIR / "index.html").read_text(encoding="utf-8"), WEB_SENTINEL)
+            self.assertEqual((HOSTING_DIR / "assets" / "app.js").read_text(encoding="utf-8"), "app")
+            self.assertFalse((HOSTING_DIR / "stale.txt").exists())
 
     def test_web_stops_when_output_project_differs(self):
         result = self.run_script(
@@ -288,6 +317,33 @@ class DeployScriptTest(unittest.TestCase):
 
 def sh_quote(path):
     return "'" + str(path).replace("'", "'\\''") + "'"
+
+
+@contextmanager
+def staged_web_build():
+    """本物の Flutter のビルドを脇へよけ、公開のテスト用の小さなビルドを置く。"""
+    web = ROOT / "mobile" / "build" / "web"
+    backup = web.with_name("web.deploy-test-backup")
+    if backup.exists():
+        raise RuntimeError(f"退避先が既にある: {backup}")
+    moved = web.exists()
+    if moved:
+        web.rename(backup)
+    web.mkdir(parents=True)
+    (web / "index.html").write_text(WEB_SENTINEL, encoding="utf-8")
+    (web / "assets").mkdir()
+    (web / "assets" / "app.js").write_text("app", encoding="utf-8")
+    HOSTING_DIR.mkdir(parents=True, exist_ok=True)
+    (HOSTING_DIR / "stale.txt").write_text("stale", encoding="utf-8")
+    try:
+        yield web
+    finally:
+        if HOSTING_DIR.exists():
+            shutil.rmtree(HOSTING_DIR)
+        if web.exists():
+            shutil.rmtree(web)
+        if moved:
+            backup.rename(web)
 
 
 if __name__ == "__main__":
