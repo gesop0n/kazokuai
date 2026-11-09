@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -22,8 +23,13 @@ import (
 
 // Device は、バックエンドとつながり続け、来た指示ごとに電話をする。
 type Device struct {
-	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080
+	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080。https は wss でつなぐ。
 	Backend string
+	// Secret は、バックエンドへ付ける合言葉である。
+	Secret string
+	// HTTP は、バックエンドへのクライアントである。nil なら http.DefaultClient を使う。
+	// テストが、自分の証明を信じる TLS のバックエンドへつなぐときに渡す。
+	HTTP *http.Client
 	// WatchedPerson は、この電話機の見守る方の ID である。起動するときに渡す。
 	WatchedPerson string
 	Gemini        Gemini
@@ -561,12 +567,7 @@ func (d *Device) sendReport(report protocol.CallReport) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.CallReportPath, bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := d.postBackend(ctx, protocol.CallReportPath, body)
 	if err != nil {
 		return err
 	}
@@ -603,12 +604,7 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+protocol.TokenPath, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := d.postBackend(ctx, protocol.TokenPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -622,4 +618,36 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 		return nil, fmt.Errorf("バックエンドのレスポンスを読めなかった: %w", err)
 	}
 	return &token, nil
+}
+
+func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*http.Response, error) {
+	endpoint, err := backendEndpoint(d.Backend, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(protocol.PhoneSecretHeader, d.Secret)
+	client := d.HTTP
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return client.Do(req)
+}
+
+// backendEndpoint は、base の末尾の / に関わらず、path を 1 つの URL にする。
+// base と path を文字列で足すと、末尾の / があるときに //token になり、ルートに届かない。
+func backendEndpoint(base, path string) (string, error) {
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	ref, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	return u.ResolveReference(ref).String(), nil
 }

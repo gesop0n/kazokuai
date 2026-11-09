@@ -234,6 +234,144 @@ void main() {
     expect(meal.needsAttention, isFalse);
   });
 
+  test('伝言への返答は、伝えたことと、返答を話した時刻になる', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'with-reply',
+      _made(
+        at: DateTime(2026, 11, 5, 10, 28),
+        durationMs: 120000,
+        headline: '伝言を伝えたそうです。',
+        quote: 'わかったよ',
+        offsetMs: 0,
+        meal: _silent(),
+        sleep: _silent(),
+        health: _silent(),
+        told: '金曜の通院は、朝10時にお迎えに来る',
+        reply: 'わかったよ。玄関で待ってるね。',
+        replyOffsetMs: 60000,
+      ),
+    );
+
+    final reply = (await _home(
+      firestore,
+      DateTime(2026, 11, 5, 10, 30),
+    )).reply!;
+
+    expect(reply.told, '金曜の通院は、朝10時にお迎えに来る');
+    expect(reply.text, 'わかったよ。玄関で待ってるね。');
+    expect(reply.saidAt, DateTime(2026, 11, 5, 10, 29));
+  });
+
+  test('それより新しい電話のまとめが届くと、返答は出さない', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'older',
+      _replyCall(at: DateTime(2026, 11, 5, 10, 28)),
+    );
+    await _call(
+      firestore,
+      'newer',
+      _made(
+        at: DateTime(2026, 11, 5, 11, 0),
+        durationMs: 60000,
+        headline: 'そのあとの電話です。',
+        quote: '元気だよ',
+        offsetMs: 0,
+        meal: _silent(),
+        sleep: _silent(),
+        health: _silent(),
+      ),
+    );
+
+    final home = await _home(firestore, DateTime(2026, 11, 5, 11, 10));
+
+    expect(home.reply, isNull);
+    expect(home.latestCall!.id, 'newer');
+  });
+
+  test('それより新しい電話のまとめがまだなければ、前の返答を出す', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'older',
+      _replyCall(at: DateTime(2026, 11, 5, 10, 28)),
+    );
+    await _call(
+      firestore,
+      'newer',
+      _bare(at: DateTime(2026, 11, 5, 11, 0), durationMs: 30000),
+    );
+
+    final home = await _home(firestore, DateTime(2026, 11, 5, 11, 10));
+
+    expect(home.reply!.text, 'わかったよ。玄関で待ってるね。');
+    expect(home.latestCall!.id, 'newer');
+  });
+
+  test('まとめを作れなかったあとの電話でも、前の返答を出す', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'older',
+      _replyCall(at: DateTime(2026, 11, 5, 10, 28)),
+    );
+    await _call(firestore, 'newer', {
+      'startedAt': DateTime(2026, 11, 5, 11, 0),
+      'durationMs': 60000,
+      'summaryState': '作れなかった',
+      'summary': {
+        'told': '使わない',
+        'reply': {'text': '使わない返答', 'offsetMs': 0},
+      },
+    });
+
+    final home = await _home(firestore, DateTime(2026, 11, 5, 11, 10));
+
+    expect(home.reply!.text, 'わかったよ。玄関で待ってるね。');
+    expect(home.latestCall!.id, 'newer');
+    expect(home.latestCall!.summary.headline, 'まとめを作れませんでした');
+  });
+
+  test('返答の文がない電話は、返答を出さない', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'empty',
+      _replyCall(at: DateTime(2026, 11, 5, 10, 28), reply: '   '),
+    );
+
+    final home = await _home(firestore, DateTime(2026, 11, 5, 10, 30));
+
+    expect(home.reply, isNull);
+  });
+
+  test('返答のある電話が複数なら、まとめの届いているいちばん新しいものを出す', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(
+      firestore,
+      'older',
+      _replyCall(at: DateTime(2026, 11, 5, 9, 0), reply: '古い返答'),
+    );
+    await _call(
+      firestore,
+      'newer',
+      _replyCall(at: DateTime(2026, 11, 5, 10, 28), reply: '新しい返答'),
+    );
+
+    final home = await _home(firestore, DateTime(2026, 11, 5, 10, 30));
+
+    expect(home.reply!.text, '新しい返答');
+  });
+
   test('電話がまだなければ、直近の電話も今日の様子もない', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
@@ -291,6 +429,9 @@ Map<String, Object?> _made({
   required Map<String, Object?> meal,
   required Map<String, Object?> sleep,
   required Map<String, Object?> health,
+  String told = '',
+  String reply = '',
+  int replyOffsetMs = 0,
 }) => {
   'startedAt': at,
   'durationMs': durationMs,
@@ -303,8 +444,27 @@ Map<String, Object?> _made({
     'health': health,
     'topic': '体調',
     'points': <Object?>[],
+    'told': told,
+    'reply': {'text': reply, 'offsetMs': replyOffsetMs},
   },
 };
+
+Map<String, Object?> _replyCall({
+  required DateTime at,
+  String reply = 'わかったよ。玄関で待ってるね。',
+}) => _made(
+  at: at,
+  durationMs: 120000,
+  headline: '伝言を伝えたそうです。',
+  quote: 'わかったよ',
+  offsetMs: 0,
+  meal: _silent(),
+  sleep: _silent(),
+  health: _silent(),
+  told: '金曜の通院は、朝10時にお迎えに来る',
+  reply: reply,
+  replyOffsetMs: 60000,
+);
 
 Map<String, Object?> _bare({required DateTime at, required int durationMs}) => {
   'startedAt': at,

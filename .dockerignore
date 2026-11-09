@@ -1,0 +1,5 @@
+.git
+mobile
+firebase/node_modules
+docs/architecture/*.png
+docs/architecture/*.html

@@ -12,6 +12,7 @@ import 'package:kazokuai/features/home/home_format.dart';
 import 'package:kazokuai/features/home/home_header.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
+import 'package:kazokuai/features/home/reply_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 
 import '../../support/layout_matrix.dart';
@@ -67,6 +68,22 @@ void main() {
 
     testEachLayout('直近の電話のカード(日時の文字が長いとき)', (tester, layout) async {
       await pumpInLayout(tester, layout, buildLongStampRecentCard());
+    });
+
+    testEachLayout('返答のカード', (tester, layout) async {
+      await pumpInLayout(
+        tester,
+        layout,
+        ReplyCard(
+          callName: 'とてもながい呼び方のハナさん',
+          now: DateTime(2026, 12, 27),
+          reply: Reply(
+            told: '金曜の通院は、朝10時にお迎えに来ると、くり返して伝えました。',
+            text: 'わかったよ。玄関で待ってるね。遅れてもそこにいるから、そのまま来てね。',
+            saidAt: DateTime(2026, 12, 25, 19, 2),
+          ),
+        ),
+      );
     });
 
     testEachLayout('AIに伝えてもらうのカード', (tester, layout) async {

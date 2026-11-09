@@ -164,7 +164,10 @@ class _AskScreenState extends ConsumerState<AskScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const AppNavBar(title: 'AIに伝えてもらう'),
+            AppNavBar(
+              title: 'AIに伝えてもらう',
+              onLeadingTap: () => popOrGoToParent(context),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),

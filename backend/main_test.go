@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"net"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+
 	"github.com/gesop0n/kazokuai/backend/server"
+	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
 func TestTimeFlags(t *testing.T) {
@@ -126,6 +132,81 @@ func TestRunRefusesWhenTheCallOutlastsTheConnection(t *testing.T) {
 			t.Fatalf("ちょうど 10 分なら時間では断らず、API キーの確認まで進む。got %v", err)
 		}
 	})
+}
+
+func TestListenAddr(t *testing.T) {
+	got, err := listenAddr("")
+	if err != nil || got != "0.0.0.0:8080" {
+		t.Fatalf("空 = %q, %v", got, err)
+	}
+	got, err = listenAddr("9090")
+	if err != nil || got != "0.0.0.0:9090" {
+		t.Fatalf("9090 = %q, %v", got, err)
+	}
+	for _, port := range []string{"0", "65536", "eighty"} {
+		if _, err := listenAddr(port); err == nil || !strings.Contains(err.Error(), "1 から 65535") {
+			t.Errorf("PORT=%s のエラー = %v", port, err)
+		}
+	}
+}
+
+func TestServeStopsPhonesWhenTheContextEnds(t *testing.T) {
+	handler := server.New(server.Config{
+		ProjectID:   "demo-kazokuai",
+		PhoneSecret: "dev-phone-secret",
+	}, server.Firebase{}, nil, nil, nil)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	errc := make(chan error, 1)
+	go func() { errc <- serve(ctx, ln, handler) }()
+
+	header := http.Header{}
+	header.Set(protocol.PhoneSecretHeader, "dev-phone-secret")
+	wsURL := "ws://" + ln.Addr().String() + "/phone?watchedPerson=hanako"
+	var conn *websocket.Conn
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		c, _, dialErr := websocket.Dial(context.Background(), wsURL, &websocket.DialOptions{HTTPHeader: header})
+		if dialErr == nil {
+			conn = c
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(dialErr)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Cleanup(func() { conn.CloseNow() })
+	waitUntilConnected(t, handler, "hanako")
+
+	cancel()
+	select {
+	case err := <-errc:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("context が終わってもサーバーが止まらなかった")
+	}
+	readCtx, stop := context.WithTimeout(context.Background(), time.Second)
+	defer stop()
+	if _, _, err := conn.Read(readCtx); err == nil {
+		t.Fatal("止めたあとも電話機の接続が生きている")
+	}
+}
+
+func waitUntilConnected(t *testing.T, handler *server.Handler, personID string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !handler.Connected(personID) {
+		if time.Now().After(deadline) {
+			t.Fatal("電話機がつながらなかった")
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func parseConfig(t *testing.T, args ...string) server.Config {

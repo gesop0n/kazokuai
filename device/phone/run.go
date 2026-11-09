@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/gesop0n/kazokuai/internal/keepalive"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -300,7 +302,12 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 	if err != nil {
 		return false, err
 	}
-	conn, _, err := websocket.Dial(ctx, wsURL, nil)
+	header := http.Header{}
+	header.Set(protocol.PhoneSecretHeader, d.Secret)
+	conn, _, err := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
+		HTTPHeader: header,
+		HTTPClient: d.HTTP,
+	})
 	if err != nil {
 		return false, err
 	}
@@ -310,6 +317,9 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 		return true, err
 	}
 	defer link.detach(conn)
+	pingCtx, stopPing := context.WithCancel(ctx)
+	defer stopPing()
+	go keepalive.Run(pingCtx, d.Clock, conn)
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {

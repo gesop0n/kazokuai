@@ -7,12 +7,25 @@ import (
 )
 
 // TokenPath は、電話を始めるときにデバイスが短命トークンをもらう、バックエンドのパスである。
-// デバイスは TokenRequest を JSON で入れて POST する。
+// デバイスは TokenRequest を JSON で入れて POST し、PhoneSecretHeader に合言葉を付ける。
 const TokenPath = "/token"
 
 // PhonePath は、電話機がつなぎ続ける WebSocket のパスである。
-// クエリ watchedPerson に、見守る方の ID を付ける。同期を作るまでは認証しない。
+// クエリ watchedPerson に、見守る方の ID を付ける。接続のときも PhoneSecretHeader に合言葉を付ける。
 const PhonePath = "/phone"
+
+// PhoneSecretHeader は、電話機が /token、/calls、WebSocket に付ける合言葉のヘッダーである。
+const PhoneSecretHeader = "Kazokuai-Secret"
+
+// DevPhoneSecret は、手元の demo- プロジェクトで、環境変数 PHONE_SECRET が無いときに使う合言葉である。
+// 本番の合言葉は環境変数で渡し、リポジトリには置かない。
+const DevPhoneSecret = "dev-phone-secret"
+
+// PingInterval は、電話機とバックエンドが ping を送り合う間隔である。
+const PingInterval = 30 * time.Second
+
+// ReconnectGrace は、電話の最中に接続が切れてから、つながらなかったにするまでの時間である。
+const ReconnectGrace = 30 * time.Second
 
 // StartCallPath は、ログインした家族が今すぐ通話を始めるパスである。
 // Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に伝えたいことと通話内容を JSON で入れて POST する。
@@ -96,7 +109,8 @@ type CallTimes struct {
 }
 
 // CallReportPath は、電話が終わったときにデバイスが報告を送る、バックエンドのパスである。
-// 認証は付けない。報告には、その電話の ID と見守る方の ID を付ける。バックエンドは 202 Accepted をすぐ返す。
+// 電話機は PhoneSecretHeader に合言葉を付ける。報告には、その電話の ID と見守る方の ID を付ける。
+// バックエンドは 202 Accepted をすぐ返す。
 const CallReportPath = "/calls"
 
 // 発話の話した人である。

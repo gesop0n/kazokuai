@@ -57,14 +57,14 @@ dir = "{{config_root}}"
 run = "infra/run.sh apply"
 
 [backend]
-description = "バックエンドを起動する。GEMINI_API_KEY が要る。先に emulators を起動しておく。見守る方の ID は電話機に渡す"
+description = "バックエンドを手元で起動する。0.0.0.0:8080 で待ち、demo-kazokuai のエミュレーターと開発用の合言葉を使う。GEMINI_API_KEY が要る。先に emulators を起動しておく。本番は GOOGLE_CLOUD_PROJECT と PHONE_SECRET を入れる"
 dir = "{{config_root}}"
-# firebase/firebase.json のポートと合わせる
-env = { FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099", FIRESTORE_EMULATOR_HOST = "127.0.0.1:8081" }
+# firebase/firebase.json のポートと合わせる。プロジェクトは明示し、gcloud の既定には頼らない
+env = { FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099", FIRESTORE_EMULATOR_HOST = "127.0.0.1:8081", GOOGLE_CLOUD_PROJECT = "demo-kazokuai" }
 run = "go run ./backend"
 
 [device]
-description = "Mac で電話機のプログラムを起動する。イヤホンを付けて使う。先に backend を起動しておく。例: mise run device -- --watched-person <見守る方の ID>"
+description = "Mac で電話機を起動する。合言葉は PHONE_SECRET、未設定なら開発用を使う。先に backend を起動しておく。例: mise run device -- --watched-person <見守る方の ID>。Cloud Run のサービス kazokuai へは --backend https://… を付ける（https は wss になる）"
 dir = "{{config_root}}"
 run = "go run ./device"
 

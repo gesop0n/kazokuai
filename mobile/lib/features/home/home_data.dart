@@ -48,6 +48,20 @@ class Call {
   final CallSummary summary;
 }
 
+// 伝言への返答。ホームのいちばん上のカードに出す
+class Reply {
+  const Reply({required this.told, required this.text, required this.saidAt});
+
+  // 伝えたこと。AI が伝えたことを短く言い直した文
+  final String told;
+
+  // 見守る方の言葉をそのまま抜き出した文
+  final String text;
+
+  // 返答を話した時刻
+  final DateTime saidAt;
+}
+
 // ホームが Firestore から読む、見守る方と電話。まだ読めないときはリポジトリが null を出す
 class HomeView {
   const HomeView({
@@ -55,6 +69,7 @@ class HomeView {
     required this.now,
     required this.latestCall,
     required this.todayCall,
+    this.reply,
   });
 
   final WatchedPerson person;
@@ -65,6 +80,9 @@ class HomeView {
 
   // 今日の最後の電話。今日の電話がなければ null で、今日の様子は話していない
   final Call? todayCall;
+
+  // 伝言への返答。それより新しい電話のまとめが作れたら null
+  final Reply? reply;
 }
 
 class MissedCall {
