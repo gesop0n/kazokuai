@@ -15,6 +15,9 @@ import 'package:kazokuai/features/booking/retry_rule_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/settings/account_info_screen.dart';
+import 'package:kazokuai/features/settings/logout_screen.dart';
+import 'package:kazokuai/features/settings/settings_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_call_progress_repository.dart';
@@ -125,6 +128,43 @@ void main() {
       expect(find.byType(RetryRuleScreen), findsNothing);
       expect(find.byType(AppTabBar), findsOneWidget);
       expect(currentTab(tester), 2);
+    });
+
+    testWidgets('08 の「もどる」はホームに移る', (tester) async {
+      await openAt(tester, '/settings');
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.byType(AppTabBar), findsNothing);
+
+      await tapBack(tester);
+
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsNothing);
+      expect(find.byType(AppTabBar), findsOneWidget);
+      expect(currentTab(tester), 0);
+    });
+
+    testWidgets('08e の「もどる」は 08 に移る', (tester) async {
+      await openAt(tester, '/settings/account');
+      expect(find.byType(AccountInfoScreen), findsOneWidget);
+      expect(find.byType(AppTabBar), findsNothing);
+
+      await tapBack(tester);
+
+      expect(find.byType(SettingsScreen), findsOneWidget);
+      expect(find.byType(AccountInfoScreen), findsNothing);
+      expect(find.byType(AppTabBar), findsNothing);
+    });
+
+    testWidgets('08d の「閉じる」は 08e に移る', (tester) async {
+      await openAt(tester, '/settings/account/logout');
+      expect(find.byType(LogoutScreen), findsOneWidget);
+      expect(find.byType(AppTabBar), findsNothing);
+
+      await tester.tap(find.bySemanticsLabel('閉じる'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AccountInfoScreen), findsOneWidget);
+      expect(find.byType(LogoutScreen), findsNothing);
     });
 
     testWidgets('L2 の「もどる」は L1 に移る', (tester) async {
