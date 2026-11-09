@@ -30,6 +30,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('セットアップ'), findsOneWidget);
+    expect(find.text('※あとから変更できます'), findsOneWidget);
+    expect(find.bySemanticsLabel('3段階のうち1段階目'), findsOneWidget);
     expect(find.text('登録できませんでした。時間をおいて、もう一度お試しください'), findsOneWidget);
   });
 }

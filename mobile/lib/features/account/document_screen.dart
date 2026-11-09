@@ -8,7 +8,7 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/account/sample_documents.dart';
 
-// L2c。最後まで読むと「読みました」を押せる。押すと、読んだことにして戻る
+// L2c と L2p。最後まで読むと「同意する」を押せる。押すと、同意したことにして戻る
 class DocumentScreen extends StatefulWidget {
   const DocumentScreen({super.key, required this.document});
 
@@ -128,7 +128,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: AppButton(
-                label: '読みました',
+                label: '同意する',
                 variant: AppButtonVariant.primary,
                 size: AppButtonSize.l,
                 onTap: _reachedEnd ? () => context.pop(true) : null,

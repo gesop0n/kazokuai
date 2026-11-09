@@ -10,14 +10,15 @@ import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
+import 'package:kazokuai/design/widgets/app_agree_box.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_icon_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
-import 'package:kazokuai/design/widgets/app_pill.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
-// L2d。2つとも読むとアカウントを作れる。作れると、ルーターがホームに切り替える
+// L2b と L2d。文書の終わりで「同意する」を押すまで、そのチェックは押せない。
+// 2つともチェックが付いているときだけアカウントを作れる。作れると、ルーターがホームに切り替える。
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -29,13 +30,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _showsPassword = false;
-  bool _termsRead = false;
-  bool _privacyRead = false;
+  bool _termsChecked = false;
+  bool _privacyChecked = false;
+
+  // 「同意する」を一度押すと、そのあとはチェックを切り替えられる
+  bool _termsUnlocked = false;
+  bool _privacyUnlocked = false;
   bool _creating = false;
   bool _missingFields = false;
   CreateAccountError? _error;
 
-  bool get _bothRead => _termsRead && _privacyRead;
+  bool get _bothChecked => _termsChecked && _privacyChecked;
 
   @override
   void dispose() {
@@ -50,16 +55,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   });
 
   Future<void> _openDocument(String routeName) async {
-    final read = await context.pushNamed<bool>(routeName);
-    if (read != true || !mounted) return;
+    final agreed = await context.pushNamed<bool>(routeName);
+    if (agreed != true || !mounted) return;
     setState(() {
-      if (routeName == AppRoutes.terms) _termsRead = true;
-      if (routeName == AppRoutes.privacy) _privacyRead = true;
+      if (routeName == AppRoutes.terms) {
+        _termsUnlocked = true;
+        _termsChecked = true;
+      }
+      if (routeName == AppRoutes.privacy) {
+        _privacyUnlocked = true;
+        _privacyChecked = true;
+      }
     });
   }
 
   Future<void> _createAccount() async {
-    if (!_bothRead || _creating) return;
+    if (!_bothChecked || _creating) return;
     final email = _emailController.text;
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
@@ -119,18 +130,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         spacing: 6,
                         children: [
                           const Text(
-                            '次の2つをお読みください',
+                            'それぞれ開いて内容を読み、同意してください',
                             style: AppTextStyles.labelM,
                           ),
                           _AgreeRow(
                             title: '利用規約',
-                            read: _termsRead,
-                            onTap: () => _openDocument(AppRoutes.terms),
+                            checked: _termsChecked,
+                            locked: !_termsUnlocked,
+                            onToggle: () =>
+                                setState(() => _termsChecked = !_termsChecked),
+                            onOpen: () => _openDocument(AppRoutes.terms),
                           ),
                           _AgreeRow(
                             title: 'プライバシーポリシー',
-                            read: _privacyRead,
-                            onTap: () => _openDocument(AppRoutes.privacy),
+                            checked: _privacyChecked,
+                            locked: !_privacyUnlocked,
+                            onToggle: () => setState(
+                              () => _privacyChecked = !_privacyChecked,
+                            ),
+                            onOpen: () => _openDocument(AppRoutes.privacy),
                           ),
                         ],
                       ),
@@ -144,7 +162,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           height: 20,
                           excludeFromSemantics: true,
                         ),
-                        onTap: _bothRead ? () => showComingSoon(context) : null,
+                        onTap: _bothChecked
+                            ? () => showComingSoon(context)
+                            : null,
                       ),
                       const _OrLine(),
                       _LabeledField(
@@ -205,10 +225,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                   AppButton(
-                    label: '同意して登録する',
+                    label: '登録する',
                     variant: AppButtonVariant.primary,
                     size: AppButtonSize.l,
-                    onTap: _bothRead && !_creating ? _createAccount : null,
+                    onTap: _bothChecked && !_creating ? _createAccount : null,
                   ),
                 ],
               ),
@@ -223,43 +243,63 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 class _AgreeRow extends StatelessWidget {
   const _AgreeRow({
     required this.title,
-    required this.read,
-    required this.onTap,
+    required this.checked,
+    required this.locked,
+    required this.onToggle,
+    required this.onOpen,
   });
 
   final String title;
-  final bool read;
-  final VoidCallback onTap;
+  final bool checked;
+  final bool locked;
+  final VoidCallback onToggle;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
-    return AppPressable(
-      onTap: onTap,
-      foregroundColor: AppColors.inkPrimary,
-      backgroundColor: AppColors.paperRaised,
-      minHeight: 52,
-      padding: const EdgeInsets.fromLTRB(12, 4, 8, 4),
-      shape: RoundedRectangleBorder(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.paperRaised,
         borderRadius: AppRadius.borderRadius,
-        side: const BorderSide(color: AppColors.line),
+        border: Border.all(color: AppColors.line),
       ),
-      child: Row(
-        spacing: 10,
-        children: [
-          read
-              ? const AppPill(
-                  variant: AppPillVariant.ok,
-                  icon: AppIcons.check,
-                  label: '読みました',
-                )
-              : const AppPill(variant: AppPillVariant.care, label: '未読'),
-          Expanded(child: Text(title, style: AppTextStyles.labelM)),
-          const AppIcon(
-            AppIcons.chevronRight,
-            size: 20,
-            color: AppColors.inkSecondary,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 56),
+        child: Padding(
+          // モックは左余白 12 と、チェックの margin-left -10。押せる範囲の左端は 2
+          padding: const EdgeInsets.fromLTRB(2, 0, 8, 0),
+          child: Row(
+            spacing: 2,
+            children: [
+              AppAgreeBox(
+                checked: checked,
+                semanticLabel: '$titleに同意',
+                onTap: locked ? null : onToggle,
+              ),
+              Expanded(
+                child: AppPressable(
+                  onTap: onOpen,
+                  foregroundColor: AppColors.inkPrimary,
+                  shape: const RoundedRectangleBorder(),
+                  minHeight: 56,
+                  child: Row(
+                    spacing: 8,
+                    children: [
+                      Expanded(
+                        child: Text('$titleに同意する', style: AppTextStyles.labelM),
+                      ),
+                      const AppIcon(
+                        AppIcons.chevronRight,
+                        size: 20,
+                        color: AppColors.inkSecondary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
