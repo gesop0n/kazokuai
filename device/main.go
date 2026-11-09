@@ -9,6 +9,7 @@
 // バックエンドの URL は --backend で渡す。既定は http://localhost:8080 で、https は wss でつなぐ。
 // 合言葉は環境変数 PHONE_SECRET から読む。未設定なら開発用の合言葉を使う。どのリクエストにも付ける。
 // 電話機の音声とフックは環境変数から読む。空なら受話器の配線の既定である。
+// device check は /etc/kazokuai/device.env があれば読み、空の環境変数も含めて上書きする。
 //
 //	mise run device -- --watched-person <見守る方の ID>
 //	mise run device -- --watched-person <見守る方の ID> --backend https://kazokuai-….run.app

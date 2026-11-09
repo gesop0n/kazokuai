@@ -43,7 +43,7 @@ Imager の設定で、次を入れます。
 
 ## 安全
 
-受話器スイッチは、元の電話回路から電気的に切り離した無電圧接点にします。切替接点のときは、使わない側も含めて接点の組全体を切り離します。GPIO に電話回線や元の基板の電圧を加えないでください。上げると接点が閉じる向きが既定で、見本の `KAZOKUAI_LIFTED_WHEN_CLOSED` は `true` です。違いは、下の `check hook` で確かめます。
+受話器スイッチは、元の電話回路から電気的に切り離した無電圧接点にします。切替接点のときは、使わない側も含めて接点の組全体を切り離します。GPIO に電話回線や元の基板の電圧を加えないでください。この電話機は、上げると接点が開きます。既定と見本の `KAZOKUAI_LIFTED_WHEN_CLOSED` は `false` です。違いは、下の `check hook` で確かめます。
 
 呼び出し音は PAM8012（入力コンデンサーを内蔵したモジュールを想定）です。
 
@@ -84,19 +84,17 @@ Linux の実行ファイルが読む、受話器、フック、呼び出し音�
 | `KAZOKUAI_GPIO_CHIP` | `gpiochip0` | GPIO のチップ |
 | `KAZOKUAI_HOOK_GPIO` | `5` | フックの BCM 番号 |
 | `KAZOKUAI_RINGER_GPIO` | `18` | 呼び出し音の BCM 番号 |
-| `KAZOKUAI_LIFTED_WHEN_CLOSED` | `true` | 上げると接点が閉じるなら true、開くなら false |
+| `KAZOKUAI_LIFTED_WHEN_CLOSED` | `false` | 上げると接点が閉じるなら true、開くなら false。この電話機は開く |
 | `KAZOKUAI_HOOK_DEBOUNCE` | `50ms` | フックが安定したとみなす時間 |
 
 ## 部品の確認
 
-実行ファイルを入れたあと、電話機の上で部品を 1 つずつ確かめます。終わるまで続くものは Ctrl+C で止めます。音の出る確認は、受話器を耳から離してから始めます。
+実行ファイルを入れたあと、電話機の上で部品を 1 つずつ確かめます。終わるまで続くものは Ctrl+C で止めます。音の出る確認は、受話器を耳から離してから始めます。確認は sudo なしで動かします。
 
-設定ファイルは root の 0640 です。確認コマンドは、サービスと同じ読み方でそのファイルを渡します。
+`device check` は `/etc/kazokuai/device.env` があれば、systemd の EnvironmentFile と同じ規則で読みます。サービスも同じファイルを使います。同じ名前の環境変数があれば、空でもそちらを使います。空なら、その項目は既定に戻ります。
 
 ```bash
-sudo systemd-run --pty --wait --collect \
-  --property=EnvironmentFile=/etc/kazokuai/device.env \
-  /usr/local/bin/kazokuai-device check devices
+/usr/local/bin/kazokuai-device check devices
 ```
 
 `check` のうしろを、次のどれかに替えます。
@@ -219,7 +217,7 @@ mise run --skip-tools device:install -- ~/kazokuai-device
 機器の名前を見てから、設定を書きます。
 
 ```bash
-sudo /usr/local/bin/kazokuai-device check devices
+/usr/local/bin/kazokuai-device check devices
 sudoedit /etc/kazokuai/device.env
 ```
 
@@ -251,6 +249,13 @@ journalctl -u kazokuai-device -f
 ## 入れ直す
 
 新しいコミットを配るときは、main を `pi-release` へ早送りして push し、Actions が終わるのを待ちます。新しい実行ファイルと sha256 を落とし、一致を確認してから Pi のホームへ送ります。Pi では配ったコミットを checkout し、`mise run --skip-tools device:install -- ~/kazokuai-device` を動かします。`/etc/kazokuai/device.env` はそのまま残します。見本に項目が増えたときは、足りない行だけ人が足します。
+
+すでに入れてある Pi で、人が `systemctl edit` で足した上書きは消してかまいません。`User=` と `XDG_RUNTIME_DIR` は、ユニット自体に書かれます。上書きが残っていると、そちらのほうが優先されます。入れ直したあとに、上書きを消してサービスを動かし直します。
+
+```bash
+sudo systemctl revert kazokuai-device
+sudo systemctl restart kazokuai-device
+```
 
 ## 予備: 自分でビルドする
 
@@ -291,10 +296,13 @@ docker run --rm --platform linux/arm64 \
 - 実行ファイルは `/usr/local/bin/kazokuai-device`
 - `Restart=on-failure`、`RestartSec=5`、起動回数の上限は切りません
 - ネットワークが来てから起動し、多ユーザー起動で有効になります
-- root で動きます。GPIO を追加の権限なしで使えるようにするためです
+- 入れた人のユーザーで動きます。インストールが `User=` と、そのユーザーの `XDG_RUNTIME_DIR` を書きます。root では、その人の PipeWire が見えず、音声を開けません
+- ユーザーは `KAZOKUAI_SERVICE_USER`、無ければ `SUDO_USER`、それも無ければ今のユーザーです
+- インストールは `loginctl enable-linger` で、起動したときからそのユーザーの PipeWire を動かします
+- GPIO の線には `gpio` グループが要ります。入っていなければ、インストールが `sudo usermod -aG gpio <ユーザー>` を出します。動かしてから入り直してください
 - 停止信号は SIGINT です。プロセスが扱うのがこちらのためです
 
-ファイルの項目は、すべてプロセスの環境に入ります。`KAZOKUAI_WATCHED_PERSON` か `KAZOKUAI_BACKEND` が空、または空白を含むときは、ファイルは置いたままサービスを起動しません。
+ファイルの項目は、すべてプロセスの環境に入ります。`KAZOKUAI_WATCHED_PERSON` か `KAZOKUAI_BACKEND` が空、または空白を含むときは、ファイルは置いたままサービスを起動しません。設定ディレクトリ `/etc/kazokuai` は 0755 で、入れた人が通過できます。設定ファイルは、そのユーザーのグループが読める 0640 です。合言葉は、他のユーザーからは読めません。
 
 ## tel-base
 

@@ -45,11 +45,15 @@ func openPhone(out io.Writer) (phone.Phone, func(), error) {
 }
 
 func runCheck(part string) error {
-	cfg, err := pi.Load(os.Getenv)
+	getenv, err := pi.ReadSettings(pi.SettingsPath, os.LookupEnv)
+	if err != nil {
+		return err
+	}
+	cfg, err := pi.Load(getenv)
 	if err != nil {
 		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-	return pi.RunCheck(ctx, part, cfg, os.Stdout)
+	return pi.RunCheck(ctx, part, cfg, getenv, os.Stdout)
 }

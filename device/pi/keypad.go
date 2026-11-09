@@ -347,7 +347,11 @@ func WatchKeypad(ctx context.Context, k *Keypad, out io.Writer) error {
 }
 
 func checkKeypad(ctx context.Context, hw hardware) error {
-	cfg, err := LoadKeypad(os.Getenv)
+	getenv := hw.getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	cfg, err := LoadKeypad(getenv)
 	if err != nil {
 		return err
 	}

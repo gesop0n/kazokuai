@@ -30,6 +30,7 @@ type hardware struct {
 	open   func() (ear, error)
 	line   func() (Line, error)
 	bell   func() (bell, error)
+	getenv func(string) string
 	record time.Duration
 	tail   time.Duration
 	tone   time.Duration

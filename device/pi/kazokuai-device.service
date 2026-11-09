@@ -4,6 +4,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# インストールが User= と XDG_RUNTIME_DIR を、入れた人のユーザーで書き足す。
 Type=simple
 EnvironmentFile=/etc/kazokuai/device.env
 ExecStart=/usr/local/bin/kazokuai-device --watched-person ${KAZOKUAI_WATCHED_PERSON} --backend ${KAZOKUAI_BACKEND}
