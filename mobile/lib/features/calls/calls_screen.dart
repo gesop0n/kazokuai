@@ -58,6 +58,14 @@ class _CallsScreenState extends ConsumerState<CallsScreen> {
     return days.isEmpty ? log.today : days.first.date;
   }
 
+  // 見本で選んだ日は、見本を外したあとの記録に無い。空の一覧は測り直しが
+  // すぐ戻るので、ここで消さないと今日ではなく見本の日が残る
+  void _forgetDayMissingFrom(CallLog log) {
+    final selected = _selectedDay;
+    if (selected == null) return;
+    if (log.days.every((day) => day.date != selected)) _selectedDay = null;
+  }
+
   // 一覧の先頭から見出しまでの距離。まだ描かれていない日は null
   double? _headingTopOf(DateTime date) {
     final heading = _headingKeys[date]?.currentContext?.findRenderObject();
@@ -163,6 +171,7 @@ class _CallsScreenState extends ConsumerState<CallsScreen> {
           _shown = null;
           return const SizedBox.expand();
         }
+        if (!sampling) _forgetDayMissingFrom(log);
         final shown = log.days.isEmpty && sampling ? sampleCallLog : log;
         return _view(shown);
       },

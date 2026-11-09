@@ -40,4 +40,12 @@ abstract final class AppColors {
 
   // シートの後ろの暗い幕。モックの rgba(0, 0, 0, .5)
   static const scrim = Color(0x80000000);
+
+  // 使い方の暗い幕。モックの rgba(0, 0, 0, .62)
+  static const tutorialScrim = Color.from(
+    alpha: 0.62,
+    red: 0,
+    green: 0,
+    blue: 0,
+  );
 }

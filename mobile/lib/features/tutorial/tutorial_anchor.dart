@@ -1,16 +1,17 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
 import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 // 説明する場所。シェルが 1 つ持ち、画面の部品はここへ自分の位置を登録する。
-// 場所が後から載ったら、案内が位置を測り直す
+// 場所が後から載ったときと、動いたり大きさが変わったときに、案内が位置を測り直す
 class TutorialAnchorRegistry extends ChangeNotifier {
   final _keys = <TutorialPart, GlobalKey<_AnchorState>>{};
 
   GlobalKey<_AnchorState> _keyFor(TutorialPart part) =>
       _keys.putIfAbsent(part, GlobalKey<_AnchorState>.new);
 
-  void _attached() => notifyListeners();
+  void _changed() => notifyListeners();
 
   BuildContext? contextFor(TutorialPart part) {
     final current = _keys[part]?.currentContext;
@@ -100,10 +101,59 @@ class _AnchorState extends State<_Anchored> {
     // このフレームの描画が終わってから知らせる。描画の途中では位置を測らない
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      widget.registry._attached();
+      widget.registry._changed();
     });
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    return _LayoutSignal(
+      onChanged: widget.registry._changed,
+      child: widget.child,
+    );
+  }
+}
+
+// 場所の大きさか画面上の位置が変わったら知らせる。上にカードが増えて下がるときも含まれる
+class _LayoutSignal extends SingleChildRenderObjectWidget {
+  const _LayoutSignal({required this.onChanged, required super.child});
+
+  final VoidCallback onChanged;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderLayoutSignal(onChanged);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderLayoutSignal renderObject,
+  ) {
+    renderObject.onChanged = onChanged;
+  }
+}
+
+class _RenderLayoutSignal extends RenderProxyBox {
+  _RenderLayoutSignal(this.onChanged);
+
+  VoidCallback onChanged;
+  Size? _size;
+  Offset? _origin;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    if (!hasSize || !attached) return;
+    final size = this.size;
+    final origin = localToGlobal(Offset.zero);
+    if (size == _size && origin == _origin) return;
+    _size = size;
+    _origin = origin;
+    // 描画の途中では測り直さない。このフレームの配置が終わってから知らせる
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!attached) return;
+      onChanged();
+    });
+  }
 }

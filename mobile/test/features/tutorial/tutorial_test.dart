@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -6,6 +7,8 @@ import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/home_repository.dart';
 import 'package:kazokuai/data/tutorial_repository.dart';
+import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
@@ -89,6 +92,97 @@ Future<void> _openHome(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Rect _glyphRect(WidgetTester tester, Finder finder) {
+  final paragraph = tester.renderObject<RenderParagraph>(finder);
+  final box = paragraph
+      .getBoxesForSelection(
+        TextSelection(
+          baseOffset: 0,
+          extentOffset: paragraph.text.toPlainText().length,
+        ),
+      )
+      .first
+      .toRect();
+  return MatrixUtils.transformRect(paragraph.getTransformTo(null), box);
+}
+
+void _expectTipLooksLikeMock(WidgetTester tester) {
+  final overlay = find.byType(TutorialOverlay);
+
+  void expectStyle(
+    String text, {
+    required Color color,
+    required double fontSize,
+  }) {
+    final paragraph = tester.renderObject<RenderParagraph>(
+      find.descendant(of: overlay, matching: find.text(text)),
+    );
+    final style = (paragraph.text as TextSpan).style!;
+    expect(style.color, color);
+    expect(style.decoration, TextDecoration.none);
+    expect(style.fontFamily, 'BIZUDPGothic');
+    expect(style.fontSize, fontSize);
+  }
+
+  expectStyle('使い方 1/9', color: AppColors.inkSecondary, fontSize: 12);
+  expectStyle('直近の電話', color: AppColors.inkPrimary, fontSize: 18);
+  expectStyle(
+    'AIがハナさんにかけた電話の内容を短くまとめてここに届けます。「会話を見る」で全文も読めます。',
+    color: AppColors.inkSecondary,
+    fontSize: 15,
+  );
+
+  final bars = find.descendant(
+    of: find.bySemanticsLabel('9段階のうち1段階目'),
+    matching: find.byType(DecoratedBox),
+  );
+  expect(bars, findsNWidgets(9));
+  final colors = <Color?>[];
+  for (final element in bars.evaluate()) {
+    expect(tester.getSize(find.byWidget(element.widget)).height, 4);
+    colors.add(
+      ((element.widget as DecoratedBox).decoration as BoxDecoration).color,
+    );
+  }
+  expect(colors.where((color) => color == AppColors.inkPrimary), hasLength(1));
+  expect(colors.where((color) => color == AppColors.lineStrong), hasLength(8));
+
+  final next = find.text('次へ');
+  final nextButton = find.ancestor(
+    of: next,
+    matching: find.byType(AppPressable),
+  );
+  expect(
+    _glyphRect(tester, next).center.dy,
+    closeTo(tester.getRect(nextButton).center.dy, 1),
+  );
+
+  final skip = find.text('スキップ');
+  final skipGlyphs = _glyphRect(tester, skip);
+  final underline = find.ancestor(
+    of: skip,
+    matching: find.byWidgetPredicate((widget) {
+      if (widget is! DecoratedBox) return false;
+      final decoration = widget.decoration;
+      return decoration is BoxDecoration &&
+          decoration.border?.bottom.color == AppColors.inkSecondary;
+    }),
+  );
+  final line = tester.getRect(underline);
+  expect(line.bottom, greaterThan(skipGlyphs.bottom - 1));
+  expect(line.bottom, lessThan(skipGlyphs.bottom + 8));
+  expect(
+    skipGlyphs.center.dy,
+    closeTo(
+      tester
+          .getRect(find.ancestor(of: skip, matching: find.byType(AppPressable)))
+          .center
+          .dy,
+      1,
+    ),
+  );
+}
+
 void _expectHoleFits(WidgetTester tester, Finder target) {
   _expectHoleContains(tester, target);
   final hole = tester.getRect(find.byType(TutorialHole));
@@ -103,6 +197,7 @@ void main() {
   testWidgets('見終わっていなければ T1 から T9 まで案内し、見たと記録する', (tester) async {
     final tutorial = FakeTutorialRepository();
     await _pump(tester, tutorial: tutorial);
+    _expectTipLooksLikeMock(tester);
 
     const steps = [
       (
@@ -367,5 +462,79 @@ void main() {
     visible.value = true;
     await tester.pumpAndSettle();
     _expectHoleContains(tester, find.text('過去7日間'));
+  });
+
+  testWidgets('説明する場所が動いたら、明るい穴も動く', (tester) async {
+    final home = FakeHomeRepository(
+      HomeView(
+        person: sampleHomeData.person,
+        now: sampleHomeData.now,
+        latestCall: sampleHomeData.latestCall,
+        todayCall: sampleHomeData.latestCall,
+      ),
+    );
+    await _pump(tester, tutorial: FakeTutorialRepository(), home: home);
+    _expectHoleFits(tester, find.byType(RecentCallCard));
+    final before = tester.getRect(find.byType(RecentCallCard)).top;
+
+    home.view.value = HomeView(
+      person: sampleHomeData.person,
+      now: sampleHomeData.now,
+      latestCall: sampleHomeData.latestCall,
+      todayCall: sampleHomeData.latestCall,
+      reply: Reply(
+        told: '金曜の通院は、朝10時にお迎えに来る',
+        text: 'わかったよ。玄関で待ってるね。',
+        saidAt: DateTime(2026, 11, 4, 19, 29),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final after = tester.getRect(find.byType(RecentCallCard)).top;
+    expect(after, greaterThan(before + 40));
+    _expectHoleFits(tester, find.byType(RecentCallCard));
+  });
+
+  testWidgets('案内が終わると、見本で選んだ日を残さない', (tester) async {
+    final tutorial = FakeTutorialRepository();
+    await _pump(
+      tester,
+      tutorial: tutorial,
+      home: FakeHomeRepository(
+        HomeView(
+          person: sampleHomeData.person,
+          now: DateTime(2026, 11, 10, 10, 24),
+          latestCall: null,
+          todayCall: null,
+        ),
+      ),
+      calls: FakeCallsRepository(
+        log: CallLog(today: DateTime(2026, 11, 10), days: const []),
+      ),
+    );
+
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.text('次へ'));
+      await tester.pumpAndSettle();
+    }
+    expect(find.text('使い方 4/9'), findsOneWidget);
+    // 案内中は画面の意味を出さないので、カレンダーの選択日を直接見る
+    expect(
+      tester.widget<MiniCalendar>(find.byType(MiniCalendar)).selectedDay,
+      DateTime(2026, 11, 5),
+    );
+
+    await tester.tap(find.text('スキップ'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: find.byType(AppTabBar), matching: find.text('通話記録')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('まだ電話がありません'), findsOneWidget);
+    expect(
+      tester.widget<MiniCalendar>(find.byType(MiniCalendar)).selectedDay,
+      DateTime(2026, 11, 10),
+    );
   });
 }

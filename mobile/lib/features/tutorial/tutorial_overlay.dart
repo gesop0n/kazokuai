@@ -65,12 +65,13 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
     super.dispose();
   }
 
-  // 読み込みが終わって説明する場所が載ったら、中央に置いた説明を測り直す
+  // 説明する場所が後から載ったときと、動いたり大きさが変わったときに測り直す。
+  // 穴があるときも止めたままにしない。返答カードが直近の電話の上に出ると、場所は下がる
   void _onTarget() {
-    if (!mounted || _hole != null) return;
+    if (!mounted) return;
     _ticks = 0;
     _stable = 0;
-    _revealed = false;
+    if (_hole == null) _revealed = false;
     _arm();
   }
 
@@ -222,7 +223,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
 class _ScrimPainter extends CustomPainter {
   const _ScrimPainter(this.hole);
 
-  static const _dim = Color.fromRGBO(0, 0, 0, 0.62);
+  static const _dim = AppColors.tutorialScrim;
   static const _radius = Radius.circular(14);
 
   final Rect? hole;
@@ -275,6 +276,8 @@ class _Tip extends StatelessWidget {
       explicitChildNodes: true,
       namesRoute: true,
       label: '使い方 $number/9',
+      // 説明は Scaffold の外に出す。Material が無いと、文字はフォールバックの赤と二重下線になる。
+      // 既定の文字はモックの body-m。見出しとラベルはそれぞれの文字にする
       child: DecoratedBox(
         decoration: const BoxDecoration(
           color: AppColors.paperRaised,
@@ -287,51 +290,66 @@ class _Tip extends StatelessWidget {
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 10,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '使い方 $number/9',
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
-                  const Spacer(),
-                  _Progress(filled: number),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 4,
-                children: [
-                  Text(step.title, style: AppTextStyles.titleM),
-                  Text(
-                    step.body,
-                    style: AppTextStyles.bodyM.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
+        child: Material(
+          type: MaterialType.transparency,
+          textStyle: AppTextStyles.bodyM.copyWith(
+            color: AppColors.inkPrimary,
+            decoration: TextDecoration.none,
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 10,
+              children: [
+                Row(
                   children: [
-                    // モックの T9 は「はじめる」だけだが、仕様はどの段階にもスキップを置く。
-                    // AppButton は親の幅いっぱいに広がるので、文字の幅で押せるようにする
-                    _SkipButton(onTap: onSkip),
+                    Text(
+                      '使い方 $number/9',
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.inkSecondary,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
                     const Spacer(),
-                    _NextButton(label: last ? 'はじめる' : '次へ', onTap: onNext),
+                    _Progress(filled: number),
                   ],
                 ),
-              ),
-            ],
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: 4,
+                  children: [
+                    Text(
+                      step.title,
+                      style: AppTextStyles.titleM.copyWith(
+                        color: AppColors.inkPrimary,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                    Text(
+                      step.body,
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: AppColors.inkSecondary,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ],
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Row(
+                    children: [
+                      // モックの T9 は「はじめる」だけだが、仕様はどの段階にもスキップを置く。
+                      // AppButton は親の幅いっぱいに広がるので、文字の幅で押せるようにする
+                      _SkipButton(onTap: onSkip),
+                      const Spacer(),
+                      _NextButton(label: last ? 'はじめる' : '次へ', onTap: onNext),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -351,8 +369,10 @@ class _Progress extends StatelessWidget {
       child: SizedBox(
         width: 110,
         height: 4,
+        // 子は高さ 0 に縮む。親の 4 まで伸ばして、モックの進度を見せる
         child: Row(
           spacing: 6,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (var i = 0; i < 9; i++)
               Expanded(
@@ -385,14 +405,24 @@ class _SkipButton extends StatelessWidget {
       shape: const RoundedRectangleBorder(),
       minHeight: 44,
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: DecoratedBox(
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: AppColors.inkSecondary)),
-        ),
-        child: Text(
-          'スキップ',
-          style: AppTextStyles.labelM.copyWith(color: AppColors.inkSecondary),
-        ),
+      // 文字をそのまま置くと最小の高さまで伸び、上に寄って下線が離れる。行の中で中央に置く。
+      // 下線は文字の箱の下端。Text の下線ではモックの位置にできない
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.inkSecondary)),
+            ),
+            child: Text(
+              'スキップ',
+              style: AppTextStyles.labelM.copyWith(
+                color: AppColors.inkSecondary,
+                decoration: TextDecoration.none,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -413,9 +443,18 @@ class _NextButton extends StatelessWidget {
       shape: const RoundedRectangleBorder(borderRadius: AppRadius.borderRadius),
       minHeight: 44,
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Text(
-        label,
-        style: AppTextStyles.labelM.copyWith(color: AppColors.paperRaised),
+      // 文字をそのまま置くと最小の高さまで伸び、上に寄る
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.paperRaised,
+              decoration: TextDecoration.none,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -30,5 +30,6 @@ void main() {
     expect(AppColors.buttonDisabled, const Color(0xFFD5D6D9));
     expect(AppColors.welcomeIconCircle, const Color(0xFFB4EBFA));
     expect(AppColors.scrim, const Color(0x80000000));
+    expect(AppColors.tutorialScrim, const Color.fromRGBO(0, 0, 0, 0.62));
   });
 }
