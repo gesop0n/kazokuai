@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/app/unknown_route_screen.dart';
-import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
@@ -81,50 +80,27 @@ class _BookingEditScreenState extends ConsumerState<BookingEditScreen> {
   Widget build(BuildContext context) {
     final message = _messageController.text.trim();
     final hasMessage = message.isNotEmpty;
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppNavBar(
-              title: '予約の編集',
-              onLeadingTap: () => popOrGoToParent(context),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    BookingMessageField(
-                      controller: _messageController,
-                      onChanged: (_) => setState(() {}),
-                    ),
-                    // 通話内容は予約のものなので、伝えたいことを空にしても残す
-                    CallScriptCard(script: _script),
-                    DateTimeFields(
-                      date: _date,
-                      time: _time,
-                      onDateChanged: (date) => setState(() => _date = date),
-                      onTimeChanged: (time) => setState(() => _time = time),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // モックの foot はボタンとホームバーの間も 8 空ける。キーボードでホームバーが
-            // 隠れるときは、この 8 がボタンとキーボードの間隔になる
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: BookingFormActions(
-                onBook: hasMessage ? () => _save(message) : null,
-                onCall: hasMessage ? () => showComingSoon(context) : null,
-              ),
-            ),
-          ],
-        ),
+    return BookingFormLayout(
+      title: '予約の編集',
+      onLeadingTap: () => popOrGoToParent(context),
+      actions: BookingFormActions(
+        onBook: hasMessage ? () => _save(message) : null,
+        onCall: hasMessage ? () => showComingSoon(context) : null,
       ),
+      children: [
+        BookingMessageField(
+          controller: _messageController,
+          onChanged: (_) => setState(() {}),
+        ),
+        // 通話内容は予約のものなので、伝えたいことを空にしても残す
+        CallScriptCard(script: _script),
+        DateTimeFields(
+          date: _date,
+          time: _time,
+          onDateChanged: (date) => setState(() => _date = date),
+          onTimeChanged: (time) => setState(() => _time = time),
+        ),
+      ],
     );
   }
 }

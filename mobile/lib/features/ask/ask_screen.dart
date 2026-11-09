@@ -9,7 +9,6 @@ import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
-import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
@@ -167,56 +166,33 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     final message = _messageController.text.trim();
     final cardText = _cardText;
     final canSend = _canSend;
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppNavBar(
-              title: 'AIに伝えてもらう',
-              onLeadingTap: () => popOrGoToParent(context),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 16,
-                  children: [
-                    BookingMessageField(
-                      controller: _messageController,
-                      onChanged: _onMessageChanged,
-                    ),
-                    if (cardText != null) CallScriptCard(script: cardText),
-                    DateTimeFields(
-                      date: _date,
-                      time: _time,
-                      onDateChanged: (date) => setState(() => _date = date),
-                      onTimeChanged: (time) => setState(() => _time = time),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // モックの foot はボタンとホームバーの間も 8 空ける。キーボードでホームバーが
-            // 隠れるときは、この 8 がボタンとキーボードの間隔になる
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: ValueListenableBuilder<bool>(
-                valueListenable: _progress,
-                builder: (context, inProgress, _) {
-                  final busy = inProgress || _refusedWhileBusy;
-                  return BookingFormActions(
-                    onBook: canSend ? () => _book(message) : null,
-                    onCall: canSend && !busy ? () => _call(message) : null,
-                    callLabel: busy ? '通話中です' : '今すぐ通話',
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+    return BookingFormLayout(
+      title: 'AIに伝えてもらう',
+      onLeadingTap: () => popOrGoToParent(context),
+      actions: ValueListenableBuilder<bool>(
+        valueListenable: _progress,
+        builder: (context, inProgress, _) {
+          final busy = inProgress || _refusedWhileBusy;
+          return BookingFormActions(
+            onBook: canSend ? () => _book(message) : null,
+            onCall: canSend && !busy ? () => _call(message) : null,
+            callLabel: busy ? '通話中です' : '今すぐ通話',
+          );
+        },
       ),
+      children: [
+        BookingMessageField(
+          controller: _messageController,
+          onChanged: _onMessageChanged,
+        ),
+        if (cardText != null) CallScriptCard(script: cardText),
+        DateTimeFields(
+          date: _date,
+          time: _time,
+          onDateChanged: (date) => setState(() => _date = date),
+          onTimeChanged: (time) => setState(() => _time = time),
+        ),
+      ],
     );
   }
 }

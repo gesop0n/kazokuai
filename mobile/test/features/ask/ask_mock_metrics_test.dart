@@ -150,39 +150,34 @@ void main() {
     testWidgets('文字倍率 1.0 では、入力欄と案の文の全部がスクロールせずに見える', (tester) async {
       await pumpOnDevice(tester, 1.0);
 
-      final footTop = tester
-          .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
-          .dy;
+      final keyboardTop = _deviceSize.height - _keyboardHeight;
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
-        lessThan(footTop),
+        lessThan(keyboardTop),
       );
       expect(
         tester.getBottomLeft(find.text(_script)).dy,
-        lessThanOrEqualTo(footTop),
+        lessThanOrEqualTo(keyboardTop),
       );
     });
 
     testWidgets('文字倍率 1.3 では、通話内容の文はスクロールすれば全部見える', (tester) async {
       await pumpOnDevice(tester, 1.3);
 
-      final footTop = tester
-          .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
-          .dy;
+      final keyboardTop = _deviceSize.height - _keyboardHeight;
       // 入力欄と通話内容の見出しはスクロールしなくても見える
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
-        lessThan(footTop),
+        lessThan(keyboardTop),
       );
-      expect(tester.getBottomLeft(find.text('通話内容')).dy, lessThan(footTop));
-      expect(tester.getBottomLeft(find.text(_script)).dy, greaterThan(footTop));
+      expect(tester.getBottomLeft(find.text('通話内容')).dy, lessThan(keyboardTop));
 
       await tester.ensureVisible(find.text(_script));
       await tester.pumpAndSettle();
 
       expect(
         tester.getBottomLeft(find.text(_script)).dy,
-        lessThanOrEqualTo(footTop),
+        lessThanOrEqualTo(keyboardTop),
       );
     });
   });

@@ -13,7 +13,8 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
 
    ```bash
    python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" \
-     "raspberrypi:raspberry-pi" gemini flutter firebase "gcp:google-cloud" "run:gcp/cloud-run" "secret:gcp/secret-manager" "hosting:firebase"
+     "raspberrypi:raspberry-pi" gemini flutter firebase github "sa:lucide/key-round" "gcp:google-cloud" "run:gcp/cloud-run" \
+     "secret:gcp/secret-manager" "hosting:firebase" "ar:gcp/artifact-registry" "iam:gcp/identity-and-access-management"
    cp <skill>/assets/generic/user.svg <icons>/person.svg
    ```
 
