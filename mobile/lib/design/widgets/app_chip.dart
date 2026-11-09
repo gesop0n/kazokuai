@@ -24,6 +24,7 @@ class AppChip extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.size = AppChipSize.m,
+    this.horizontalPadding,
     this.icon,
   });
 
@@ -31,6 +32,9 @@ class AppChip extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final AppChipSize size;
+
+  // null のときは size の余白
+  final double? horizontalPadding;
   final AppIcons? icon;
 
   @override
@@ -49,7 +53,9 @@ class AppChip extends StatelessWidget {
       ),
       minHeight: size.height,
       hitPadding: (44 - size.height) / 2,
-      padding: EdgeInsets.symmetric(horizontal: size.horizontalPadding),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding ?? size.horizontalPadding,
+      ),
       selected: selected,
       child: Row(
         mainAxisSize: MainAxisSize.min,

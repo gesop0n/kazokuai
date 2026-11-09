@@ -5,16 +5,22 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 
 void main() {
   group('RetryRule.summary', () {
-    test('既定は「10分おきに3回かけて、家族に通知」', () {
-      const rule = RetryRule(interval: Duration(minutes: 10), attempts: 3);
+    test('既定は「15分おきに3回かけて、家族に通知」', () {
+      const rule = RetryRule(interval: Duration(minutes: 15), attempts: 3);
 
-      expect(rule.summary, '10分おきに3回かけて、家族に通知');
+      expect(rule.summary, '15分おきに3回かけて、家族に通知');
     });
 
-    test('間隔と回数が文に入る', () {
-      const rule = RetryRule(interval: Duration(hours: 1), attempts: 5);
+    test('間隔は 60 分を超えても分で書く', () {
+      const rule = RetryRule(interval: Duration(minutes: 90), attempts: 4);
 
-      expect(rule.summary, '1時間おきに5回かけて、家族に通知');
+      expect(rule.summary, '90分おきに4回かけて、家族に通知');
+    });
+
+    test('1 時間も 60分と書く', () {
+      const rule = RetryRule(interval: Duration(hours: 1), attempts: 2);
+
+      expect(rule.summary, '60分おきに2回かけて、家族に通知');
     });
 
     test('1 回のときは間隔を書かない', () {
@@ -24,17 +30,58 @@ void main() {
     });
   });
 
+  group('RetryRule.flowSentence', () {
+    test('3 回までは間隔と、最後の回の時刻を書く', () {
+      const rule = RetryRule(interval: Duration(minutes: 15), attempts: 3);
+
+      expect(rule.flowSentence, '9:00から15分おきに3回かけて、出なければ9:30に家族に通知します。');
+    });
+
+    test('1 回のときは同じ時刻に通知する', () {
+      const rule = RetryRule(interval: Duration(minutes: 30), attempts: 1);
+
+      expect(rule.flowSentence, '9:00に1回かけて、出なければ9:00に家族に通知します。');
+    });
+
+    test('90 分は時間にせず、最後の回の時刻を書く', () {
+      const rule = RetryRule(interval: Duration(minutes: 90), attempts: 4);
+
+      expect(rule.flowSentence, '9:00から90分おきに4回かけて、出なければ13:30に家族に通知します。');
+    });
+  });
+
   group('RetryRule の選択肢', () {
-    test('間隔は 5分、10分、30分', () {
+    test('間隔は 5分、10分、15分、30分', () {
       expect(RetryRule.intervalChoices.map(RetryRule.intervalLabel), [
         '5分',
         '10分',
+        '15分',
         '30分',
       ]);
     });
 
     test('回数は最初の 1 回をふくめて 1回、2回、3回', () {
       expect(RetryRule.attemptChoices, [1, 2, 3]);
+    });
+  });
+
+  group('RetryRule の入力できる範囲', () {
+    test('分は 1 から 120', () {
+      expect(RetryRule.minutesInRange('1'), 1);
+      expect(RetryRule.minutesInRange('120'), 120);
+      expect(RetryRule.minutesInRange(' 15 '), 15);
+      expect(RetryRule.minutesInRange(''), isNull);
+      expect(RetryRule.minutesInRange('0'), isNull);
+      expect(RetryRule.minutesInRange('121'), isNull);
+      expect(RetryRule.minutesInRange('1.5'), isNull);
+    });
+
+    test('回数は 1 から 10', () {
+      expect(RetryRule.attemptsInRange('1'), 1);
+      expect(RetryRule.attemptsInRange('10'), 10);
+      expect(RetryRule.attemptsInRange(''), isNull);
+      expect(RetryRule.attemptsInRange('0'), isNull);
+      expect(RetryRule.attemptsInRange('11'), isNull);
     });
   });
 
@@ -158,20 +205,20 @@ void main() {
       );
     });
 
-    test('ルールの初期値は 10 分おきに 3 回', () {
+    test('ルールの初期値は 15 分おきに 3 回', () {
       final rule = container.read(retryRuleProvider);
 
-      expect(rule.interval, const Duration(minutes: 10));
+      expect(rule.interval, const Duration(minutes: 15));
       expect(rule.attempts, 3);
-      expect(rule.summary, '10分おきに3回かけて、家族に通知');
+      expect(rule.summary, '15分おきに3回かけて、家族に通知');
     });
 
     test('save でルールが変わる', () {
       container
           .read(retryRuleProvider.notifier)
-          .save(const RetryRule(interval: Duration(hours: 1), attempts: 2));
+          .save(const RetryRule(interval: Duration(minutes: 90), attempts: 2));
 
-      expect(container.read(retryRuleProvider).summary, '1時間おきに2回かけて、家族に通知');
+      expect(container.read(retryRuleProvider).summary, '90分おきに2回かけて、家族に通知');
     });
   });
 }
