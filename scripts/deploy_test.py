@@ -48,7 +48,7 @@ class DeployScriptTest(unittest.TestCase):
         self.flutter_log = root / "flutter.log"
         self.firebase_log = root / "firebase.log"
         self._fake("docker", self.docker_log)
-        self._fake("gcloud", self.gcloud_log)
+        self._fake("gcloud", self.gcloud_log, gcloud=True)
         self._fake("terraform", self.terraform_log, terraform=True)
         self._fake("flutter", self.flutter_log)
         self._fake("firebase", self.firebase_log)
@@ -56,9 +56,23 @@ class DeployScriptTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def _fake(self, name, log, terraform=False):
+    def _fake(self, name, log, terraform=False, gcloud=False):
         path = self.bin / name
         extra = ""
+        if gcloud:
+            extra = (
+                "describe=0\n"
+                'for arg in "$@"; do\n'
+                '  if [ "$arg" = "describe" ]; then describe=1; fi\n'
+                "done\n"
+                'if [ "$describe" = 1 ]; then\n'
+                '  if [ "${FAKE_GCLOUD_DESCRIBE_STATUS:-0}" != 0 ]; then\n'
+                '    echo "not found" >&2\n'
+                '    exit "${FAKE_GCLOUD_DESCRIBE_STATUS}"\n'
+                "  fi\n"
+                "  printf '%s\\n' 'https://kazokuai-example.run.app'\n"
+                "fi\n"
+            )
         if terraform:
             extra = (
                 'output=0; json=0; raw=0\n'
@@ -109,6 +123,7 @@ class DeployScriptTest(unittest.TestCase):
         env["TF_VAR_project_id"] = AMBIENT
         env["FAKE_TF_JSON"] = TF_JSON
         env["FAKE_TF_RAW"] = "https://kazokuai-example.run.app"
+        env["FAKE_GCLOUD_DESCRIBE_STATUS"] = "0"
         env.update(extra)
         return env
 
@@ -131,35 +146,38 @@ class DeployScriptTest(unittest.TestCase):
         ):
             self.assertFalse(log.exists(), log.name)
 
+    def gcloud_invocations(self):
+        text = self.gcloud_log.read_text(encoding="utf-8")
+        blocks = []
+        for chunk in text.split("---"):
+            args = [
+                line
+                for line in chunk.splitlines()
+                if line and not line.startswith(("PWD=", "GOOGLE_", "CLOUDSDK_"))
+            ]
+            if args:
+                blocks.append(args)
+        return blocks
+
     def test_backend_without_project_does_not_call_tools(self):
-        result = self.run_script(
-            BACKEND,
-            f"--billing-account={BILLING}",
-            f"--state-bucket={BUCKET}",
-        )
+        result = self.run_script(BACKEND)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assert_untouched()
 
-    def test_backend_rejects_ambient_project_name_in_the_bucket(self):
-        result = self.run_script(
-            BACKEND,
-            f"--project={PROJECT}",
-            f"--billing-account={BILLING}",
-            "--state-bucket=gs://bucket",
-        )
-        self.assertEqual(result.returncode, 2, result.stderr)
-        self.assert_untouched()
-
-    def test_backend_builds_amd64_and_applies_that_image(self):
+    def test_backend_rejects_terraform_flags(self):
         result = self.run_script(
             BACKEND,
             f"--project={PROJECT}",
             f"--billing-account={BILLING}",
             f"--state-bucket={BUCKET}",
         )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assert_untouched()
+
+    def test_backend_builds_amd64_and_deploys_that_image(self):
+        result = self.run_script(BACKEND, f"--project={PROJECT}")
         self.assertEqual(result.returncode, 0, result.stderr)
         docker = self.docker_log.read_text(encoding="utf-8")
-        terraform = self.terraform_log.read_text(encoding="utf-8")
         gcloud = self.gcloud_log.read_text(encoding="utf-8")
         image = re.search(re.escape(IMAGE_PREFIX) + r"\S+", docker)
         self.assertIsNotNone(image, docker)
@@ -168,39 +186,55 @@ class DeployScriptTest(unittest.TestCase):
         self.assertIn("linux/amd64", docker)
         self.assertIn("push", docker)
         self.assertIn(image, docker)
-        self.assertIn(f"-var=container_image={image}", terraform)
-        self.assertIn(f"-var=project_id={PROJECT}", terraform)
-        self.assertIn(f"-var=billing_account={BILLING}", terraform)
-        self.assertIn(f"-backend-config=bucket={BUCKET}", terraform)
-        self.assertIn("apply", terraform)
-        self.assertNotIn("-target=", terraform)
-        self.assertNotIn("deletion_protection=false", terraform)
-        self.assertNotIn("-auto-approve", terraform)
-        self.assertNotIn(AMBIENT, docker + terraform + gcloud)
-        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", terraform)
+        self.assertFalse(self.terraform_log.exists())
+        self.assertNotIn(AMBIENT, docker + gcloud)
+        self.assertNotIn(BILLING, docker + gcloud + result.stdout)
         self.assertIn(f"CLOUDSDK_CORE_PROJECT={PROJECT}", gcloud)
-        gcloud_args = [
-            line
-            for line in gcloud.split("---")[0].splitlines()
-            if line and not line.startswith(("PWD=", "GOOGLE_", "CLOUDSDK_"))
-        ]
-        self.assertEqual(
-            gcloud_args[:2],
-            ["auth", "configure-docker"],
-            gcloud,
-        )
-        self.assertNotIn("config", gcloud_args)
+        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", gcloud)
+        invocations = self.gcloud_invocations()
+        self.assertEqual(invocations[0][:2], ["auth", "configure-docker"], gcloud)
+        self.assertEqual(invocations[1][:3], ["run", "services", "describe"], gcloud)
+        self.assertIn(f"--project={PROJECT}", invocations[1])
+        self.assertIn(f"--region={REGION}", invocations[1])
+        self.assertEqual(invocations[2][:3], ["run", "deploy", "kazokuai"], gcloud)
+        deploy = invocations[2]
+        self.assertIn(f"--project={PROJECT}", deploy)
+        self.assertIn(f"--region={REGION}", deploy)
+        self.assertIn(f"--image={image}", deploy)
+        self.assertIn("--quiet", deploy)
+        for flag in (
+            "--set-env-vars",
+            "--update-env-vars",
+            "--set-secrets",
+            "--tag",
+            "--allow-unauthenticated",
+            "--clear-env-vars",
+        ):
+            self.assertNotIn(flag, gcloud)
+        self.assertNotIn("config", invocations[0])
         self.assertIn(image, result.stdout)
         self.assertIn("https://kazokuai-example.run.app", result.stdout)
         self.assertFalse(self.flutter_log.exists())
         self.assertFalse(self.firebase_log.exists())
 
+    def test_backend_stops_when_the_service_is_missing(self):
+        result = self.run_script(
+            BACKEND,
+            f"--project={PROJECT}",
+            FAKE_GCLOUD_DESCRIBE_STATUS="1",
+        )
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("infra:apply", result.stderr)
+        self.assertIn("push", self.docker_log.read_text(encoding="utf-8"))
+        flat = [arg for block in self.gcloud_invocations() for arg in block]
+        self.assertIn("describe", flat)
+        self.assertNotIn("deploy", flat)
+        self.assertFalse(self.terraform_log.exists())
+
     def test_backend_uses_the_given_region_in_the_image(self):
         result = self.run_script(
             BACKEND,
             f"--project={PROJECT}",
-            f"--billing-account={BILLING}",
-            f"--state-bucket={BUCKET}",
             "--region=asia-northeast2",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -209,6 +243,8 @@ class DeployScriptTest(unittest.TestCase):
             "asia-northeast2-docker.pkg.dev/kazokuai-prod/kazokuai/backend:",
             docker,
         )
+        deploy = self.gcloud_invocations()[2]
+        self.assertIn("--region=asia-northeast2", deploy)
 
     def test_web_without_project_does_not_call_tools(self):
         result = self.run_script(WEB, f"--state-bucket={BUCKET}")
@@ -313,6 +349,142 @@ class DeployScriptTest(unittest.TestCase):
         text = (ROOT / "infra" / "run.tf").read_text(encoding="utf-8")
         self.assertIn('name = "PHONE_SECRET"', text)
         self.assertNotIn("PHONE_SHARED_SECRET", text)
+
+    def test_web_direct_firebase_flags_skip_terraform(self):
+        with staged_web_build():
+            result = self.run_script(WEB, f"--project={PROJECT}", *firebase_flags())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.terraform_log.exists())
+        self.assertFalse(self.docker_log.exists())
+        flutter = self.flutter_log.read_text(encoding="utf-8")
+        firebase = self.firebase_log.read_text(encoding="utf-8")
+        self.assertIn("FIREBASE_API_KEY=test-api-key", flutter)
+        self.assertIn("FIREBASE_STORAGE_BUCKET=", flutter)
+        self.assertIn("--dart-define=FIREBASE_STORAGE_BUCKET=", flutter.splitlines())
+        self.assertIn(f"--project={PROJECT}", firebase)
+        self.assertIn("hosting:kazokuai", firebase)
+        self.assertNotIn(AMBIENT, flutter + firebase)
+        self.assertIn(f"GOOGLE_CLOUD_PROJECT={PROJECT}", firebase)
+        self.assertIn("Web 版: https://kazokuai.web.app\n", result.stdout)
+        self.assertNotIn("test-api-key", result.stdout)
+        self.assertNotIn("電話機がつなぐ URL", result.stdout)
+
+    def test_web_rejects_mixing_state_bucket_and_firebase_flags(self):
+        result = self.run_script(
+            WEB,
+            f"--project={PROJECT}",
+            f"--state-bucket={BUCKET}",
+            *firebase_flags(),
+        )
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assert_untouched()
+
+    def test_web_rejects_firebase_flags_that_are_missing_a_value(self):
+        result = self.run_script(WEB, f"--project={PROJECT}", "--firebase-api-key=test-api-key")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assert_untouched()
+
+    def test_web_direct_stops_when_the_firebase_project_differs(self):
+        flags = [
+            "--firebase-project-id=other-project" if item.startswith("--firebase-project-id=") else item
+            for item in firebase_flags()
+        ]
+        result = self.run_script(WEB, f"--project={PROJECT}", *flags)
+        self.assertNotEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.flutter_log.exists())
+        self.assertFalse(self.firebase_log.exists())
+        self.assertFalse(self.terraform_log.exists())
+
+    def test_cloud_run_ignores_the_image_and_prevents_deletion(self):
+        text = (ROOT / "infra" / "run.tf").read_text(encoding="utf-8")
+        self.assertIn("template[0].containers[0].image", text)
+        self.assertIn("client_version", text)
+        self.assertIn('deletion_policy = "PREVENT"', text)
+        self.assertNotIn("prevent_destroy", text)
+        hosting = (ROOT / "infra" / "firebase.tf").read_text(encoding="utf-8")
+        self.assertEqual(hosting.count('deletion_policy = "PREVENT"'), 2)
+        self.assertIn("site_id  = var.project_id", hosting)
+        self.assertIn("site_id  = var.hosting_site_id", hosting)
+        self.assertNotIn("prevent_destroy", hosting)
+
+    def test_workload_identity_accepts_only_this_repo_on_main(self):
+        text = (ROOT / "infra" / "github.tf").read_text(encoding="utf-8")
+        self.assertIn("gesop0n/kazokuai", text)
+        self.assertIn("refs/heads/main", text)
+        self.assertIn("assertion.ref_type == 'branch'", text)
+        self.assertIn("repo:gesop0n@133982741/kazokuai@1446577671:ref:refs/heads/main", text)
+        self.assertIn("roles/artifactregistry.writer", text)
+        self.assertIn("roles/run.developer", text)
+        self.assertIn("roles/iam.serviceAccountUser", text)
+        self.assertIn("roles/firebasehosting.admin", text)
+        self.assertIn("roles/iam.workloadIdentityUser", text)
+        self.assertNotRegex(text, r'resource\s+"google_service_account_key"')
+        self.assertNotIn("private_key", text)
+        for forbidden in (
+            "roles/editor",
+            "roles/owner",
+            "roles/run.admin",
+            "roles/iam.serviceAccountTokenCreator",
+        ):
+            self.assertNotIn(f'"{forbidden}"', text)
+        outputs = (ROOT / "infra" / "outputs.tf").read_text(encoding="utf-8")
+        self.assertIn("google_iam_workload_identity_pool_provider.github.name", outputs)
+        self.assertIn("google_service_account.deploy.email", outputs)
+        services = (ROOT / "infra" / "locals.tf").read_text(encoding="utf-8")
+        self.assertIn("iamcredentials.googleapis.com", services)
+        self.assertIn("sts.googleapis.com", services)
+        bootstrap = (ROOT / "infra" / "run.sh").read_text(encoding="utf-8")
+        self.assertNotIn("google_iam_workload_identity_pool.github", bootstrap)
+        self.assertNotIn("google_cloud_run_v2_service_iam_member.deploy", bootstrap)
+
+    def test_deploy_workflow_is_manual_and_checks_first(self):
+        text = (ROOT / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        trigger = text.split("on:", 1)[1].split("permissions:", 1)[0]
+        self.assertIn("workflow_dispatch", trigger)
+        self.assertNotIn("pull_request", trigger)
+        self.assertNotIn("push", trigger)
+        self.assertNotIn("secrets.", text)
+        self.assertIn("id-token: write", text)
+        self.assertIn("contents: read", text)
+        check = text.index("mise run check")
+        auth = text.index("google-github-actions/auth@")
+        backend = text.index("mise run deploy:backend")
+        web = text.index("mise run deploy:web")
+        self.assertLess(check, auth)
+        self.assertLess(auth, backend)
+        self.assertLess(backend, web)
+        self.assertIn('github.ref == \'refs/heads/main\'', text)
+
+    def test_publish_says_what_the_person_runs_once(self):
+        text = (ROOT / "docs" / "publish.md").read_text(encoding="utf-8")
+        step7 = text.split("## 7.", 1)[1].split("## 8.", 1)[0]
+        self.assertIn("gcloud run deploy", step7)
+        self.assertNotIn("Terraform を適用し", step7)
+        once = text.split("## 12.", 1)[1].split("## Cloud Run", 1)[0]
+        self.assertIn("deletion_policy", once)
+        self.assertIn("PREVENT", once)
+        self.assertIn("gh variable set", once)
+        self.assertIn("WORKLOAD_IDENTITY_PROVIDER", once)
+        self.assertIn("DEPLOY_SERVICE_ACCOUNT", once)
+        apply = once.split("```bash", 1)[1].split("```", 1)[0]
+        self.assertIn("infra:apply", apply)
+        self.assertNotIn("--bootstrap", apply)
+        self.assertNotIn("--allow-replace", apply)
+        tainted = text.split("## Cloud Run が tainted", 1)[1]
+        self.assertIn("PREVENT", tainted)
+        self.assertIn("deletion_policy", tainted)
+        self.assertNotIn("deploy:backend` の apply", tainted)
+
+
+def firebase_flags():
+    return [
+        "--firebase-api-key=test-api-key",
+        "--firebase-auth-domain=kazokuai-prod.firebaseapp.com",
+        "--firebase-app-id=1:1:web:abc",
+        "--firebase-messaging-sender-id=123",
+        f"--firebase-project-id={PROJECT}",
+        "--firebase-storage-bucket=",
+    ]
 
 
 def sh_quote(path):

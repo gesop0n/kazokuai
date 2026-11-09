@@ -103,17 +103,26 @@ gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file
 ## 7. バックエンドを公開する
 
 ```bash
-mise run deploy:backend -- \
-  --project=PROJECT_ID \
-  --billing-account=XXXXXX-XXXXXX-XXXXXX \
-  --state-bucket=BUCKET
+mise run deploy:backend -- --project=PROJECT_ID
 ```
 
-Mac が Apple Silicon でも、イメージは `linux/amd64` で作る。Cloud Run が動かす形である。タグは、実行の時刻と git のリビジョンから作る。push のあと、そのイメージで Terraform を適用し、Cloud Run を作る。確認を求める。
+Mac が Apple Silicon でも、イメージは `linux/amd64` で作る。Cloud Run が動かす形である。タグは、実行の時刻と git のリビジョンから作る。push のあと、`gcloud run deploy` でサービス `kazokuai` の新しいリビジョンにする。環境変数、秘密、インスタンス数は渡さない。今のサービスに残っているものを使う。タグは付けない。Terraform は適用しない。
 
 終わると、イメージの URI と、電話機がつなぐ URL を出す。
 
-push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 5 をやり直してから、もう一度このコマンドを実行する。`allUsers` の IAM で失敗したときは、手順 8 の組織ポリシーを直してからやり直す。Cloud Run が状態に tainted で残ったときは、うしろの「Cloud Run が tainted で残っているとき」で戻す。
+サービスがまだ無いときは、イメージを push したあとで止まる。表示された URI を `IMAGE` にして、次の apply で Cloud Run を作る。`--bootstrap` は付けない。`--allow-replace` も付けない。確認を求める。
+
+```bash
+mise run infra:apply -- \
+  --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=IMAGE \
+  --state-bucket=BUCKET
+```
+
+plan が Cloud Run か、どちらかの Hosting のサイトを replace するときは、適用しない。サービスができたあとの apply は、イメージの変更を無視する。ワークフローが載せたイメージを戻さない。
+
+push が、Artifact Registry のリポジトリが無いと言って失敗したときは、手順 5 をやり直してから、もう一度このコマンドを実行する。`allUsers` の IAM で失敗したときは、手順 8 の組織ポリシーを直してから、上の apply をやり直す。Cloud Run が状態に tainted で残ったときは、うしろの「Cloud Run が tainted で残っているとき」で戻す。
 
 ## 8. コンソールでログインを有効にする
 
@@ -173,21 +182,104 @@ mise run device -- --backend CLOUD_RUN_URI --watched-person tanaka-hana
 
 Web 版に審査員としてログインし、今すぐ通話を押すと、この電話機が鳴る。
 
+## 12. GitHub Actions から公開する
+
+この手順は、人が 1 回実行する。ワークフローは、GitHub の Actions の画面から動かす。
+
+すでに Cloud Run と、Hosting のサイトが 2 つある。次の apply を 1 回実行する。プールと GitHub のプロバイダーと、デプロイ用のサービスアカウントを足す。Cloud Run と両方の Hosting サイトの `deletion_policy` を `PREVENT` にする。この属性は ForceNew ではない。名前、ロケーション、サイト ID、アプリ ID は変えないので、これらの資源はその場で変わる。plan が Cloud Run か、どちらかのサイトを replace するときは、適用しない。
+
+`IMAGE` は要る。今動いているイメージの URI でよい。Terraform はイメージの変更を無視するので、この値では戻さない。
+
+`--bootstrap` は付けない。このフラグは Workload Identity も、Cloud Run へのデプロイ権限も作らない。`--allow-replace` も付けない。
+
+手順 7 で、サービスが無かったあとに同じ apply を既に実行したときは、ここでの apply は繰り返さなくてよい。変数の設定と、ワークフローの実行はする。
+
+```bash
+mise run infra:apply -- \
+  --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=IMAGE \
+  --state-bucket=BUCKET
+```
+
+apply のあと、output を GitHub のリポジトリ変数に入れる。secret にはしない。どれも秘密の値ではない。`firebase_api_key` は、ブラウザに渡すクライアントの設定である。Gemini の API キーと、電話機の合言葉は、ここへ入れない。
+
+プロジェクトは、環境変数で渡す。gcloud の既定のプロジェクトは使わない。
+
+```bash
+export GOOGLE_PROJECT=PROJECT_ID
+export GOOGLE_CLOUD_PROJECT=PROJECT_ID
+export CLOUDSDK_CORE_PROJECT=PROJECT_ID
+export GOOGLE_BILLING_PROJECT=PROJECT_ID
+
+terraform -chdir=infra init \
+  -input=false \
+  -reconfigure \
+  -backend-config="bucket=BUCKET" \
+  -backend-config="prefix=kazokuai"
+
+repo=gesop0n/kazokuai
+gh variable set GCP_PROJECT --repo "$repo" --body "PROJECT_ID"
+gh variable set GCP_REGION --repo "$repo" --body "asia-northeast1"
+gh variable set WORKLOAD_IDENTITY_PROVIDER --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw workload_identity_provider)"
+gh variable set DEPLOY_SERVICE_ACCOUNT --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw deploy_service_account)"
+gh variable set FIREBASE_API_KEY --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_api_key)"
+gh variable set FIREBASE_AUTH_DOMAIN --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_auth_domain)"
+gh variable set FIREBASE_APP_ID --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_app_id)"
+gh variable set FIREBASE_MESSAGING_SENDER_ID --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_messaging_sender_id)"
+gh variable set FIREBASE_PROJECT_ID --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_project_id)"
+gh variable set FIREBASE_STORAGE_BUCKET --repo "$repo" \
+  --body "$(terraform -chdir=infra output -raw firebase_storage_bucket)"
+```
+
+`workload_identity_provider` は、プロジェクト番号を含むプロバイダーの名前である。`deploy_service_account` は、デプロイ用のサービスアカウントのメールアドレスである。ストレージのバケットが空なら、その変数は空の文字列になる。
+
+GitHub の Actions で、ワークフロー `deploy` を `main` から手で 1 回動かす。`workflow_dispatch` だけがきっかけである。先に `mise run check` が動き、そのあと手元と同じ `mise run deploy:backend` と `mise run deploy:web` が動く。状態のバケットは読まない。デプロイ用のサービスアカウントに、状態を読む権限は付いていない。ランナーには Docker があり、ワークフローが gcloud を入れる。
+
+終わると `https://kazokuai.web.app` に、そのビルドが出る。
+
 ## Cloud Run が tainted で残っているとき
 
-イメージが無い状態で Cloud Run を作ろうとして失敗すると、サービスが状態に tainted で残ることがある。そのままだと、次の apply はサービスを消して作り直そうとし、削除の保護がそれを拒む。
+イメージが無い状態で Cloud Run を作ろうとして失敗すると、サービスが状態に tainted で残ることがある。そのままだと、次の apply はサービスを消して作り直そうとする。`deletion_protection` と、状態の `deletion_policy` が `PREVENT` のときは、その削除を拒む。
 
 プロジェクトは、ここでも引数で渡す。
 
-1. tainted を外す。次の apply は、サービスを消さずにイメージを載せる。
+1. tainted を外す。次の apply は、サービスを消そうとしない。
 
 ```bash
 mise run infra:untaint -- --project=PROJECT_ID --state-bucket=BUCKET
 ```
 
-2. 手順 7 の `mise run deploy:backend` をやり直す。
+2. 手順 7 の `mise run deploy:backend` をやり直す。サービスがあるときは、`gcloud run deploy` が新しいリビジョンを載せる。Terraform はこのイメージを無視する。
 
-サービスを消して作り直すときは、上の untaint のあと、削除の保護を 1 回だけ外して apply する。イメージは、push 済みの URI にする。
+サービスを消して作り直すときは、状態の `deletion_policy` を先に `DELETE` にする。`PREVENT` のまま `--allow-replace` を付けても、プロバイダーは消さない。プロバイダーは、設定ではなく状態の値を見る。
+
+1. tainted なら、上の untaint で外す。plan が replace のままだと、`deletion_policy` の変更も replace になり、状態が `PREVENT` のまま消そうとして失敗する。
+2. `infra/run.tf` の Cloud Run の `deletion_policy` を `DELETE` にし、`--allow-replace` を付けずに apply する。plan は、その場の変更だけであることを確かめる。Cloud Run も、どちらの Hosting のサイトも replace していないこと。
+3. `deletion_policy` を `PREVENT` に戻す。サービスを再び tainted にする。前の apply で、状態のバケットへは init 済みである。
+
+```bash
+export GOOGLE_PROJECT=PROJECT_ID
+export GOOGLE_CLOUD_PROJECT=PROJECT_ID
+export CLOUDSDK_CORE_PROJECT=PROJECT_ID
+export GOOGLE_BILLING_PROJECT=PROJECT_ID
+
+terraform -chdir=infra taint \
+  -var=project_id=PROJECT_ID \
+  -var=region=asia-northeast1 \
+  -var=billing_account=XXXXXX-XXXXXX-XXXXXX \
+  -var=container_image=IMAGE \
+  google_cloud_run_v2_service.backend
+```
+
+4. `--allow-replace` を付けて apply する。イメージは、push 済みの URI にする。この apply はサービスを消して作り直す。
 
 ```bash
 mise run infra:apply -- --allow-replace \
@@ -197,4 +289,4 @@ mise run infra:apply -- --allow-replace \
   --state-bucket=BUCKET
 ```
 
-続いて、`--allow-replace` を付けずに、もう一度 apply する。削除の保護が戻る。`deploy:backend` の apply でも戻る。
+5. `--allow-replace` を付けずに、もう一度 apply する。`deletion_protection` が戻る。`deletion_policy` は `PREVENT` のままである。`deploy:backend` は Terraform を適用しないので、保護は戻さない。

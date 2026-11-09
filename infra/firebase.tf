@@ -58,6 +58,9 @@ resource "google_firebase_hosting_site" "web" {
   site_id  = var.project_id
   app_id   = google_firebase_web_app.web.app_id
 
+  # 既定の DELETE だと、replace のときにサイトを消す。PREVENT は ForceNew ではない。
+  deletion_policy = "PREVENT"
+
   depends_on = [google_project_service.api]
 }
 
@@ -67,6 +70,9 @@ resource "google_firebase_hosting_site" "published" {
   project  = var.project_id
   site_id  = var.hosting_site_id
   app_id   = google_firebase_web_app.web.app_id
+
+  # 既定の DELETE だと、replace のときにサイトを消す。PREVENT は ForceNew ではない。
+  deletion_policy = "PREVENT"
 
   depends_on = [google_project_service.api]
 }

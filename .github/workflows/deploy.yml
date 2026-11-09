@@ -1,0 +1,63 @@
+name: deploy
+
+# 手で動かしたときだけ公開する。マージでは動かない。
+# 認証は Workload Identity。鍵のファイルは使わない。秘密の値は GitHub に置かない。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - name: 検査する
+        run: mise run check
+      - name: Workload Identity で認証する
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_PROJECT }}
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      - name: gcloud を入れる
+        uses: google-github-actions/setup-gcloud@v3
+      - name: バックエンドを公開する
+        env:
+          GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+        run: |
+          mise run deploy:backend -- \
+            --project="$GCP_PROJECT" \
+            --region="$GCP_REGION"
+      - name: Web 版を公開する
+        env:
+          GCP_PROJECT: ${{ vars.GCP_PROJECT }}
+          GCP_REGION: ${{ vars.GCP_REGION }}
+          FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ vars.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_APP_ID: ${{ vars.FIREBASE_APP_ID }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ vars.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ vars.FIREBASE_STORAGE_BUCKET }}
+        run: |
+          mise run deploy:web -- \
+            --project="$GCP_PROJECT" \
+            --region="$GCP_REGION" \
+            --firebase-api-key="$FIREBASE_API_KEY" \
+            --firebase-auth-domain="$FIREBASE_AUTH_DOMAIN" \
+            --firebase-app-id="$FIREBASE_APP_ID" \
+            --firebase-messaging-sender-id="$FIREBASE_MESSAGING_SENDER_ID" \
+            --firebase-project-id="$FIREBASE_PROJECT_ID" \
+            --firebase-storage-bucket="$FIREBASE_STORAGE_BUCKET"
