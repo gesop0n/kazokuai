@@ -13,6 +13,7 @@ import (
 	"github.com/coder/websocket"
 
 	"github.com/gesop0n/kazokuai/internal/clock"
+	"github.com/gesop0n/kazokuai/internal/keepalive"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -150,9 +151,6 @@ func (b *phoneBook) send(personID string, msg protocol.PhoneMessage) error {
 	return nil
 }
 
-// pingTimeout は、pong を待つ時間である。これを過ぎたら、半分切れた接続とみる。
-const pingTimeout = time.Second
-
 // phone は、電話機からの WebSocket を受け、切れるまで状態を読む。
 func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	personID := r.URL.Query().Get("watchedPerson")
@@ -183,7 +181,7 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
 	defer s.disconnect(personID, link)
-	go s.ping(ctx, conn)
+	go keepalive.Run(ctx, s.clock, conn)
 
 	for {
 		_, data, err := conn.Read(ctx)
@@ -195,29 +193,6 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		s.applyState(personID, msg.CallID, msg.State)
-	}
-}
-
-// ping は、つながっている電話機に一定の間隔で ping を送る。返事が無ければ接続を閉じる。
-func (s *server) ping(ctx context.Context, conn *websocket.Conn) {
-	for {
-		timer := s.newTimer(protocol.PingInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.Chan():
-		}
-		if ctx.Err() != nil {
-			return
-		}
-		pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
-		err := conn.Ping(pingCtx)
-		cancel()
-		if err != nil {
-			conn.CloseNow()
-			return
-		}
 	}
 }
 
@@ -278,9 +253,32 @@ func (s *server) applyState(personID, callID, state string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := s.callRef(personID, callID).Update(ctx, []firestore.Update{{Path: "state", Value: state}})
+	ref := s.callRef(personID, callID)
+	// トランザクションがやり直されても、最後に書けたときだけ追跡を変える。
+	applied := false
+	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		applied = false
+		doc, err := tx.Get(ref)
+		if err != nil {
+			return err
+		}
+		current, _ := doc.Data()["state"].(string)
+		// 電話機は、切れる前の呼び出し中や通話中を、つなぎ直したときに送り直す。
+		// 猶予を過ぎてつながらなかった電話を、その古い状態で進行中に戻さない。
+		if current == protocol.StateFailed && (state == protocol.StateRinging || state == protocol.StateTalking) {
+			return nil
+		}
+		if err := tx.Update(ref, []firestore.Update{{Path: "state", Value: state}}); err != nil {
+			return err
+		}
+		applied = true
+		return nil
+	})
 	if err != nil {
 		log.Printf("電話 %s の状態を %s にできなかった: %v", callID, state, err)
+		return
+	}
+	if !applied {
 		return
 	}
 	switch state {

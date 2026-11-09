@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 
 	"github.com/gesop0n/kazokuai/backend/server"
 	"github.com/gesop0n/kazokuai/internal/clock"
+	"github.com/gesop0n/kazokuai/internal/clock/clocktest"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -134,7 +134,7 @@ func TestPhoneSecretGatesTheDeviceRoutes(t *testing.T) {
 }
 
 func TestAppRoutesAlsoLiveUnderAPI(t *testing.T) {
-	clock := newTestClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+	clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 	srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 	misaki := signUp(t)
 
@@ -247,7 +247,7 @@ func TestLocalhostCORSOnlyForDemoProjects(t *testing.T) {
 
 func TestDroppedCallWaitsThirtySeconds(t *testing.T) {
 	t.Run("30 秒以内につながり直すと、つながらなかったにしない", func(t *testing.T) {
-		clock := newTestClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 		person, token := registerHanako(t, srv.URL)
 		conn := dialPhone(t, srv.URL, person, "dev-phone-secret")
@@ -264,7 +264,7 @@ func TestDroppedCallWaitsThirtySeconds(t *testing.T) {
 		again := dialPhone(t, srv.URL, person, "dev-phone-secret")
 		readPhone(again)
 		waitConnected(t, handler, person, true)
-		clock.advance(30 * time.Second)
+		clock.Advance(30 * time.Second)
 
 		deadline := time.Now().Add(time.Second)
 		for time.Now().Before(deadline) {
@@ -273,10 +273,12 @@ func TestDroppedCallWaitsThirtySeconds(t *testing.T) {
 			}
 			time.Sleep(20 * time.Millisecond)
 		}
+		sendPhoneState(t, again, callID, "通話中")
+		waitCallState(t, person, callID, "通話中")
 	})
 
 	t.Run("30 秒たっても戻らなければ、つながらなかったにする", func(t *testing.T) {
-		clock := newTestClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 		person, token := registerHanako(t, srv.URL)
 		conn := dialPhone(t, srv.URL, person, "dev-phone-secret")
@@ -286,25 +288,48 @@ func TestDroppedCallWaitsThirtySeconds(t *testing.T) {
 
 		conn.CloseNow()
 		waitConnected(t, handler, person, false)
-		clock.advance(29 * time.Second)
+		clock.Advance(29 * time.Second)
 		time.Sleep(200 * time.Millisecond)
 		if got := callState(t, person, callID); got != "呼び出し中" {
 			t.Fatalf("29 秒の状態 = %s, want 呼び出し中", got)
 		}
 
-		clock.advance(time.Second)
+		clock.Advance(time.Second)
 		waitCallState(t, person, callID, "つながらなかった")
+	})
+
+	t.Run("猶予のあとで通話中を送り直しても、つながらなかったのまま", func(t *testing.T) {
+		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
+		person, token := registerHanako(t, srv.URL)
+		conn := dialPhone(t, srv.URL, person, "dev-phone-secret")
+		readPhone(conn)
+		waitConnected(t, handler, person, true)
+		callID := startNow(t, srv.URL, "/calls/now", token)
+		sendPhoneState(t, conn, callID, "通話中")
+		waitCallState(t, person, callID, "通話中")
+
+		conn.CloseNow()
+		waitConnected(t, handler, person, false)
+		clock.Advance(30 * time.Second)
+		waitCallState(t, person, callID, "つながらなかった")
+
+		again := dialPhone(t, srv.URL, person, "dev-phone-secret")
+		readPhone(again)
+		waitConnected(t, handler, person, true)
+		sendPhoneState(t, again, callID, "通話中")
+		stayCallState(t, person, callID, "つながらなかった", time.Second)
 	})
 }
 
 func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 	t.Run("読んでいればつながったまま", func(t *testing.T) {
-		clock := newTestClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 		conn := dialPhone(t, srv.URL, "reading", "dev-phone-secret")
 		readPhone(conn)
 		waitConnected(t, handler, "reading", true)
-		clock.advance(30 * time.Second)
+		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(1500 * time.Millisecond)
 		for time.Now().Before(deadline) {
 			if !handler.Connected("reading") {
@@ -315,11 +340,11 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 	})
 
 	t.Run("読まなければ切る", func(t *testing.T) {
-		clock := newTestClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
 		conn := dialPhone(t, srv.URL, "silent", "dev-phone-secret")
 		waitConnected(t, handler, "silent", true)
-		clock.advance(30 * time.Second)
+		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(3 * time.Second)
 		for handler.Connected("silent") {
 			if time.Now().After(deadline) {
@@ -387,6 +412,34 @@ func callState(t *testing.T, personID, callID string) string {
 	}
 	state, _ := doc.Data()["state"].(string)
 	return state
+}
+
+func sendPhoneState(t *testing.T, conn *websocket.Conn, callID, state string) {
+	t.Helper()
+	body, err := json.Marshal(protocol.PhoneMessage{
+		Type:   protocol.PhoneTypeState,
+		CallID: callID,
+		State:  state,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := conn.Write(ctx, websocket.MessageText, body); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func stayCallState(t *testing.T, personID, callID, want string, window time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(window)
+	for time.Now().Before(deadline) {
+		if got := callState(t, personID, callID); got != want {
+			t.Fatalf("状態 = %s, want %s", got, want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func waitCallState(t *testing.T, personID, callID, want string) {
@@ -492,69 +545,4 @@ func options(t *testing.T, backend, path, origin string) response {
 		t.Fatal(err)
 	}
 	return response{status: got.StatusCode, body: data, header: got.Header}
-}
-
-type testClock struct {
-	mu      sync.Mutex
-	now     time.Time
-	waiters []*testTimer
-}
-
-func newTestClock(now time.Time) *testClock {
-	return &testClock{now: now}
-}
-
-func (c *testClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-func (c *testClock) NewTimer(d time.Duration) clock.Timer {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	timer := &testTimer{
-		clock:    c,
-		deadline: c.now.Add(d),
-		ch:       make(chan time.Time, 1),
-	}
-	if d <= 0 {
-		timer.ch <- c.now
-		return timer
-	}
-	c.waiters = append(c.waiters, timer)
-	return timer
-}
-
-func (c *testClock) advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
-	pending := make([]*testTimer, 0, len(c.waiters))
-	for _, timer := range c.waiters {
-		if timer.stopped {
-			continue
-		}
-		if !timer.deadline.After(c.now) {
-			timer.ch <- c.now
-			continue
-		}
-		pending = append(pending, timer)
-	}
-	c.waiters = pending
-}
-
-type testTimer struct {
-	clock    *testClock
-	deadline time.Time
-	ch       chan time.Time
-	stopped  bool
-}
-
-func (t *testTimer) Chan() <-chan time.Time { return t.ch }
-
-func (t *testTimer) Stop() {
-	t.clock.mu.Lock()
-	defer t.clock.mu.Unlock()
-	t.stopped = true
 }

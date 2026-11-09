@@ -14,6 +14,7 @@ import (
 
 	"github.com/coder/websocket"
 
+	"github.com/gesop0n/kazokuai/internal/keepalive"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -318,7 +319,7 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 	defer link.detach(conn)
 	pingCtx, stopPing := context.WithCancel(ctx)
 	defer stopPing()
-	go d.ping(pingCtx, conn)
+	go keepalive.Run(pingCtx, d.Clock, conn)
 	for {
 		_, data, err := conn.Read(ctx)
 		if err != nil {
@@ -329,32 +330,6 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 			continue
 		}
 		commands.push(msg.CallID)
-	}
-}
-
-// pingTimeout は、pong を待つ時間である。これを過ぎたら、半分切れた接続とみる。
-const pingTimeout = time.Second
-
-// ping は、バックエンドに一定の間隔で ping を送る。返事が無ければ接続を閉じ、readOnce がつなぎ直す。
-func (d *Device) ping(ctx context.Context, conn *websocket.Conn) {
-	for {
-		timer := d.Clock.NewTimer(protocol.PingInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		case <-timer.Chan():
-		}
-		if ctx.Err() != nil {
-			return
-		}
-		pingCtx, cancel := context.WithTimeout(ctx, pingTimeout)
-		err := conn.Ping(pingCtx)
-		cancel()
-		if err != nil {
-			conn.CloseNow()
-			return
-		}
 	}
 }
 

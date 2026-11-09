@@ -5,13 +5,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 
 	"github.com/gesop0n/kazokuai/internal/clock"
+	"github.com/gesop0n/kazokuai/internal/clock/clocktest"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
@@ -23,6 +23,10 @@ func TestPhoneWebSocketURL(t *testing.T) {
 	got, err = phoneWebSocketURL("http://localhost:8080", "hanako")
 	if err != nil || got != "ws://localhost:8080/phone?watchedPerson=hanako" {
 		t.Fatalf("http = %q, %v", got, err)
+	}
+	got, err = phoneWebSocketURL("https://kazokuai.example.run.app/", "hanako")
+	if err != nil || got != "wss://kazokuai.example.run.app/phone?watchedPerson=hanako" {
+		t.Fatalf("末尾の / = %q, %v", got, err)
 	}
 	if _, err := phoneWebSocketURL("ftp://kazokuai.example", "hanako"); err == nil {
 		t.Fatal("ftp を受け入れた")
@@ -99,7 +103,7 @@ func TestDeviceRedialsWhenTheBackendStopsAnsweringPing(t *testing.T) {
 		srv.Close()
 	})
 
-	clk := newManualClock(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+	clk := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	device := &Device{
@@ -117,7 +121,7 @@ func TestDeviceRedialsWhenTheBackendStopsAnsweringPing(t *testing.T) {
 		t.Fatal("最初の接続が来なかった")
 	}
 
-	clk.advance(30 * time.Second)
+	clk.Advance(30 * time.Second)
 	deadline := time.Now().Add(4 * time.Second)
 	for {
 		select {
@@ -128,72 +132,33 @@ func TestDeviceRedialsWhenTheBackendStopsAnsweringPing(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("pong が無い接続のあと、つなぎ直さなかった")
 		}
-		clk.advance(time.Second)
+		clk.Advance(time.Second)
 		time.Sleep(50 * time.Millisecond)
 	}
 }
 
-type manualClock struct {
-	mu      sync.Mutex
-	now     time.Time
-	waiters []*manualTimer
-}
+func TestPostBackendJoinsATrailingSlash(t *testing.T) {
+	var path, secret string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path = r.URL.Path
+		secret = r.Header.Get(protocol.PhoneSecretHeader)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(srv.Close)
 
-func newManualClock(now time.Time) *manualClock {
-	return &manualClock{now: now}
-}
-
-func (c *manualClock) Now() time.Time {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.now
-}
-
-func (c *manualClock) NewTimer(d time.Duration) clock.Timer {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	timer := &manualTimer{
-		clock:    c,
-		deadline: c.now.Add(d),
-		ch:       make(chan time.Time, 1),
-	}
-	if d <= 0 {
-		timer.ch <- c.now
-		return timer
-	}
-	c.waiters = append(c.waiters, timer)
-	return timer
-}
-
-func (c *manualClock) advance(d time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.now = c.now.Add(d)
-	pending := make([]*manualTimer, 0, len(c.waiters))
-	for _, timer := range c.waiters {
-		if timer.stopped {
-			continue
+	for _, base := range []string{srv.URL, srv.URL + "/"} {
+		path, secret = "", ""
+		device := &Device{Backend: base, Secret: "dev-phone-secret"}
+		resp, err := device.postBackend(context.Background(), protocol.TokenPath, []byte(`{}`))
+		if err != nil {
+			t.Fatal(err)
 		}
-		if !timer.deadline.After(c.now) {
-			timer.ch <- c.now
-			continue
+		resp.Body.Close()
+		if path != "/token" {
+			t.Errorf("Backend %s のパス = %q, want /token", base, path)
 		}
-		pending = append(pending, timer)
+		if secret != "dev-phone-secret" {
+			t.Errorf("合言葉 = %q", secret)
+		}
 	}
-	c.waiters = pending
-}
-
-type manualTimer struct {
-	clock    *manualClock
-	deadline time.Time
-	ch       chan time.Time
-	stopped  bool
-}
-
-func (t *manualTimer) Chan() <-chan time.Time { return t.ch }
-
-func (t *manualTimer) Stop() {
-	t.clock.mu.Lock()
-	defer t.clock.mu.Unlock()
-	t.stopped = true
 }

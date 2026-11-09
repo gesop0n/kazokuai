@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"sync"
@@ -620,7 +621,11 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 }
 
 func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*http.Response, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, d.Backend+path, bytes.NewReader(body))
+	endpoint, err := backendEndpoint(d.Backend, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -631,4 +636,18 @@ func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*ht
 		client = http.DefaultClient
 	}
 	return client.Do(req)
+}
+
+// backendEndpoint は、base の末尾の / に関わらず、path を 1 つの URL にする。
+// base と path を文字列で足すと、末尾の / があるときに //token になり、ルートに届かない。
+func backendEndpoint(base, path string) (string, error) {
+	u, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	ref, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	return u.ResolveReference(ref).String(), nil
 }
