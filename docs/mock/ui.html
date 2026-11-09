@@ -1051,6 +1051,134 @@
             font-weight: 400
         }
 
+        /* T1〜T3: はじめてのチュートリアル */
+        .tut {
+            position: absolute;
+            inset: 0;
+            z-index: 6
+        }
+
+        .tut-spot {
+            position: absolute;
+            border-radius: 14px;
+            box-shadow: 0 0 0 2000px rgba(0, 0, 0, .62);
+            outline: 2px solid #FFFFFF;
+            pointer-events: none
+        }
+
+        .tut-tip {
+            position: absolute;
+            left: 16px;
+            width: 361px;
+            padding: 16px;
+            border-radius: var(--radius);
+            background: var(--paper-raised);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .25)
+        }
+
+        .tut:not(.placed) .tut-tip,
+        .tut:not(.placed) .tut-spot {
+            visibility: hidden
+        }
+
+        /* 01b: 予約の日時を選ぶ */
+        .cal.book .cal-d {
+            height: 40px
+        }
+
+        .cal-d.past b {
+            color: var(--line-strong);
+            font-weight: 400
+        }
+
+        .cal-d.past {
+            cursor: default
+        }
+
+        .wheel {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 4px;
+            height: 180px;
+            border-radius: var(--radius);
+            background: var(--paper-base)
+        }
+
+        .wheel-band {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            top: 72px;
+            height: 36px;
+            border-radius: var(--radius);
+            background: var(--paper-sunken);
+            pointer-events: none
+        }
+
+        .wheel-col {
+            position: relative;
+            width: 88px;
+            height: 180px;
+            overflow-y: auto;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+            padding: 72px 0;
+            -webkit-mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent);
+            mask-image: linear-gradient(transparent, #000 35%, #000 65%, transparent)
+        }
+
+        .wheel-col::-webkit-scrollbar {
+            display: none
+        }
+
+        .wheel-col button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 36px;
+            scroll-snap-align: center;
+            font: 400 22px/28px var(--num);
+            color: var(--ink-3)
+        }
+
+        .wheel-col button.on {
+            font-weight: 700;
+            font-size: 26px;
+            color: var(--ink)
+        }
+
+        .wheel-colon {
+            position: relative;
+            font: 700 26px/28px var(--num)
+        }
+
+        .quick {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap
+        }
+
+        .quick .chip {
+            height: 32px;
+            padding: 0 12px;
+            font-family: var(--num)
+        }
+
+        .often-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--ok)
+        }
+
         /* Log */
         .log {
             display: flex;
@@ -1346,6 +1474,7 @@
             eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>',
             settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
             delete: '<path d="M10 5a2 2 0 0 0-1.344.519l-6.328 5.74a1 1 0 0 0 0 1.481l6.328 5.741A2 2 0 0 0 10 19h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/><path d="m12 9 6 6"/><path d="m18 9-6 6"/>',
+            clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
             mail: '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
         };
         const FILLED = new Set(['square', 'play']);
@@ -1517,10 +1646,8 @@
   ${navBar('chevron-left', 'もどる', '電話機と同期', 'L2d')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
    ${illus('off', hashLabel)}
-   <div class="steps">
-    ${stepRow(1, 'アプリの「同期を始める」を押す', '電話機とつながる準備をします')}
-    ${stepRow(2, '電話機の受話器を上げて「＃」を押す', '受話器から6桁の認証コードが流れます')}
-    ${stepRow(3, '認証コードを入力して「送信」を押す', 'つながると、受話器からもお知らせします')}
+   <div class="title-l">
+    電話機との同期を始めます。
    </div>
   </div>
  </div>
@@ -1567,41 +1694,7 @@
    </div>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3k')}>認証コードを入力する</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
-</div>`;
-        S.L3c = () => `<div class="screen">${status('20:17')}
- <div class="content">
-  ${navBar('chevron-left', 'もどる', 'お問い合わせ', 'L3+')}
-  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">お問い合わせの種類</span><div class="chips" data-single>${['認証コードが聞こえない', '同期できない', 'その他'].map((t, i) => `<button class="chip ${i ? '' : 'sel'}">${t}</button>`).join('')}</div></div>
-   ${mailField()}
-   <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">お問い合わせ内容</label><div class="field" style="padding:12px 16px;align-items:flex-start;min-height:144px"><span class="label-m muted">試したことや、電話機の状態を入力</span></div></div>
-   <span class="body-s muted">ご入力のメールアドレスに返信します。</span>
-  </div>
- </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3d')}>送信する</button>${homebar()}</div>
-</div>`;
-        S.L3d = () => `<div class="screen">${status('20:18')}
- <div class="content" style="height:798px">
-  ${navBar('x', '閉じる', 'お問い合わせ', 'L3')}
-  <div style="flex:1;padding:0 24px 200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
-   <span class="iconbtn" style="width:72px;height:72px;background:var(--ok-soft)">${icon('check', 36)}</span>
-   <h3 class="title-l">送信しました</h3>
-   <p class="body-m muted">お問い合わせを受け付けました。<br>内容を確認のうえ、ご入力のメールアドレスに<br>返信します。</p>
-  </div>
- </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3')}>同期の手順にもどる</button>${homebar()}</div>
-</div>`;
-        S['L3d+'] = () => `<div class="screen">${status('20:18')}
- <div class="content" style="height:798px">
-  ${navBar('x', '閉じる', 'お問い合わせ', 'L3c')}
-  <div style="flex:1;padding:0 24px 200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
-   <span class="iconbtn" style="width:72px;height:72px;background:var(--alert-soft)">${icon('alert', 36, ALERT)}</span>
-   <h3 class="title-l">送信できませんでした</h3>
-   <p class="body-m muted">お問い合わせは届いていません。<br>通信状況を確認して、もう一度お試しください。</p>
-  </div>
- </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3d')}>${icon('rotate', 20, RAISED)}もう一度送信する</button><button class="btn M ghost fillw link"${to('L3c')}>入力画面にもどる</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3k')}>認証コードを入力する</button>${homebar()}</div>
 </div>`;
         S.L5 = () => `<div class="screen">${status('20:18')}
  <div class="content">
@@ -1662,7 +1755,7 @@
  </div>
  <div class="foot">${foot}${homebar()}</div>
 </div>`;
-        S.L8 = () => voiceScreen('20:20', 'セットアップ', 'L7', prog(3, 3), `<button class="btn L primary fillw"${to('00')}>はじめる</button>`);
+        S.L8 = () => voiceScreen('20:20', 'セットアップ', 'L7', prog(3, 3), `<button class="btn L primary fillw"${to('T1')}>はじめる</button>`);
         S['08c'] = () => voiceScreen('10:25', 'AIの声', '08', '', `<button class="btn L primary fillw" data-save-voice${to('08')}>保存する</button>`);
 
         // ---------- 4. Home ----------
@@ -1682,6 +1775,27 @@
  </section>`;
         const home = (mode = 'top') => `<div class="screen">${status('10:24')}${hhead()}
  <div class="hview"><div class="hcol" data-scroll="${mode}" style="top:0">${recentCard()}${askCard()}${todayCard()}</div></div>${tabs('home')}</div>`;
+        // T1〜T9: セットアップのあとに一度だけ出るチュートリアル。画面の上を暗くして、説明する場所だけを明るく残す
+        // spot: 明るくする場所(CSSセレクタ)。説明は場所の下に出し、入りきらないときは上に出す
+        const TUT_N = 9;
+        const tut = (n, spot, title, body, next) => `<div class="tut" data-tut="${spot}" role="dialog" aria-label="使い方 ${n}/${TUT_N}"><i class="tut-spot"></i>
+ <div class="tut-tip">
+  <div style="display:flex;justify-content:space-between;align-items:center"><span class="label-s muted">使い方 ${n}/${TUT_N}</span><div style="width:110px">${prog(n, TUT_N)}</div></div>
+  <div style="display:flex;flex-direction:column;gap:4px"><span class="title-m">${title}</span><span class="body-m muted">${body}</span></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">${n < TUT_N ? `<button class="btn M ghost link" style="padding:0 8px"${to('00')}>スキップ</button>` : '<span></span>'}<button class="btn M primary" style="padding:0 24px"${to(next)}>${n < TUT_N ? '次へ' : 'はじめる'}</button></div>
+ </div></div>`;
+        const tutOn = (screen, t) => screen.replace(/<\/div>$/, `${t}</div>`);
+        S.T1 = () => tutOn(home('top'), tut(1, '[data-part=recent]', '直近の電話', 'AIがハナさんにかけた電話の内容を短くまとめてここに届けます。「会話を見る」で全文も読めます。', 'T2'));
+        S.T2 = () => tutOn(home('top'), tut(2, '[data-part=ask]', 'AIに伝えてもらう', '伝えたいことを入力するとAIが電話でハナさんに伝えます。日時を決めて予約もできます。', 'T3'));
+        S.T3 = () => tutOn(home('today'), tut(3, '[data-part=today]', '今日の様子', '食事、睡眠、体調の3つをハナさんの言葉と一緒にまとめます。気になる話には印が付きます。下には7日間の様子も出ます。', 'T4'));
+        // 通話記録の機能: 日付の選び方、記録の並び、詳細
+        S.T4 = () => tutOn(S['04'](), tut(4, '.mini', '通話記録 日付を選ぶ', '「過去7日間」は横にスクロールすると前の日も見られます。電話に出た日は点、出なかった日は×で示します。押すとカレンダーが開き、もっと前の日付も選べます。', 'T5'));
+        S.T5 = () => tutOn(S['04'](), tut(5, '.tl-row', '通話記録 記録を読む', '電話ごとに話した内容を一言でまとめ、話題の種類と通話時間を並べます。出なかった電話も残します。記録を押すと詳しい内容が開きます。', 'T6'));
+        S.T6 = () => tutOn(S['05'](), tut(6, '[data-part=summary]', '通話記録 詳しい内容', '上のAIのまとめを押すと、その時刻の会話の全文を下に表示します。', 'T7'));
+        // 予約電話の機能: 予約の確認と編集、新しい予約、かけなおしのルール
+        S.T7 = () => tutOn(S['06'](), tut(7, '[data-part=booked]', '予約電話 予約を確かめる', '決まった時間にかける予定を並べます。押すと、伝える内容と日時を変えられます。「今すぐ通話」もできます。', 'T8'));
+        S.T8 = () => tutOn(S['06'](), tut(8, '[data-part=newbook]', '予約電話 新しい予約', '「AIに伝えてもらう」と同じ画面で、伝えたいことと日時を決めて予約します。', 'T9'));
+        S.T9 = () => tutOn(S['06'](), tut(9, '[data-part=rule]', '予約電話 かけなおしのルール', 'ハナさんが電話に出ないとき、何分おきに何回かけなおすかを決めます。それでも出ないときは、家族に通知が届きます。', '00'));
         const setRow = (l, v, go) => `<button class="setrow"${to(go)}><div style="display:flex;flex-direction:column;flex:1;min-width:0"><span class="label-s muted">${l}</span><span class="label-l" style="font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${v}</span></div>${icon('chevron-right', 20, INK2)}</button>`;
         const editRow = (l, v) => `<label class="setrow" style="flex-direction:column;align-items:stretch;gap:6px;padding:12px 0;cursor:text"><span class="label-s muted">${l}</span><span class="field" style="min-height:48px"><input type="text" value="${v}" aria-label="${l}"></span></label>`;
         S['08'] = () => `<div class="screen">${status('10:25')}
@@ -1698,21 +1812,46 @@
     ${setRow('同期している電話機', '03-0000-0000', 'L3')}
     ${setRow('かけなおしのルール', '<span data-rule-summary>15分おきに3回かけて、家族に通知</span>', '07')}
    </section>
-   <button class="btn L secondary fillw" style="color:${ALERT}"${to('08d')}>${icon('log-out', 20, ALERT)}ログアウト</button>
+   <section class="card" style="padding:0 16px;gap:0">
+    ${setRow('アカウント情報', 'tanaka.taro@example.com', '08e')}
+   </section>
   </div>
  </div>
  <div class="foot">${homebar()}</div>
 </div>`;
         S['08d'] = () => `<div class="screen">${status('10:26')}
  <div class="content" style="height:798px">
-  ${navBar('x', '閉じる', 'ログアウト', '08')}
+  ${navBar('x', '閉じる', 'ログアウト', '08e')}
   <div style="flex:1;padding:0 24px 200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
    <span class="iconbtn" style="width:72px;height:72px;background:var(--alert-soft)">${icon('log-out', 36, ALERT)}</span>
    <h3 class="title-l">ログアウトしますか？</h3>
    <p class="body-m muted">ログアウトしても、AIからの電話や<br>会話の記録はそのまま続きます。<br>もう一度見るときは、ログインしてください。</p>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw" style="background:${ALERT}"${to('L2')}>ログアウトする</button><button class="btn M ghost fillw link"${to('08')}>設定にもどる</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw" style="background:${ALERT}"${to('L2')}>ログアウトする</button><button class="btn M ghost fillw link"${to('08e')}>アカウント情報にもどる</button>${homebar()}</div>
+</div>`;
+        // 08e: 管理者(家族)のアカウント情報。お名前はこの画面で直接書き換える
+        const infoRow = (l, v) => `<div class="setrow"><div style="display:flex;flex-direction:column;flex:1;min-width:0"><span class="label-s muted">${l}</span><span class="label-l" style="font-weight:500;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${v}</span></div></div>`;
+        S['08e'] = () => `<div class="screen">${status('10:26')}
+ <div class="content">
+  ${navBar('chevron-left', 'もどる', 'アカウント情報', '08')}
+  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:16px">
+   <section class="card" style="padding:0 16px;gap:0">
+    ${editRow('あなたのお名前', '田中 太郎')}
+    ${infoRow('メールアドレス', 'tanaka.taro@example.com')}
+    ${setRow('パスワード', '••••••••', 'L2a')}
+   </section>
+   <section class="card" style="padding:0 16px;gap:0">
+    ${infoRow('ログイン方法', 'メールアドレスとパスワード')}
+    ${infoRow('登録日', '2026年11月5日')}
+   </section>
+   <section class="card" style="padding:0 16px;gap:0">
+    ${setRow('チュートリアル確認', '使い方をもう一度見る', 'T1')}
+   </section>
+   <button class="btn L secondary fillw" style="color:${ALERT}"${to('08d')}>${icon('log-out', 20, ALERT)}ログアウト</button>
+  </div>
+ </div>
+ <div class="foot">${homebar()}</div>
 </div>`;
         S['00'] = () => home('top');
         S['02'] = () => home('today');
@@ -1727,7 +1866,7 @@
     <div style="display:flex;justify-content:space-between;align-items:center">${aiTag('通話内容')}<button class="btn M ghost" style="padding:0 8px;height:32px">${icon('pencil', 16, INK2)}なおす</button></div>
     <p class="cap-m">「ハナさん、美咲さんからご伝言です。<br>金曜の通院は、朝10時に<br>お迎えに来るそうです。」</p>
    </div>
-   <div style="display:flex;gap:8px">${pick('日付', '11/6(金)')}${pick('時刻', '08:30')}</div>
+   ${pickBtn('日時', '11/6(金)', '8:30')}
   </div>
  </div>
  <div class="foot" style="gap:8px"><button class="btn L primary fillw"${to('06')}>${icon('calendar-clock', 20, RAISED)}この日時で予約する</button>${busy ? `<button class="btn M secondary fillw" disabled aria-disabled="true">${icon('phone', 18, INK2)}通話中です</button>` : `<button class="btn M secondary fillw"${to('01+')}>${icon('phone', 18)}今すぐ通話</button>`}${homebar()}</div>
@@ -1735,6 +1874,28 @@
 
         S['01'] = () => askScreen(false);
         S['01a'] = () => askScreen(true);
+
+        // 01b: 日付はカレンダーで、時刻は30分ごとの候補から選ぶ。ハナさんがよく電話に出る時刻に緑の点を付ける
+        const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+        const TODAY = 5, OFTEN = ['9:00', '10:00', '19:00'];
+        const HOURS = Array.from({ length: 24 }, (_, i) => String(i)), MINS = Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
+        const wheelCol = (key, items, sel, unit) => `<div class="wheel-col" data-col="${key}" role="listbox" aria-label="${unit}">${items.map(v => `<button class="${v === sel ? 'on' : ''}" data-v="${v}" role="option" aria-selected="${v === sel}">${v}</button>`).join('')}</div>`;
+        const dayLabel = d => `11/${d}(${WEEK[(d - 1) % 7]})`;
+        const whenSheet = (selDay = 6, selTime = '8:30') => {
+            let days = ''; for (let d = 1; d <= 30; d++) { const past = d < TODAY; days += `<button class="cal-d ${past ? 'past' : ''} ${d === selDay ? 'sel' : ''} ${d === TODAY ? 'today' : ''}" data-day="${d}"${past ? ' disabled aria-disabled="true"' : ''} aria-label="11月${d}日"><b>${d}</b></button>` }
+            return `<div class="scrim"></div><div class="sheet" data-when><div class="grip"><i></i></div>
+  <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
+   <div style="display:flex;justify-content:space-between;align-items:center"><button class="iconbtn" aria-label="前の月" disabled aria-disabled="true" style="opacity:.3">${icon('chevron-left', 22)}</button><span class="title-m">2026年11月</span><button class="iconbtn" aria-label="次の月">${icon('chevron-right', 22)}</button></div>
+   <div class="cal book">${WEEK.map(w => `<div class="cal-w label-s">${w}</div>`).join('')}${days}</div>
+   <div style="display:flex;flex-direction:column;gap:8px">
+    <span class="label-m">時刻</span>
+    <div class="wheel"><i class="wheel-band"></i>${wheelCol('h', HOURS, selTime.split(':')[0], '時')}<span class="wheel-colon">:</span>${wheelCol('m', MINS, selTime.split(':')[1], '分')}</div>
+    <div class="quick"><span class="label-s muted" style="display:flex;align-items:center;gap:6px"><i class="often-dot"></i>よく電話に出る時刻</span>${[...OFTEN].map(t => `<button class="chip" data-quick="${t}">${t}</button>`).join('')}</div>
+   </div>
+   <button class="btn L primary fillw" style="margin-top:4px" data-when-done${to('01')}><span data-when-label>${dayLabel(selDay)} ${selTime}</span>にする</button>
+  </div>${homebar()}</div>`
+        };
+        S['01b'] = () => `<div class="screen">${askScreen(false).replace(/^<div class="screen">/, '').replace(/<\/div>$/, '')}${whenSheet()}</div>`;
 
         const replyCard = () => `<section class="card" data-part="reply">
   <div style="display:flex;justify-content:space-between;align-items:baseline"><h3 class="title-m">ハナさんからのお返事</h3><span class="mono-s muted">今日 10:29</span></div>
@@ -1799,7 +1960,7 @@
  <div class="content" style="height:707px">
   ${navBar('chevron-left', '通話記録にもどる', '朝の電話', '04')}
   <div class="topic-scroll" style="flex:1;min-height:0;padding:0 12px 16px 16px;display:flex;flex-direction:column;gap:12px">
-   <div class="card" style="gap:8px">
+   <div class="card" style="gap:8px" data-part="summary">
     <div style="display:flex;justify-content:space-between;align-items:center"><span class="label-m">通話時間</span><span class="mono-s muted">11/5 9:02 ・ 6分12秒</span></div>
     ${sumRow('朝ごはんを食べ、よく眠れたそうです', '0:11')}
     ${sumRow('昨日の夕方から膝が痛く、階段がつらいそうです', '1:03')}
@@ -1827,17 +1988,19 @@
             { date: '11/7', time: '10:00', content: '週末に帰ると伝える', script: '「ハナさん、ご家族からご伝言です。<br>週末に帰るそうです。」' },
         ];
         const bookedRow = (b, i) => `<div role="button" tabindex="0" data-booked="${i}"${to('06b')} style="display:flex;gap:12px;align-items:center;padding-top:10px;border-top:1px solid var(--line);cursor:pointer"><span class="mono-s" data-b-when style="width:72px;flex:none">${b.date} ${b.time}</span><span class="label-m" data-b-content style="flex:1;min-width:0">${b.content}</span>${icon('chevron-right', 18, INK2)}</div>`;
+        // 01: 日付と時刻を1つの項目にまとめる。押すと01bで選ぶ
+        const pickBtn = (l, d, tm) => `<div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">${l}</span><button class="field" style="justify-content:space-between;gap:8px;width:100%"${to('01b')} aria-label="${l}を選ぶ"><span class="mono-m"><span data-pick="date">${d}</span> <span data-pick="time">${tm}</span></span>${icon('calendar-clock', 20, INK2)}</button></div>`;
         const pick = (l, v) => `<div style="display:flex;flex-direction:column;gap:8px;flex:1"><label class="label-m">${l}</label><div class="field" style="justify-content:space-between"><span class="mono-m">${v}</span></div></div>`;
         S['06'] = () => `<div class="screen">${status('10:35')}
  <div class="content">
   <div style="padding:8px 16px 8px"><h3 class="title-l">予約電話</h3></div>
   <div style="padding:0 16px;display:flex;flex-direction:column;gap:12px">
-   <section class="card" style="gap:10px">
+   <section class="card" style="gap:10px" data-part="booked">
     <h3 class="title-m">予約している電話</h3>
     ${BOOKED.map(bookedRow).join('')}
    </section>
-   <button class="btn L primary fillw"${to('01')}>${icon('plus', 20, RAISED)}新しい予約</button>
-   <button class="card" style="flex-direction:row;align-items:center;text-align:left"${to('07')}><span class="iconbtn tinted">${icon('rotate', 20)}</span><div style="display:flex;flex-direction:column;flex:1"><span class="label-l">かけなおしのルール</span><span class="body-s muted" data-rule-summary>15分おきに3回かけて、家族に通知</span></div>${icon('chevron-right', 20, INK2)}</button>
+   <button class="btn L primary fillw" data-part="newbook"${to('01')}>${icon('plus', 20, RAISED)}新しい予約</button>
+   <button class="card" data-part="rule" style="flex-direction:row;align-items:center;text-align:left"${to('07')}><span class="iconbtn tinted">${icon('rotate', 20)}</span><div style="display:flex;flex-direction:column;flex:1"><span class="label-l">かけなおしのルール</span><span class="body-s muted" data-rule-summary>15分おきに3回かけて、家族に通知</span></div>${icon('chevron-right', 20, INK2)}</button>
   </div>
  </div>${tabs('book')}</div>`;
         const bookField = (l, key, v) => `<div style="display:flex;flex-direction:column;gap:8px;flex:1;min-width:0"><label class="label-m">${l}</label><div class="field"><input type="text" value="${v}" aria-label="${l}" data-book="${key}"></div></div>`;
@@ -1903,27 +2066,35 @@
             L2c: ['利用規約を読む', '上の線で読んだ割合を示します。最後までスクロールすると「同意する」が押せるようになり、L2dに移って同意した項目にチェックが入ります。AIとの通話であることと、会話が文字で残ることを見守る方に説明する約束は、第2条に記載します。'],
             L2p: ['プライバシーポリシーを読む', 'L2cと同じ画面構成です。何を取得し、何に使い、誰と共有するかを伝えます。体調や服薬の話は特に配慮が必要な情報なので、第4条で分けて説明します。'],
             L2d: ['新規登録(同意後)', 'L2c、L2pの「同意する」で、該当する項目にチェックが入ります。チェックボックスは押すたびにオンとオフが切り替わります。2つともチェックされているときだけ、Googleでの登録と「登録する」が押せます。登録するとL3の電話機との同期に進みます。'],
-            L3: ['電話機との同期', '家族がアプリで準備を始め、電話機の「＃」を押し、受話器から流れた認証コードをアプリに入力して同期します。絵の中で「＃」の場所を赤い点線で示し、3つの手順を先に見せます。「同期を始める」でL3wに移ります。'],
+            L3: ['電話機との同期', '家族がアプリで準備を始め、電話機の「＃」を押し、受話器から流れた認証コードをアプリに入力して同期します。絵の中で「＃」の場所を赤い点線で示します。「同期を始める」でL3wに移ります。'],
             L3w: ['電話機の「＃」を押す', 'アプリの準備ができた状態です。電話機の受話器を上げて「＃」を押すと、受話器から6桁の認証コードが2回流れます。準備は10分で切れます。', '認証コードを受話器で読み上げる', '電話機で「＃」を押して聞く'],
             L3k: ['認証コードの入力', '受話器から聞こえた6桁を、画面の数字キーで入力します(モックでも押せます)。6桁そろうまで「送信」は押せません。正しければL5に移ります(モックでは送信するとL5へ)。違うときはL3kbを表示します。'],
             'L3k+': ['認証コードが違うとき', '入力した6桁が違うときの画面です。枠を赤くし、色だけでなく言葉でも伝えます。数字キーを押すと入力し直せます。電話機の「＃」でもう一度聞き直せることも伝えます。'],
-            L3c: ['お問い合わせ', 'L3bの「お問い合わせ」から開きます。種類を選び、メールアドレスと内容を入力して送ります。送信するとL3dに移ります。'],
-            L3d: ['お問い合わせの送信後', '送信できたことと、返信の届き先を伝えます。「同期の手順にもどる」でL3に戻り、返信を待つ間も手順を試せます。'],
-            'L3d+': ['お問い合わせの送信に失敗したとき', 'L3cで送信できなかったときの画面です。L3dと同じ構成で、お問い合わせが届いていないことをはっきり伝えます。「もう一度送信する」で送り直し、「入力画面にもどる」でL3cに戻ります。'],
             'L3+': ['認証コードが聞こえないとき', 'L3wとL3kの「認証コードが聞こえないとき」から開きます。聞こえないときに試すことを、簡単な順に3つ示します。'],
             L5: ['同期完了', 'L3kで正しい認証コードを送信すると開きます。つながった電話番号を見せます。電話機の受話器からも、つながったことをアナウンスします。', 'つながったことを受話器で知らせる', '受話器を置いて、セットアップへ進む'],
             L6: ['見守る方の名前', '入力は名前と呼び方だけです。呼び方はあとから変更できます。'],
             L7: ['好きな話題', '話し相手として会話を弾ませるための入力です。候補を押すだけで複数選べて、もう一度押すと外せます。候補にない話題は、左の＋で入力欄を増やして書けます。入力欄が2つ以上あるときは、右上の✕で消せます。08の設定からいつでも変更できます。', '選ばれた話題で話しかける', '話題を選ぶ'],
             L8: ['AIの声', '声を選び、再生ボタンで同じ言葉を聞き比べます。選んだ声はすべての電話で使います。あとから08の設定で変更できます。', '選ばれた声で話す', '聞き比べて声を選ぶ'],
+            T1: ['チュートリアル 直近の電話', 'L8の「はじめる」のあとに出ます。08eの「チュートリアル確認」からも、もう一度見られます。画面の上を暗くして、説明する場所だけを明るく残します。どの画面からも「スキップ」で00に移れます。'],
+            T2: ['チュートリアル AIに伝えてもらう', '家族がいちばん使う「AIに伝えてもらう」の場所を示します。'],
+            T3: ['チュートリアル 今日の様子', 'ホームを下にスクロールした状態で、今日の様子を示します。気になる話に印が付くことも伝えます。'],
+            T4: ['チュートリアル 通話記録 日付', '通話記録の画面に移って、過去7日間の見方と、カレンダー(04b)で日付を選べることを伝えます。'],
+            T5: ['チュートリアル 通話記録 記録', '一言のまとめ、話題の種類、通話時間、出なかった電話の残り方を伝えます。'],
+            T6: ['チュートリアル 通話記録 詳細', '詳細(05)の画面に移って、まとめと全文、時刻から発言へ移れること、まとめを直せること、録音は聴けないことを伝えます。'],
+            T7: ['チュートリアル 予約電話 確認と編集', '予約電話の画面に移って、予約の一覧と、押すと編集(06b)できることを伝えます。'],
+            T8: ['チュートリアル 予約電話 新しい予約', '新しい予約は01と同じ画面で作ること、家族が押すまで電話はかからないことを伝えます。'],
+            T9: ['チュートリアル かけなおしのルール', 'かけなおしのルール(07)の入口を示して終わります。「はじめる」で00に移ります。'],
             '00': ['ホーム(直近の電話)', '開いて最初に、直近の会話のまとめを見せます。「AIに伝えてもらう」を押すと01に移ります。右上の歯車から田中ハナさんの設定を開きます。今日の様子は02で説明します。', '会話をまとめる', '会話を読んで、次に何をするか決める'],
-            '01': ['AIに伝えてもらう', '入力すると、AIが電話で話す通話内容の案が出ます。日時を決めて予約するのが主な操作で、急ぐときは「今すぐ通話」を使います。06の「新しい予約」もこの画面を開きます。家族がボタンを押すまで、電話はかかりません。', '通話内容の案を出す。聞き返しに答える', '内容を決める。案を直す。予約か今すぐ通話かを選ぶ'],
+            '01': ['AIに伝えてもらう', '入力すると、AIが電話で話す通話内容の案が出ます。日時を決めて予約するのが主な操作で、日時は押すと01bで選べます。急ぐときは「今すぐ通話」を使います。06の「新しい予約」もこの画面を開きます。家族がボタンを押すまで、電話はかかりません。', '通話内容の案を出す。聞き返しに答える', '内容を決める。案を直す。予約か今すぐ通話かを選ぶ'],
+            '01b': ['日時を選ぶ', '01の「日時」を押すと開きます。日付はカレンダーで選び、今日より前の日は選べません。時刻はアラームの設定のように、時と分を上下に回して選びます(分は5分ごと)。下の「よく電話に出る時刻」を押すと、その時刻まで回ります。決定すると01の日時に反映されます。', '電話に出やすい時刻を、通話記録から示す', '日付と時刻を決める'],
             '01a': ['AIに伝えてもらう(通話中)', '予約の電話の最中や、高齢者から電話をかけているときは、「今すぐ通話」が「通話中です」に変わり、押せなくなります。日時を決めた予約はそのままできます。'],
             '01+': ['伝言への返答', '電話が終わると、ホームの最上部に、伝えたことと本人の返答を表示します。下にスクロールすると今日の様子も確かめられます。アプリを開くだけで、伝わったかどうかが分かります。', '伝言を伝え、返答を文字にする', '返答を読んで、必要なら連絡する'],
             '02': ['今日の様子', '食事、睡眠、体調の3つに絞ります。答えの下に本人の言葉を添え、気になる話は色だけでなく言葉でも示します。7日間で電話に出たかと話した分数を、1つのグラフで読めるようにします。出なかった日は棒を出さず、記号と「不在」で示します。', '会話から3項目を取り出す', '受診や連絡が必要か判断する'],
-            '08': ['田中ハナさんの設定', 'ホーム右上の歯車から開きます。お名前と呼び方はこの画面で直接書き換えます。話題は08b、声は08cに移って変更します。電話機とかけなおしのルールもここから変更できます。一番下の「ログアウト」から08dに移ります。'],
+            '08': ['田中ハナさんの設定', 'ホーム右上の歯車から開きます。お名前と呼び方はこの画面で直接書き換えます。話題は08b、声は08cに移って変更します。電話機とかけなおしのルールもここから変更できます。一番下の「アカウント情報」から08eに移ります。'],
             '08b': ['好きな話題の変更', 'L7と同じ画面です。「保存する」で08に戻り、選んだ話題が08に表示されます。'],
             '08c': ['AIの声の変更', 'L8と同じ画面です。「保存する」で08に戻り、選んだ声が08に表示されます。'],
-            '08d': ['ログアウト', '08の一番下の「ログアウト」から開きます。押し間違えてもすぐに抜けないよう、確認の画面をはさみます。ログアウトしても電話と記録は止まらないことを伝えます。「ログアウトする」でL2のログイン画面に移ります。'],
+            '08d': ['ログアウト', '08eの一番下の「ログアウト」から開きます。押し間違えてもすぐに抜けないよう、確認の画面をはさみます。ログアウトしても電話と記録は止まらないことを伝えます。「ログアウトする」でL2のログイン画面に移ります。'],
+            '08e': ['アカウント情報', '08の一番下の「アカウント情報」から開きます。アプリを使う家族自身の情報です。お名前はこの画面で直接書き換えます。パスワードを押すと、L2aと同じ再設定の画面に移ります。メールアドレス、ログイン方法、登録日は確認のための表示です。「チュートリアル確認」を押すと、T1からチュートリアルがもう一度流れます。一番下の「ログアウト」から08dに移ります。'],
             '04': ['通話記録', '上部の「過去7日間」は横にスクロールして前の日も見られ、タップすると04bのカレンダーが開きます。下には日付ごとに、内容を一言でまとめて並べ、タップすると05の詳細に移動します。出なかった電話も隠さず残します。', '一言にまとめる', 'どの記録を読むか選ぶ'],
             '04+': ['カレンダーで日付を選ぶ', '04の「過去7日間」をタップすると開きます。電話に出た日と不在の日を印で示し、日付を選ぶとその日の記録に移動します。今日より先の日付は選べません。'],
             '04c': ['スクロールしたとき', '記録を下へスクロールしても、ミニカレンダーは上に残ります。「通話記録」の見出しだけが流れて、記録を読む範囲を広げます。カレンダーの選択は、いま見ている日付に合わせて動きます。'],
@@ -1952,12 +2123,15 @@ ${flow('1. ログイン前(続き)', '再設定メールの失敗、新規登録
 ${flow('1. ログイン前(続き)', '規約に1つずつ同意すると登録できる', ['L2p', 'L2d'])}
 ${flow('2. 電話機と同期', 'アプリで準備を始め、電話機の「＃」を押して、受話器から流れた認証コードを入力する', ['L3', 'L3w', 'L3k'])}
 ${flow('2. 電話機と同期(続き)', 'つながると受話器からもお知らせする。うまくいかないとき', ['L5', 'L3k+', 'L3+'])}
-${flow('2. 電話機と同期(続き)', 'お問い合わせと送信結果', ['L3c', 'L3d', 'L3d+'])}
 ${flow('3. セットアップ', '見守る方のことを登録する', ['L6', 'L7', 'L8'])}
-${flow('4. ホーム画面', '様子を知って、伝える', ['00', '01', '01a'])}
+${flow('4. ホーム画面', 'はじめて開いたときのチュートリアル', ['T1', 'T2', 'T3'])}
+${flow('4. ホーム画面(続き)', 'チュートリアル(続き) 通話記録の機能', ['T4', 'T5', 'T6'])}
+${flow('4. ホーム画面(続き)', 'チュートリアル(続き) 予約電話の機能', ['T7', 'T8', 'T9'])}
+${flow('4. ホーム画面(続き)', '様子を知って、伝える', ['00', '01', '01b'])}
+${flow('4. ホーム画面(続き)', '通話中に伝えたいとき', ['01a'])}
 ${flow('4. ホーム画面(続き)', '伝言への返答、今日の様子、電話に出なかったとき', ['01+', '02', '07+'])}
 ${flow('4. ホーム画面(続き)', '田中ハナさんの設定', ['08', '08b', '08c'])}
-${flow('4. ホーム画面(続き)', 'ログアウト', ['08d'])}
+${flow('4. ホーム画面(続き)', 'アカウント情報、ログアウト', ['08e', '08d'])}
 ${flow('5. 通話記録', '日付で探して、一言で追う', ['04', '04+', '04c'])}
 ${flow('5. 通話記録(続き)', '必要なら全文を読む', ['05'])}
 ${flow('6. 予約電話', '決まった時間に電話する、出ないときに備える', ['06', '06b', '07'])}
@@ -1979,7 +2153,38 @@ ${flow('6. 予約電話', '決まった時間に電話する、出ないとき�
             if (mode === 'today') col.style.top = `${Math.min(0, Math.max(view.clientHeight - tabH - col.offsetHeight, 8 - col.querySelector('[data-part="today"]').offsetTop))}px`;
         });
         placeHome();
-        if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeHome);
+        // T1〜T3: 説明する場所に合わせて、明るい枠と説明の位置を決める
+        const placeTut = () => document.querySelectorAll('.tut').forEach(el => {
+            const scr = el.closest('.screen'), target = scr.querySelector(el.dataset.tut);
+            if (!target) return;
+            const k = scr.offsetWidth / scr.getBoundingClientRect().width, sr = scr.getBoundingClientRect(), tr = target.getBoundingClientRect(), pad = 6;
+            const top = (tr.top - sr.top) * k - pad, left = (tr.left - sr.left) * k - pad, w = tr.width * k + pad * 2, h = tr.height * k + pad * 2;
+            Object.assign(el.querySelector('.tut-spot').style, { top: `${top}px`, left: `${left}px`, width: `${w}px`, height: `${h}px` });
+            const tip = el.querySelector('.tut-tip'), below = top + h + 12;
+            if (below + tip.offsetHeight <= scr.offsetHeight - 40) { tip.style.bottom = ''; tip.style.top = `${below}px` } else { tip.style.top = ''; tip.style.bottom = `${scr.offsetHeight - top + 12}px` }
+            el.classList.add('placed');
+        });
+        placeTut();
+        // 01b: 回転式の時刻。止まった位置の数字を選んだことにする
+        const ITEM_H = 36;
+        const whenValue = sh => [dayLabel(+sh.querySelector('[data-day].sel').dataset.day), `${sh.querySelector('[data-col="h"] .on').dataset.v}:${sh.querySelector('[data-col="m"] .on').dataset.v}`];
+        const whenLabel = sh => { sh.querySelector('[data-when-label]').textContent = whenValue(sh).join(' ') };
+        const markWheel = col => { const i = Math.max(0, Math.min(col.children.length - 1, Math.round(col.scrollTop / ITEM_H))); if (col.dataset.target !== undefined) { if (+col.dataset.target !== i) return; delete col.dataset.target } [...col.children].forEach((b, j) => { b.classList.toggle('on', j === i); b.setAttribute('aria-selected', j === i) }); whenLabel(col.closest('[data-when]')) };
+        // 押したらすぐに値を決め、回る動きはあとから追いつく
+        const spinTo = (col, v, smooth) => { const i = [...col.children].findIndex(b => b.dataset.v === v); if (i < 0) return; col.dataset.target = i; [...col.children].forEach((b, j) => { b.classList.toggle('on', j === i); b.setAttribute('aria-selected', j === i) }); whenLabel(col.closest('[data-when]')); col.scrollTo({ top: i * ITEM_H, behavior: smooth ? 'smooth' : 'auto' }) };
+        document.querySelectorAll('.wheel-col').forEach(col => {
+            spinTo(col, col.querySelector('.on').dataset.v, false); delete col.dataset.target;
+            col.addEventListener('wheel', () => { delete col.dataset.target }, { passive: true });
+            col.addEventListener('touchstart', () => { delete col.dataset.target }, { passive: true });
+            col.addEventListener('scroll', () => markWheel(col), { passive: true });
+            // マウスでは縦にドラッグして回せる
+            let sy = null, st = 0, moved = false;
+            col.addEventListener('pointerdown', e => { moved = false; delete col.dataset.target; if (e.pointerType !== 'mouse') return; sy = e.clientY; st = col.scrollTop; col.style.scrollSnapType = 'none' });
+            col.addEventListener('pointermove', e => { if (sy === null) return; const d = e.clientY - sy; if (Math.abs(d) > 4) moved = true; if (moved) col.scrollTop = st - d });
+            window.addEventListener('pointerup', () => { if (sy === null) return; sy = null; col.style.scrollSnapType = ''; spinTo(col, col.children[Math.round(col.scrollTop / ITEM_H)].dataset.v, true) });
+            col.addEventListener('click', e => { if (moved) { e.stopPropagation(); moved = false } }, true);
+        });
+        if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { placeHome(); placeTut() });
 
         // ---------- 操作 ----------
         const goTo = n => { const c = document.querySelector(`[data-cell="${n}"]`); if (!c) return; c.scrollIntoView({ behavior: 'smooth', block: 'center' }); c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash') };
@@ -2052,6 +2257,18 @@ ${flow('6. 予約電話', '決まった時間に電話する、出ないとき�
             }
             const single = t.closest('[data-single] .chip');
             if (single) single.parentElement.querySelectorAll('.chip').forEach(c => c.classList.toggle('sel', c === single));
+            // 01b: 日付はカレンダー、時刻はアラームのような回転式で選ぶ。決定すると01の日付と時刻に反映する
+            const whenDay = t.closest('[data-when] [data-day]');
+            if (whenDay && !whenDay.disabled) { const sh = whenDay.closest('[data-when]'); sh.querySelectorAll('[data-day]').forEach(b => b.classList.toggle('sel', b === whenDay)); whenLabel(sh) }
+            const wheelItem = t.closest('.wheel-col button');
+            if (wheelItem) spinTo(wheelItem.parentElement, wheelItem.dataset.v, true);
+            const quick = t.closest('[data-quick]');
+            if (quick) { const sh = quick.closest('[data-when]'), [h, m] = quick.dataset.quick.split(':'); spinTo(sh.querySelector('[data-col="h"]'), h, true); spinTo(sh.querySelector('[data-col="m"]'), m, true) }
+            if (t.closest('[data-when-done]')) {
+                const sh = t.closest('[data-when]'), [d, tm] = whenValue(sh);
+                document.querySelectorAll('[data-pick="date"]').forEach(el => { el.textContent = d });
+                document.querySelectorAll('[data-pick="time"]').forEach(el => { el.textContent = tm });
+            }
             // L3k: 数字キーで認証コードを入力する。6桁そろうと「送信」が押せる
             const key = t.closest('[data-key]');
             if (key) {

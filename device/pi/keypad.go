@@ -299,13 +299,21 @@ func (k *Keypad) readRow(r int, row pin) (pressed keySet, err error) {
 }
 
 // Close は、行と列をハイインピーダンスに戻して放す。
+// 線の Close は放すだけなので、低くしたまま放さない。
 func (k *Keypad) Close() error {
 	var err error
 	for _, group := range [][]pin{k.rows, k.cols} {
 		for _, p := range group {
-			if e := p.Close(); e != nil && err == nil {
-				err = e
+			floatErr := p.Float()
+			closeErr := p.Close()
+			if err != nil {
+				continue
 			}
+			if closeErr != nil {
+				err = closeErr
+				continue
+			}
+			err = floatErr
 		}
 	}
 	return err

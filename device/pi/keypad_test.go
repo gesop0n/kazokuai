@@ -244,6 +244,27 @@ func TestKeypadFloatsTheRowWhenAReadFails(t *testing.T) {
 	}
 }
 
+func TestKeypadCloseFloatsBeforeItReleasesTheLine(t *testing.T) {
+	row := &keypadPin{}
+	col := &keypadPin{}
+	k, err := newKeypad([]pin{row}, []pin{col}, [][]string{{"1"}}, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := row.DriveLow(); err != nil {
+		t.Fatal(err)
+	}
+	if err := k.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if row.closedWhileLow || col.closedWhileLow {
+		t.Fatal("低いまま放した")
+	}
+	if !row.closed || !col.closed {
+		t.Fatal("線を放していない")
+	}
+}
+
 func loadedKeypad(t *testing.T, getenv func(string) string) KeypadConfig {
 	t.Helper()
 	cfg, err := LoadKeypad(getenv)
@@ -426,9 +447,6 @@ func (p rowPin) Float() error {
 func (p rowPin) Value() (int, error) { return 1, nil }
 
 func (p rowPin) Close() error {
-	if err := p.Float(); err != nil {
-		return err
-	}
 	p.m.mu.Lock()
 	p.m.rowClosed[p.r] = true
 	p.m.mu.Unlock()
@@ -462,8 +480,10 @@ func (p colPin) Close() error {
 }
 
 type keypadPin struct {
-	low bool
-	err error
+	low            bool
+	closed         bool
+	closedWhileLow bool
+	err            error
 }
 
 func (p *keypadPin) DriveLow() error { p.low = true; return nil }
@@ -477,4 +497,8 @@ func (p *keypadPin) Value() (int, error) {
 	}
 	return 1, nil
 }
-func (p *keypadPin) Close() error { return p.Float() }
+func (p *keypadPin) Close() error {
+	p.closedWhileLow = p.low
+	p.closed = true
+	return nil
+}

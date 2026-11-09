@@ -66,30 +66,5 @@ func openKeypadPin(chip string, gpio int, pullUp bool) (pin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("キーパッドの %s GPIO%d を開けなかった: %w", chip, gpio, err)
 	}
-	return &gpioPin{line: line}, nil
-}
-
-// gpioPin は、走査のために入力と出力を切り替える 1 本の線である。
-type gpioPin struct {
-	line *gpiocdev.Line
-}
-
-func (p *gpioPin) DriveLow() error {
-	// 0 は非アクティブで、アクティブが高い既定では電気的に低い。
-	return p.line.Reconfigure(gpiocdev.AsOutput(0))
-}
-
-func (p *gpioPin) Float() error {
-	return p.line.Reconfigure(gpiocdev.AsInput, gpiocdev.WithBiasDisabled)
-}
-
-func (p *gpioPin) Value() (int, error) { return p.line.Value() }
-
-func (p *gpioPin) Close() error {
-	floatErr := p.Float()
-	err := p.line.Close()
-	if err != nil {
-		return err
-	}
-	return floatErr
+	return gpioPin{line: line}, nil
 }
