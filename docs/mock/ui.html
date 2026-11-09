@@ -1281,7 +1281,9 @@
             'chevron-left': '<path d="m15 18-6-6 6-6"/>',
             'chevron-right': '<path d="m9 18 6-6-6-6"/>',
             'chevron-down': '<path d="m6 9 6 6 6-6"/>',
-            'log-out': '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
+            'qr-code': '<rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>',
+            flashlight: '<path d="M18 6c0 2-2 2-2 4v10a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V10c0-2-2-2-2-4V2h12z"/><line x1="6" x2="18" y1="6" y2="6"/><line x1="12" x2="12" y1="12" y2="12"/>',
+            'log-out':'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
             sparkles: '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/>',
             check: '<path d="M20 6 9 17l-5-5"/>',
             pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
@@ -1306,8 +1308,24 @@
         const tabs = on => `<div class="tabbar"><div class="dock">${[['home', 'ホーム', 'home', '00'], ['calls', '通話記録', 'list', '04'], ['book', '予約電話', 'calendar-clock', '06']].map(([k, l, ic, go]) => `<button class="dockact ${on === k ? 'on' : ''}"${on === k ? ' aria-current="page"' : ''}${to(go)}>${icon(ic, 24, on === k ? INK : INK2)}<span>${l}</span></button>`).join('')}</div>${homebar()}</div>`;
         const prog = (n, all) => `<div class="prog" aria-label="${all}段階のうち${n}段階目">${Array.from({ length: all }, (_, i) => `<i class="${i < n ? 'on' : ''}"></i>`).join('')}</div>`;
 
+        // 電話機に貼ってあるQRコードの見本(21×21マス。3隅の目印以外は決まった並びの飾り)
+        const QR_PATH = (() => {
+            const n = 21, finder = (x, y, ox, oy) => { const a = x - ox, b = y - oy; return a >= 0 && a < 7 && b >= 0 && b < 7 ? (a === 0 || a === 6 || b === 0 || b === 6 || (a >= 2 && a <= 4 && b >= 2 && b <= 4)) : null };
+            let s = 7, d = '';
+            for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+                const f = [[0, 0], [14, 0], [0, 14]].map(([ox, oy]) => finder(x, y, ox, oy)).find(v => v !== null);
+                let on;
+                if (f !== undefined) on = f;
+                else if ((x === 7 || y === 7) && (x < 8 && y < 8) || (x === 13 && y < 8) || (y === 7 && x > 12) || (y === 13 && x < 8) || (x === 7 && y > 12)) on = false;
+                else { s = (s * 1103515245 + 12345) & 0x7fffffff; on = ((s >> 16) & 3) < 2 }
+                if (on) d += `M${x} ${y}h1v1h-1z`;
+            }
+            return d;
+        })();
+        const qrMarks = (x, y, size, fill) => `<path transform="translate(${x} ${y}) scale(${size / 21})" fill="${fill}" stroke="none" d="${QR_PATH}"/>`;
+
         // 固定電話のイラスト。lamp: off / on / ok / fail
-        // phone.png をSVGで描き起こしたもの。右上の小窓がランプ、コピーのボタンが「押す」場所
+        // phone.png をSVGで描き起こしたもの。右上の小窓がランプ、左上の白いシールが同期用のQRコード(ring: 赤い点線で示す)
         const device = (lamp = 'off', h = 208, ring = true) => {
             const L = { off: ['#F3EFE6', 0], on: ['#FAF500', 1], ok: [OK, 1], fail: [GREY, 0] }[lamp];
             const keyAt = [[911, 645], [1180, 645], [1450, 645], [911, 886], [1180, 886], [1450, 886], [911, 1126], [1180, 1126], [1450, 1126], [911, 1366], [1180, 1366], [1450, 1366]];
@@ -1335,9 +1353,10 @@
  <g fill="#2A2420" stroke="${INK}" stroke-width="10"><ellipse cx="856" cy="1587" rx="50" ry="33"/><ellipse cx="1035" cy="1587" rx="50" ry="33"/></g>
  <g fill="#FFFFFF" stroke="${INK}" stroke-width="10"><ellipse cx="1233" cy="1587" rx="73" ry="45"/><ellipse cx="1472" cy="1587" rx="81" ry="45"/></g>
  <g stroke="${INK}" stroke-width="8"><path d="M1222 1578V1563H1256V1597H1243"/><rect x="1209" y="1578" width="34" height="34" rx="4"/><path d="M1440 1572H1458L1478 1555V1612L1458 1595H1440ZM1488 1570 1499 1587 1488 1604"/></g>
- ${ring ? `<ellipse cx="1233" cy="1587" rx="100" ry="72" stroke="${ALERT}" stroke-width="18" stroke-dasharray="40 40"/>
- <path d="M1233 1659V1700H1730" stroke="${ALERT}" stroke-width="12"/>
- <path d="M1548 365H1730" stroke="${INK}" stroke-width="12"/>` : ''}
+ <rect x="830" y="200" width="260" height="260" rx="18" fill="#FFFFFF" stroke="${INK}" stroke-width="10"/>
+ ${qrMarks(855, 225, 210, INK)}
+ ${ring ? `<rect x="800" y="170" width="320" height="320" rx="36" stroke="${ALERT}" stroke-width="18" stroke-dasharray="40 40"/>
+ <path d="M1120 240H1730" stroke="${ALERT}" stroke-width="12"/>` : ''}
  </svg>`};
         const illus = (lamp, mark, ring) => `<div class="illus" style="position:relative;padding-top:52px">${device(lamp, 208, ring)}${mark || ''}</div>`;
 
@@ -1457,35 +1476,50 @@
  <div class="content">
   ${navBar('chevron-left', 'もどる', '電話機と同期', 'L2d')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('on', '<span class="label-s" style="position:absolute;left:279px;top:74px">ランプ</span><span class="label-s" style="position:absolute;left:279px;top:240px">押す</span>')}
+   ${illus('off', '<span class="label-s" style="position:absolute;left:279px;top:58px">QRコード</span>')}
    <div class="steps">
-    ${stepRow(1, '電話機のボタンを押す', '赤い点線のところにあるボタンを押します')}
-    ${stepRow(2, 'ランプが光るのを確かめる', '同期の準備ができると、黄色く光ります')}
-    ${stepRow(3, 'アプリの「同期開始」を押す', 'ランプが光ってから開始してください')}
+    ${stepRow(1, '電話機のQRコードを探す', '赤い点線のところに、シールで貼ってあります')}
+    ${stepRow(2, 'アプリの「QRコードを読み取る」を押す', 'カメラが開きます')}
+    ${stepRow(3, 'カメラをQRコードに向ける', '枠の中に入ると、自動で読み取って同期します')}
    </div>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw"${to('L5')}>同期開始</button><button class="btn M ghost fillw link"${to('L3+')}>ランプが光らないとき</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3s')}>${icon('qr-code', 20, RAISED)}QRコードを読み取る</button><button class="btn M ghost fillw link"${to('L3+')}>QRコードが読み取れないとき</button>${homebar()}</div>
+</div>`;
+        // L3s: カメラでQRコードを読み取る。枠を押すと、読み取れたものとしてL5へ進む(モック用)
+        const scanCorner = (pos) => { const [t, l] = pos; return `<i style="position:absolute;${t}:0;${l}:0;width:44px;height:44px;border-${t}:5px solid ${NTEXT};border-${l}:5px solid ${NTEXT};border-${t}-${l}-radius:18px"></i>` };
+        S.L3s = () => `<div class="screen night">${status('20:17', true)}
+ <div class="content" style="height:798px">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 16px"><button class="iconbtn" aria-label="閉じる"${to('L3')}>${icon('x', 24, NTEXT)}</button><span class="title-m">QRコードを読み取る</span><button class="iconbtn" aria-label="ライトをつける">${icon('flashlight', 22, NTEXT)}</button></div>
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:0 24px 200px">
+   <button aria-label="QRコードを読み取る(モックでは押すと読み取り完了)"${to('L5')} style="position:relative;width:264px;height:264px;display:flex;align-items:center;justify-content:center;border-radius:20px;background:#4A4438">
+    <span style="display:flex;padding:14px;background:#FFFFFF;border-radius:10px;transform:rotate(-4deg);box-shadow:0 6px 18px rgba(0,0,0,.35)"><svg width="150" height="150" viewBox="0 0 21 21" aria-hidden="true">${qrMarks(0, 0, 21, INK)}</svg></span>
+    ${scanCorner(['top', 'left'])}${scanCorner(['top', 'right'])}${scanCorner(['bottom', 'left'])}${scanCorner(['bottom', 'right'])}
+   </button>
+   <div style="display:flex;flex-direction:column;gap:6px;text-align:center"><span class="label-l">電話機に貼ってあるQRコードを<br>枠の中に合わせてください</span><span class="body-s" style="color:${NTEXT2}">読み取れると、自動で同期が始まります</span></div>
+  </div>
+ </div>
+ <div class="foot"><button class="btn M ghost-night fillw link"${to('L3+')}>QRコードが読み取れないとき</button>${homebar()}</div>
 </div>`;
         S['L3+'] = () => `<div class="screen">${status('20:16')}
  <div class="content">
-  ${navBar('chevron-left', 'もどる', 'ランプが光らないとき', 'L3')}
+  ${navBar('chevron-left', 'もどる', 'QRコードが読み取れないとき', 'L3s')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('off', '<span class="label-s" style="position:absolute;left:279px;top:74px">ランプ</span><span class="label-s" style="position:absolute;left:279px;top:240px">押す</span>')}
+   ${illus('off', '<span class="label-s" style="position:absolute;left:279px;top:58px">QRコード</span>')}
    <div class="steps">
-    ${stepRow(1, '電源を確かめる', '電源プラグがコンセントに入っているか確かめます')}
-    ${stepRow(2, 'ボタンを長めに押す', '赤い点線のところのボタンを、3秒ほど押し続けます')}
-    ${stepRow(3, '電源を入れなおす', 'プラグを抜いて10秒待ち、差しなおしてから、もう一度ボタンを押します')}
+    ${stepRow(1, '明るくする', '部屋の明かりをつけるか、読み取り画面右上のライトをつけます')}
+    ${stepRow(2, '距離を変える', 'QRコードから15〜20cmほど離し、まっすぐ向けます')}
+    ${stepRow(3, 'シールの状態を確かめる', '汚れや反射、はがれがないか確かめ、軽くふいてからもう一度試します')}
    </div>
   </div>
  </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3')}>同期の手順にもどる</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
+ <div class="foot"><button class="btn L primary fillw"${to('L3s')}>もう一度読み取る</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
 </div>`;
         S.L3c = () => `<div class="screen">${status('20:17')}
  <div class="content">
   ${navBar('chevron-left', 'もどる', 'お問い合わせ', 'L3+')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">お問い合わせの種類</span><div class="chips" data-single>${['ランプが光らない', '同期できない', 'その他'].map((t, i) => `<button class="chip ${i ? '' : 'sel'}">${t}</button>`).join('')}</div></div>
+   <div style="display:flex;flex-direction:column;gap:8px"><span class="label-m">お問い合わせの種類</span><div class="chips" data-single>${['QRコードが読み取れない', '同期できない', 'その他'].map((t, i) => `<button class="chip ${i ? '' : 'sel'}">${t}</button>`).join('')}</div></div>
    ${mailField()}
    <div style="display:flex;flex-direction:column;gap:8px"><label class="label-m">お問い合わせ内容</label><div class="field" style="padding:12px 16px;align-items:flex-start;min-height:144px"><span class="label-m muted">試したことや、電話機の状態を入力</span></div></div>
    <span class="body-s muted">ご入力のメールアドレスに返信します。</span>
@@ -1514,20 +1548,6 @@
   </div>
  </div>
  <div class="foot"><button class="btn L primary fillw"${to('L3d')}>${icon('rotate', 20, RAISED)}もう一度送信する</button><button class="btn M ghost fillw link"${to('L3c')}>入力画面にもどる</button>${homebar()}</div>
-</div>`;
-        const checkRow = t => `<div style="display:flex;gap:10px;align-items:center;min-height:44px;border-top:1px solid var(--line)"><i style="display:block;width:22px;height:22px;border-radius:6px;border:1.5px solid var(--line-strong);flex:none"></i><span class="label-m">${t}</span></div>`;
-        S.L4 = () => `<div class="screen">${status('20:17')}
- <div class="content">
-  ${navBar('x', '閉じる', '電話機と同期', 'L3')}
-  <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:20px">
-   ${illus('fail', '', false)}
-   <div style="display:flex;flex-direction:column;gap:4px"><h3 class="title-l">同期できませんでした</h3><span class="body-m muted">次の3点を確認して、もう一度お試しください。</span></div>
-   <div style="display:flex;flex-direction:column">
-    ${checkRow('電話機の電源は入っていますか')}${checkRow('電話線はつながっていますか')}${checkRow('ボタンを押して、ランプは光っていますか')}
-   </div>
-  </div>
- </div>
- <div class="foot"><button class="btn L primary fillw"${to('L3')}>${icon('rotate', 20, RAISED)}もう一度同期する</button><button class="btn M ghost fillw link"${to('L3c')}>お問い合わせ</button>${homebar()}</div>
 </div>`;
         S.L5 = () => `<div class="screen">${status('20:18')}
  <div class="content">
@@ -1829,13 +1849,13 @@
             L2c: ['利用規約を読む', '上の線で読んだ割合を示します。最後までスクロールすると「同意する」が押せるようになり、L2dに移って同意した項目にチェックが入ります。AIとの通話であることと、会話が文字で残ることを見守る方に説明する約束は、第2条に記載します。'],
             L2p: ['プライバシーポリシーを読む', 'L2cと同じ画面構成です。何を取得し、何に使い、誰と共有するかを伝えます。体調や服薬の話は特に配慮が必要な情報なので、第4条で分けて説明します。'],
             L2d: ['新規登録(同意後)', 'L2c、L2pの「同意する」で、該当する項目にチェックが入ります。チェックボックスは押すたびにオンとオフが切り替わります。2つともチェックされているときだけ、Googleでの登録と「登録する」が押せます。登録するとL3の電話機との同期に進みます。'],
-            L3: ['電話機との同期', '絵の中の場所と手順の番号を対応させ、電話機を見ながら進められるようにします。ボタンを押す、ランプが光る、同期開始を押す、の順番です。'],
-            L3c: ['お問い合わせ', 'L3bとL4の「お問い合わせ」から開きます。種類を選び、メールアドレスと内容を入力して送ります。送信するとL3dに移ります。'],
+            L3: ['電話機との同期', '電話機に貼ってあるQRコードをスマートフォンのカメラで読み取って同期します。絵の中でシールの場所を赤い点線で示し、探す、読み取りを押す、カメラを向ける、の順番で進めます。'],
+            L3s: ['QRコードの読み取り', 'カメラの画面です。枠の中にQRコードが入ると自動で読み取り、同期が終わるとL5に移ります(モックでは枠を押すとL5へ)。読み取れないときは「QRコードが読み取れないとき」からL3bに移ります。暗い部屋でも読めるよう、右上にライトを置きます。'],
+            L3c: ['お問い合わせ', 'L3bの「お問い合わせ」から開きます。種類を選び、メールアドレスと内容を入力して送ります。送信するとL3dに移ります。'],
             L3d: ['お問い合わせの送信後', '送信できたことと、返信の届き先を伝えます。「同期の手順にもどる」でL3に戻り、返信を待つ間も手順を試せます。'],
             'L3d+': ['お問い合わせの送信に失敗したとき', 'L3cで送信できなかったときの画面です。L3dと同じ構成で、お問い合わせが届いていないことをはっきり伝えます。「もう一度送信する」で送り直し、「入力画面にもどる」でL3cに戻ります。'],
-            L4: ['同期失敗', '失敗したことと、確認する3点だけを伝えます。「もう一度同期する」でL3に戻ります。'],
-            'L3+': ['ランプが光らないとき', 'L3の「ランプが光らないとき」から開きます。光らないときに試すことを、簡単な順に3つ示します。'],
-            L5: ['同期完了', '絵のランプを緑に変え、つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
+            'L3+': ['QRコードが読み取れないとき', 'L3とL3sの「QRコードが読み取れないとき」から開きます。読み取れないときに試すことを、簡単な順に3つ示します。'],
+            L5: ['同期完了', 'L3sで読み取って同期できると開きます。絵のランプを緑に変え、つながった電話番号を見せます。次にやることと、かかる時間も伝えます。'],
             L6: ['見守る方の名前', '入力は名前と呼び方だけです。呼び方はあとから変更できます。'],
             L7: ['好きな話題', '話し相手として会話を弾ませるための入力です。候補を押すだけで複数選べて、もう一度押すと外せます。候補にない話題は、左の＋で入力欄を増やして書けます。入力欄が2つ以上あるときは、右上の✕で消せます。08の設定からいつでも変更できます。', '選ばれた話題で話しかける', '話題を選ぶ'],
             L8: ['AIの声', '声を選び、再生ボタンで同じ言葉を聞き比べます。選んだ声はすべての電話で使います。あとから08の設定で変更できます。', '選ばれた声で話す', '聞き比べて声を選ぶ'],
@@ -1874,9 +1894,9 @@
 ${flow('1. ログイン前', 'はじめて開いたとき、ログイン', ['L1', 'L2', 'L2a'])}
 ${flow('1. ログイン前(続き)', '再設定メールの失敗、新規登録', ['L2a+', 'L2+', 'L2c'])}
 ${flow('1. ログイン前(続き)', '規約に1つずつ同意すると登録できる', ['L2p', 'L2d'])}
-${flow('2. 電話機と同期', '専用デバイス(固定電話)との同期', ['L3', 'L3+', 'L3c'])}
-${flow('2. 電話機と同期(続き)', 'お問い合わせの送信結果、同期の失敗', ['L3d', 'L3d+', 'L4'])}
-${flow('2. 電話機と同期(続き)', '同期の完了', ['L5'])}
+${flow('2. 電話機と同期', '電話機に貼ってあるQRコードを読み取って同期する', ['L3', 'L3s', 'L5'])}
+${flow('2. 電話機と同期(続き)', '読み取れないとき', ['L3+', 'L3c'])}
+${flow('2. 電話機と同期(続き)', 'お問い合わせの送信結果', ['L3d', 'L3d+'])}
 ${flow('3. セットアップ', '見守る方のことを登録する', ['L6', 'L7', 'L8'])}
 ${flow('4. ホーム画面', '様子を知って、伝える', ['00', '01', '01a'])}
 ${flow('4. ホーム画面(続き)', '伝言への返答、今日の様子、電話に出なかったとき', ['01+', '02', '07+'])}
