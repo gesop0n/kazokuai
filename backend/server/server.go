@@ -1,4 +1,4 @@
-// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
+// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話と通話内容の案を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
 // つながっている電話機は、見守る方の ID ごとにメモリーで持つ。
 package server
 
@@ -69,8 +69,8 @@ func (h *Handler) Stop() { h.stop() }
 func (h *Handler) Connected(personID string) bool { return h.phones.connected(personID) }
 
 // New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
-// watchedPersonsPath でアプリから見守る方の登録を受け、protocol.StartCallPath で今すぐ通話を始め、
-// protocol.CallReportPath でデバイスから電話の報告を受ける Handler を返す。
+// watchedPersonsPath でアプリから見守る方の登録を受け、protocol.DraftScriptPath で通話内容の案を作り、
+// protocol.StartCallPath で今すぐ通話を始め、protocol.CallReportPath でデバイスから電話の報告を受ける Handler を返す。
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clock Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
 	s := &server{
@@ -86,6 +86,7 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 	router.Get(protocol.PhonePath, s.phone)
 	router.Post(protocol.TokenPath, s.token)
 	router.Post(watchedPersonsPath, s.registerWatchedPerson)
+	router.Post(protocol.DraftScriptPath, s.draftScript)
 	router.Post(protocol.StartCallPath, s.startCall)
 	router.Post(protocol.CallReportPath, s.reportCall)
 	return &Handler{Handler: router, stop: stop, phones: s.phones}
@@ -102,7 +103,7 @@ type server struct {
 	base context.Context
 }
 
-// token は、頼まれた電話の見守る方の名前と呼び方を Firestore から読み、それをシステム指示に書いたトークンを作る。
+// token は、頼まれた電話の見守る方と、伝言があればその通話内容を Firestore から読み、システム指示に書いたトークンを作る。
 func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	var req protocol.TokenRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRegistration)).Decode(&req); err != nil {
@@ -113,9 +114,14 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)
 		return
 	}
-	if _, err := s.callRef(req.WatchedPersonID, req.CallID).Get(r.Context()); err != nil {
+	doc, err := s.callRef(req.WatchedPersonID, req.CallID).Get(r.Context())
+	if err != nil {
 		http.Error(w, "電話が見つからなかった", http.StatusNotFound)
 		return
+	}
+	var script string
+	if data := doc.Data(); data != nil {
+		script, _ = data["script"].(string)
 	}
 	config := s.config
 	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, req.WatchedPersonID)
@@ -125,7 +131,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.clock.Now()
-	token, err := s.tokens.Create(r.Context(), tokenConfig(config, person, now))
+	token, err := s.tokens.Create(r.Context(), tokenConfig(config, person, now, script))
 	if err != nil {
 		log.Printf("短命トークンを作れなかった: %v", err)
 		http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
@@ -146,7 +152,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 // tokenConfig は、1 回の電話のための短命トークンの制約である。
 // LockAdditionalFields を指定しないので、モデルと設定のすべてのフィールドがトークンに固定され、
 // デバイスはどれも変えられない。
-func tokenConfig(config Config, person watchedPerson, now time.Time) *genai.CreateAuthTokenConfig {
+func tokenConfig(config Config, person watchedPerson, now time.Time, script string) *genai.CreateAuthTokenConfig {
 	return &genai.CreateAuthTokenConfig{
 		// 有効期限が切れると開いている接続も切れるので、呼び出しと電話の全体を覆う。
 		// 新しいセッションを始められる期限は、SDK の既定の 60 秒のままにする。
@@ -161,7 +167,7 @@ func tokenConfig(config Config, person watchedPerson, now time.Time) *genai.Crea
 						PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{VoiceName: config.Voice},
 					},
 				},
-				SystemInstruction: genai.NewContentFromText(systemInstruction(config, person, now), genai.RoleUser),
+				SystemInstruction: genai.NewContentFromText(systemInstruction(config, person, now, script), genai.RoleUser),
 				// 言語を自分で判定すると、「うん」のような短い返事が別の言語になる。
 				// 見守る方の文字起こしには、言語のヒントとして日本語を渡す。
 				InputAudioTranscription: &genai.AudioTranscriptionConfig{
