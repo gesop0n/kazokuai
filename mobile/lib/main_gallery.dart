@@ -5,6 +5,7 @@ import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/app_theme.dart';
+import 'package:kazokuai/design/widgets/app_agree_box.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
@@ -149,6 +150,27 @@ class GalleryScreen extends StatelessWidget {
                 size: AppButtonSize.m,
                 underlined: true,
                 onTap: _noop,
+              ),
+              const _SectionLabel('チェックボックス(agreebox)'),
+              const Row(
+                spacing: 8,
+                children: [
+                  AppAgreeBox(
+                    checked: false,
+                    semanticLabel: 'チェックなし',
+                    onTap: GalleryScreen._noop,
+                  ),
+                  AppAgreeBox(
+                    checked: true,
+                    semanticLabel: 'チェックあり',
+                    onTap: GalleryScreen._noop,
+                  ),
+                  AppAgreeBox(
+                    checked: false,
+                    semanticLabel: '押せない',
+                    onTap: null,
+                  ),
+                ],
               ),
               const _SectionLabel('押せないボタン(disabledBtn)'),
               const AppButton(

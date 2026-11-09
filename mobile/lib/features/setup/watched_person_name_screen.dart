@@ -9,9 +9,9 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
-// L6。ログインした家族に見守る方がいないときに開く。登録できると、ルーターがホームに切り替える。
-// モックの AI の呼びかけを声で確かめる機能はまだない。L7 もまだないので、進み具合は 1 段階目のまま
-// 呼び方をあとから変える画面はまだない。モックの注記だけ出す
+// L6。ログインした家族に見守る方がいないときに開く。
+// 「次へ」は見守る方を登録してホームを開き、もどるはログアウトする。
+// L7 と L8 はまだないので、進み具合は 3 段階のうち 1 段階目のまま。
 class WatchedPersonNameScreen extends ConsumerStatefulWidget {
   const WatchedPersonNameScreen({super.key});
 
@@ -80,7 +80,7 @@ class _WatchedPersonNameScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   spacing: 24,
                   children: [
-                    const _SetupProgress(step: 1, steps: 2),
+                    const _SetupProgress(step: 1, steps: 3),
                     const Text(
                       '見守る方のお名前を\n教えてください',
                       style: AppTextStyles.titleL,
@@ -96,7 +96,7 @@ class _WatchedPersonNameScreenState
                     ),
                     _LabeledField(
                       label: '電話での呼び方',
-                      note: '※あとから変えられます。',
+                      note: '※あとから変更できます',
                       field: AppTextField(
                         controller: _callNameController,
                         semanticLabel: '電話での呼び方',

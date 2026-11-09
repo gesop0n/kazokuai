@@ -71,15 +71,15 @@ Future<void> goBackFromSetup(
 }
 
 Future<void> readDocument(WidgetTester tester, String title) async {
-  await tester.ensureVisible(find.text(title));
-  await tester.tap(find.text(title));
+  await tester.ensureVisible(find.text('$titleに同意する'));
+  await tester.tap(find.text('$titleに同意する'));
   await tester.pumpAndSettle();
   final position = tester
       .state<ScrollableState>(find.byType(Scrollable).last)
       .position;
   position.jumpTo(position.maxScrollExtent);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('読みました'));
+  await tester.tap(find.text('同意する'));
   await tester.pumpAndSettle();
 }
 
@@ -234,10 +234,10 @@ void main() {
       expect(find.text('登録できませんでした。時間をおいて、もう一度お試しください'), findsNothing);
     });
 
-    testWidgets('呼び方の見出しの横に「※あとから変えられます。」が出る', (tester) async {
+    testWidgets('呼び方の見出しの横に「※あとから変更できます」が出る', (tester) async {
       await openL6(tester);
 
-      final note = find.text('※あとから変えられます。');
+      final note = find.text('※あとから変更できます');
       expect(note, findsOneWidget);
       expect(
         tester.widget<Text>(note).style,
@@ -251,10 +251,10 @@ void main() {
       expect(find.text('再生ボタンを押すと、AIの声が流れます'), findsNothing);
     });
 
-    testWidgets('進み具合の線は2段階のうちの1つ目で、モックの色である', (tester) async {
+    testWidgets('進み具合の線は3段階のうちの1つ目で、モックの色である', (tester) async {
       await openL6(tester);
 
-      final progress = find.bySemanticsLabel('2段階のうち1段階目');
+      final progress = find.bySemanticsLabel('3段階のうち1段階目');
       expect(progress, findsOneWidget);
       expect(
         tester.getTopLeft(progress).dy,
@@ -265,18 +265,25 @@ void main() {
         of: progress,
         matching: find.byType(DecoratedBox),
       );
-      expect(marks, findsNWidgets(2));
+      expect(marks, findsNWidgets(3));
       BoxDecoration decorationAt(int index) =>
           tester.widget<DecoratedBox>(marks.at(index)).decoration
               as BoxDecoration;
       expect(decorationAt(0).color, AppColors.inkPrimary);
       expect(decorationAt(1).color, AppColors.lineStrong);
+      expect(decorationAt(2).color, AppColors.lineStrong);
       expect(decorationAt(0).borderRadius, BorderRadius.circular(2));
       expect(decorationAt(1).borderRadius, BorderRadius.circular(2));
+      expect(decorationAt(2).borderRadius, BorderRadius.circular(2));
       expect(tester.getSize(marks.at(0)), tester.getSize(marks.at(1)));
+      expect(tester.getSize(marks.at(1)), tester.getSize(marks.at(2)));
       expect(tester.getSize(marks.at(0)).height, 4);
       expect(
         tester.getTopLeft(marks.at(1)).dx - tester.getTopRight(marks.at(0)).dx,
+        6,
+      );
+      expect(
+        tester.getTopLeft(marks.at(2)).dx - tester.getTopRight(marks.at(1)).dx,
         6,
       );
     });
@@ -332,7 +339,7 @@ void main() {
       );
       await tester.enterText(find.bySemanticsLabel('パスワード'), 'hanasan1234');
       await tester.pump();
-      await tester.tap(find.text('同意して登録する'));
+      await tester.tap(find.text('登録する'));
       watchedPerson.status.value = WatchedPersonStatus.none;
       await tester.pumpAndSettle();
       expect(find.byType(WatchedPersonNameScreen), findsOneWidget);

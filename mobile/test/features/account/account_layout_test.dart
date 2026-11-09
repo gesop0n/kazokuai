@@ -194,13 +194,17 @@ void main() {
     expect(find.text('もう一度送る'), findsOneWidget);
   });
 
-  testEachLayout('L2d が崩れない', (tester, layout) async {
+  testEachLayout('新規登録(L2b、L2d)が崩れない', (tester, layout) async {
     await pumpScreenInLayout(tester, layout, const RegisterScreen());
 
     expect(find.text('新規登録'), findsOneWidget);
-    expect(find.text('利用規約'), findsOneWidget);
-    expect(find.text('プライバシーポリシー'), findsOneWidget);
-    expect(find.text('同意して登録する'), findsOneWidget);
+    expect(find.text('それぞれ開いて内容を読み、同意してください'), findsOneWidget);
+    expect(find.text('利用規約に同意する'), findsOneWidget);
+    expect(find.text('プライバシーポリシーに同意する'), findsOneWidget);
+    expect(find.text('登録する'), findsOneWidget);
+    expect(find.text('未読'), findsNothing);
+    expect(find.text('読みました'), findsNothing);
+    expect(find.text('同意して登録する'), findsNothing);
   });
 
   testEachLayout('L2c が崩れない', (tester, layout) async {
@@ -211,8 +215,28 @@ void main() {
     );
 
     expect(find.text('利用規約'), findsOneWidget);
-    expect(find.text('読みました'), findsOneWidget);
+    expect(find.text('同意する'), findsOneWidget);
     expect(find.text('モック用の見本です。実際の規約ではありません。'), findsOneWidget);
+    expect(
+      find.text(
+        'ご利用者は、電話の相手がAIであること、会話の内容が文字として残ることを、見守る方に説明してください。最初の電話でもAIから説明し、同意がない場合は共有しません。',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testEachLayout('L2p が崩れない', (tester, layout) async {
+    await pumpScreenInLayout(
+      tester,
+      layout,
+      const DocumentScreen(document: privacyDocument),
+    );
+
+    expect(find.text('プライバシーポリシー'), findsOneWidget);
+    expect(find.text('同意する'), findsOneWidget);
+    expect(find.text('モック用の見本です。実際のポリシーではありません。'), findsOneWidget);
+    expect(find.text('第1条 取得する情報'), findsOneWidget);
+    expect(find.text('第10条 このポリシーの変更'), findsOneWidget);
   });
 
   testWidgets('L2 のパスワードは、目のボタンで表示と非表示を切り替えられる', (tester) async {

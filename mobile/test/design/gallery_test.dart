@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_theme.dart';
+import 'package:kazokuai/design/widgets/app_agree_box.dart';
 import 'package:kazokuai/design/widgets/app_ai_tag.dart';
 import 'package:kazokuai/design/widgets/app_avatar.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
@@ -23,6 +24,7 @@ void main() {
     await pumpScreenInLayout(tester, layout, const GalleryScreen());
 
     for (final type in [
+      AppAgreeBox,
       AppAiTag,
       AppAvatar,
       AppButton,
@@ -75,6 +77,18 @@ void main() {
       containsAll(AppButtonSize.values),
     );
     expect(find.text('はじめての方は新規登録'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('チェックなし')),
+      isSemantics(isChecked: false, isEnabled: true, hasTapAction: true),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('チェックあり')),
+      isSemantics(isChecked: true, isEnabled: true),
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('押せない')),
+      isSemantics(isChecked: false, isEnabled: false, hasTapAction: false),
+    );
     expect(find.text('パスワードを忘れた場合'), findsOneWidget);
     expect(buttons.where((button) => button.onTap == null), isNotEmpty);
     expect(
