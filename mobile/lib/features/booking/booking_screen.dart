@@ -5,13 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/coming_soon.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/design/app_colors.dart';
-import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_icon.dart';
+import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
-import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 
 class BookingScreen extends StatelessWidget {
@@ -22,185 +21,31 @@ class BookingScreen extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: SingleChildScrollView(
-        // 複数行の入力欄は改行キーでは閉じず、キーボードがタブバーを隠すので、スクロールで閉じる
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         padding: EdgeInsets.fromLTRB(
           16,
           8,
           16,
           12 + MediaQuery.paddingOf(context).bottom,
         ),
-        child: const Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('予約電話', style: AppTextStyles.titleL),
-            SizedBox(height: 8),
-            _NewBookingCard(),
-            SizedBox(height: 12),
-            _BookedCallsCard(),
-            SizedBox(height: 12),
-            _RetryRuleRow(),
+            const Text('予約電話', style: AppTextStyles.titleL),
+            const SizedBox(height: 8),
+            const _BookedCallsCard(),
+            const SizedBox(height: 12),
+            AppButton(
+              label: '新しい予約',
+              variant: AppButtonVariant.primary,
+              size: AppButtonSize.l,
+              leadingIcon: AppIcons.plus,
+              onTap: () => context.pushNamed(AppRoutes.ask),
+            ),
+            const SizedBox(height: 12),
+            const _RetryRuleRow(),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _NewBookingCard extends ConsumerStatefulWidget {
-  const _NewBookingCard();
-
-  @override
-  ConsumerState<_NewBookingCard> createState() => _NewBookingCardState();
-}
-
-class _NewBookingCardState extends ConsumerState<_NewBookingCard> {
-  // 選べる期間の終わりはモックにないので、基準日の 1 年後にする
-  static final _lastDate = DateTime(2027, 11, 5);
-
-  final _message = TextEditingController(text: '今日は通院の日です。10時に迎えに行くと伝えて');
-  DateTime _date = DateTime(2026, 11, 6);
-  TimeOfDay _time = const TimeOfDay(hour: 8, minute: 30);
-
-  @override
-  void dispose() {
-    _message.dispose();
-    super.dispose();
-  }
-
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _date,
-      firstDate: bookingToday,
-      lastDate: _lastDate,
-      // 既定は端末の時計の日付になる
-      currentDate: bookingToday,
-    );
-    if (picked != null) setState(() => _date = picked);
-  }
-
-  Future<void> _pickTime() async {
-    final picked = await showTimePicker(context: context, initialTime: _time);
-    if (picked != null) setState(() => _time = picked);
-  }
-
-  void _book(String message) {
-    ref
-        .read(bookedCallsProvider.notifier)
-        .addOnce(
-          at: DateTime(
-            _date.year,
-            _date.month,
-            _date.day,
-            _time.hour,
-            _time.minute,
-          ),
-          message: message,
-        );
-    // キーボードを閉じて、足した行を見えるようにする
-    FocusManager.instance.primaryFocus?.unfocus();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AppCard(
-      variant: AppCardVariant.paper,
-      children: [
-        const Text('新しい予約', style: AppTextStyles.titleM),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 8,
-          children: [
-            Expanded(
-              child: _PickField(
-                label: '日付',
-                value: formatPickDate(_date),
-                onTap: _pickDate,
-              ),
-            ),
-            Expanded(
-              child: _PickField(
-                label: '時刻',
-                value: formatPickTime(_time.hour, _time.minute),
-                onTap: _pickTime,
-              ),
-            ),
-          ],
-        ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 8,
-          children: [
-            // 読み上げは入力欄の semanticLabel で伝える
-            const ExcludeSemantics(
-              child: Text('伝える内容', style: AppTextStyles.labelM),
-            ),
-            AppTextField(
-              controller: _message,
-              semanticLabel: '伝える内容',
-              minHeight: 72,
-              maxLines: null,
-              textStyle: AppTextStyles.labelM,
-            ),
-          ],
-        ),
-        ListenableBuilder(
-          listenable: _message,
-          builder: (context, _) {
-            final message = _message.text.trim();
-            return AppButton(
-              label: 'この内容で予約する',
-              variant: AppButtonVariant.primary,
-              size: AppButtonSize.l,
-              leadingIcon: AppIcons.calendarClock,
-              onTap: message.isEmpty ? null : () => _book(message),
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-// モックの pick。AppField は文字が .label-m の inkSecondary に決まっているので、AppPressable で作る。
-class _PickField extends StatelessWidget {
-  const _PickField({
-    required this.label,
-    required this.value,
-    required this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 8,
-      children: [
-        // 読み上げは欄の semanticLabel で伝える
-        ExcludeSemantics(child: Text(label, style: AppTextStyles.labelM)),
-        AppPressable(
-          onTap: onTap,
-          foregroundColor: AppColors.inkPrimary,
-          backgroundColor: AppColors.paperRaised,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadius.borderRadius,
-            side: const BorderSide(color: AppColors.lineStrong, width: 1.5),
-          ),
-          minHeight: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          semanticLabel: label,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            heightFactor: 1,
-            child: Text(value, style: AppTextStyles.monoM),
-          ),
-        ),
-      ],
     );
   }
 }
@@ -228,7 +73,7 @@ class _BookedCallsCard extends ConsumerWidget {
   }
 }
 
-// モックの bookedRow
+// モックの bookedRow。1 行に日時、伝えたいこと、シェブロンが並ぶ
 class _BookedRow extends StatelessWidget {
   const _BookedRow(this.call);
 
@@ -253,20 +98,7 @@ class _BookedRow extends StatelessWidget {
               width: MediaQuery.textScalerOf(context).scale(72),
               child: Text(formatBookedAt(call.at), style: AppTextStyles.monoS),
             ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(call.title, style: AppTextStyles.labelM),
-                  Text(
-                    call.detail,
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.inkSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            Expanded(child: Text(call.message, style: AppTextStyles.labelM)),
             const AppIcon(
               AppIcons.chevronRight,
               size: 18,

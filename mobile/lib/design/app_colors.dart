@@ -13,9 +13,6 @@ abstract final class AppColors {
   static const line = Color(0xFFC8C8CB);
   static const lineStrong = Color(0xFF7F878F);
 
-  static const accentCall = Color(0xFF0041FF);
-  static const onAccentCall = Color(0xFFFFFFFF);
-
   static const stateCareSoft = Color(0xFFFFFF99);
   static const stateOkSoft = Color(0xFFD5F5E3);
   static const stateAlert = Color(0xFFDC3800);
@@ -32,7 +29,7 @@ abstract final class AppColors {
 
   static const onAvatar = Color(0xFFFFFFFF);
 
-  // モックがアイコンに直接書く白。かける青の上の白は onAccentCall
+  // モックがアイコンに直接書く白
   static const white = Color(0xFFFFFFFF);
 
   // モックが押せないボタンに直接書く背景

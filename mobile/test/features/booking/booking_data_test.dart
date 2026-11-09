@@ -97,11 +97,15 @@ void main() {
     test('予約の初期値はモックの 3 件', () {
       final calls = container.read(bookedCallsProvider);
 
-      expect(calls.map((call) => call.title), ['昼の電話', '夜の電話', '週末に帰ると伝える']);
-      expect(calls.map((call) => call.detail), [
-        '話し相手 ・ 毎日',
-        '薬と戸締まりの確認 ・ 毎日',
-        '1回だけ',
+      expect(calls.map((call) => call.message), [
+        '話し相手',
+        '薬と戸締まりの確認',
+        '週末に帰ると伝える',
+      ]);
+      expect(calls.map((call) => call.script), [
+        '「ハナさん、こんにちは。\n体調はいかがですか。」',
+        '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」',
+        '「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」',
       ]);
       expect(calls.map((call) => formatBookedAt(call.at)), [
         '今日 12:00',
@@ -110,17 +114,48 @@ void main() {
       ]);
     });
 
-    test('addOnce は「1回だけ」の予約を最後に足す', () {
-      final at = DateTime(2026, 11, 6, 8, 30);
-      container
-          .read(bookedCallsProvider.notifier)
-          .addOnce(at: at, message: '通院の日です');
+    test('add は日時の順に合う場所へ足す', () {
+      final notifier = container.read(bookedCallsProvider.notifier);
+
+      notifier.add(
+        at: DateTime(2026, 11, 6, 8, 30),
+        message: '通院の日です',
+        script: '「ハナさん、美咲さんからご伝言です。」',
+      );
+      notifier.add(
+        at: DateTime(2026, 11, 5, 8, 30),
+        message: '朝に伝える',
+        script: '「ハナさん、おはようございます。」',
+      );
+      notifier.add(
+        at: DateTime(2026, 11, 8, 9),
+        message: '翌週に伝える',
+        script: '「ハナさん、来週です。」',
+      );
+      notifier.add(
+        at: DateTime(2026, 11, 5, 12),
+        message: '昼にもう一件',
+        script: '「ハナさん、昼です。」',
+      );
 
       final calls = container.read(bookedCallsProvider);
-      expect(calls, hasLength(4));
-      expect(calls.last.at, at);
-      expect(calls.last.title, '通院の日です');
-      expect(calls.last.detail, '1回だけ');
+      expect(calls.map((call) => call.message), [
+        '朝に伝える',
+        '話し相手',
+        '昼にもう一件',
+        '薬と戸締まりの確認',
+        '通院の日です',
+        '週末に帰ると伝える',
+        '翌週に伝える',
+      ]);
+      expect(
+        calls.firstWhere((call) => call.message == '通院の日です').script,
+        '「ハナさん、美咲さんからご伝言です。」',
+      );
+      expect(
+        calls.firstWhere((call) => call.message == '昼にもう一件').at,
+        DateTime(2026, 11, 5, 12),
+      );
     });
 
     test('ルールの初期値は 10 分おきに 3 回', () {

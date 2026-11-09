@@ -7,9 +7,7 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 
 enum AppChipSize {
-  m(height: 36, horizontalPadding: 16),
-  // 01 の話し方
-  s(height: 32, horizontalPadding: 12);
+  m(height: 36, horizontalPadding: 16);
 
   const AppChipSize({required this.height, required this.horizontalPadding});
 

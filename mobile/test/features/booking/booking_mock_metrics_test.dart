@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
@@ -56,40 +57,51 @@ Matcher _isOneLineOf(double lineHeight, LayoutCase layout) =>
 void main() {
   setUpAll(_loadFonts);
 
-  // docs/mock/ui.html を headless Chrome で開いて測った値
+  // docs/mock/ui.html の 06 を headless Chrome で、BIZ UDPゴシックを読み込んで測った値。
+  // 画面の上の状態バー 54 は引いてある。
   group('06 の大きさがモックと同じ', () {
-    testWidgets('カードの高さは 336、231、78', (tester) async {
+    testWidgets('一覧のカードは幅 361 で、上から 48 の位置に出る', (tester) async {
       await _pumpBooking(tester, _mockLayout);
 
-      final cards = find.byType(AppCard);
-      expect(tester.getSize(cards.at(0)), const Size(361, 336));
-      expect(tester.getSize(cards.at(1)), const Size(361, 231));
-      expect(
-        tester.getSize(find.text('かけなおしのルール')).width,
-        lessThanOrEqualTo(239),
-      );
-      expect(tester.getTopLeft(cards.at(0)).dy, 48);
-      expect(tester.getTopLeft(cards.at(1)).dy, 48 + 336 + 12);
+      // モックのカードは高さ 195。行の押せる領域を 44pt にした分、
+      // 1 行の行が 14 ずつ、2 行の時刻の行が 2、合わせて 30 高い
+      final card = find.byType(AppCard);
+      expect(tester.getSize(card), const Size(361, 195 + 30));
+      expect(tester.getTopLeft(card).dy, 48);
     });
 
-    testWidgets('ルールの行は高さ 78 で、文字の幅はモックと同じ 239', (tester) async {
+    testWidgets('新しい予約は高さ 56、幅 361 で、カードとの間は 12', (tester) async {
       await _pumpBooking(tester, _mockLayout);
 
+      final card = tester.getRect(find.byType(AppCard));
+      final button = tester.getRect(find.widgetWithText(AppButton, '新しい予約'));
+      expect(button.size, const Size(361, 56));
+      expect(button.top - card.bottom, 12);
+    });
+
+    testWidgets('ルールの行は高さ 78 で、ボタンとの間は 12', (tester) async {
+      await _pumpBooking(tester, _mockLayout);
+
+      final button = tester.getRect(find.widgetWithText(AppButton, '新しい予約'));
       final row = find.ancestor(
         of: find.text('かけなおしのルール'),
         matching: find.byType(InkWell),
       );
       expect(tester.getSize(row), const Size(361, 78));
+      expect(tester.getTopLeft(row).dy - button.bottom, 12);
       expect(tester.getSize(find.text('かけなおしのルール')).height, 24);
     });
 
-    testWidgets('短い時刻は 1 行で、11/7 10:00 は 2 行', (tester) async {
+    testWidgets('短い時刻は 1 行で、11/7 10:00 は 2 行、伝えたいことは 1 行', (tester) async {
       await _pumpBooking(tester, _mockLayout);
 
       for (final when in ['今日 12:00', '今日 19:00']) {
         expect(tester.getSize(find.text(when)).height, 16, reason: when);
       }
       expect(tester.getSize(find.text('11/7 10:00')).height, 32);
+      for (final message in ['話し相手', '薬と戸締まりの確認', '週末に帰ると伝える']) {
+        expect(tester.getSize(find.text(message)).height, 20, reason: message);
+      }
     });
   });
 

@@ -82,32 +82,22 @@ void main() {
     });
   }
 
-  testWidgets('左右の余白は高さ 36 で 16、高さ 32 で 12', (tester) async {
-    for (final (size, padding) in [
-      (AppChipSize.m, 16.0),
-      (AppChipSize.s, 12.0),
-    ]) {
-      await pumpInLayout(
-        tester,
-        layoutCases.first,
-        Align(
-          alignment: Alignment.centerLeft,
-          child: AppChip(
-            label: '全部',
-            selected: false,
-            size: size,
-            onTap: () {},
-          ),
-        ),
-      );
+  testWidgets('左右の余白は 16', (tester) async {
+    await pumpInLayout(
+      tester,
+      layoutCases.first,
+      Align(
+        alignment: Alignment.centerLeft,
+        child: AppChip(label: '全部', selected: false, onTap: () {}),
+      ),
+    );
 
-      // 枠線の 1 の内側に余白を取る
-      expect(
-        tester.getTopLeft(find.text('全部')).dx -
-            tester.getTopLeft(find.byType(AppChip)).dx,
-        padding + 1,
-      );
-    }
+    // 枠線の 1 の内側に余白を取る
+    expect(
+      tester.getTopLeft(find.text('全部')).dx -
+          tester.getTopLeft(find.byType(AppChip)).dx,
+      17,
+    );
   });
 
   testWidgets('選んでいないときは紙の色に細い線', (tester) async {
