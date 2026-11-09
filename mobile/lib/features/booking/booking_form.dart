@@ -118,6 +118,10 @@ class BookingFormActions extends StatelessWidget {
 // キーボードの下に隠し、中身はキーボードの上でスクロールする。
 // 閉じると、モックどおりボタンはホームバーの上に戻る。
 // スマホのブラウザも iOS も、キーボードは viewInsets.bottom で届く。
+// 開閉で入力欄の親を入れ替えると State が捨てられ、autofocus がキーボードを
+// 出し直してボタンを隠す。欄の親は開閉で変えない。
+// iOS は欄の外のタップでも、画面に収まる本文のドラッグでも閉じない。
+// 外を押すか、本文をドラッグすると閉じ、下のボタンに届く。
 class BookingFormLayout extends StatelessWidget {
   const BookingFormLayout({
     super.key,
@@ -135,14 +139,6 @@ class BookingFormLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final scroll = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        spacing: 16,
-        children: children,
-      ),
-    );
     // モックの foot はボタンとホームバーの間も 8 空ける
     final footer = Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -151,25 +147,56 @@ class BookingFormLayout extends StatelessWidget {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            AppNavBar(title: title, onLeadingTap: onLeadingTap),
-            Expanded(
-              child: keyboard == 0
-                  ? scroll
-                  : Stack(
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(bottom: keyboard),
-                          child: scroll,
-                        ),
-                        Positioned(left: 0, right: 0, bottom: 0, child: footer),
-                      ],
+        child: GestureDetector(
+          // 欄やボタンのタップは子が受け取る。読み上げの対象にはしない
+          excludeFromSemantics: true,
+          behavior: HitTestBehavior.opaque,
+          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppNavBar(title: title, onLeadingTap: onLeadingTap),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: keyboard),
+                  // 本文が画面に収まると、そのままではドラッグが始まらない。
+                  // 始めさせて閉じる。動いたときは onDrag、端で止まったときは
+                  // OverscrollNotification。
+                  child: NotificationListener<OverscrollNotification>(
+                    onNotification: (notification) {
+                      if (notification.dragDetails != null) {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                      }
+                      return false;
+                    },
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        spacing: 16,
+                        children: children,
+                      ),
                     ),
-            ),
-            if (keyboard == 0) footer,
-          ],
+                  ),
+                ),
+              ),
+              // この子だけ開閉で種類が変わる。入力欄の親ではないので、欄の State は残る。
+              // 開いているあいだは高さを取らず、下端からはみ出してキーボードの下に描く
+              keyboard == 0
+                  ? footer
+                  : SizedBox(
+                      height: 0,
+                      child: OverflowBox(
+                        alignment: Alignment.bottomCenter,
+                        maxHeight: double.infinity,
+                        child: footer,
+                      ),
+                    ),
+            ],
+          ),
         ),
       ),
     );

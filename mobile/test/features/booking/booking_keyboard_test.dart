@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/data/call_script_repository.dart';
+import 'package:kazokuai/design/app_theme.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
@@ -86,6 +87,69 @@ void main() {
       closeTo(openHeight, 0.1),
     );
   });
+
+  for (final ask in const [true, false]) {
+    final label = ask ? '01' : '06b';
+
+    testWidgets('$label はキーボードを開閉しても入力欄を作り直さず、閉じても開き直さない', (tester) async {
+      await _pumpForm(tester, ask: ask);
+      await tester.pumpAndSettle();
+      final fieldState = tester.state(find.byType(AppTextField));
+      final focus = _focusNode(tester);
+      expect(focus.hasFocus, isTrue);
+      expect(_textInputShows(tester), greaterThan(0));
+
+      _showKeyboard(tester);
+      await tester.pumpAndSettle();
+      expect(tester.state(find.byType(AppTextField)), same(fieldState));
+      expect(_focusNode(tester), same(focus));
+
+      focus.unfocus();
+      await tester.pumpAndSettle();
+      expect(focus.hasFocus, isFalse);
+      tester.testTextInput.log.clear();
+
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pumpAndSettle();
+      expect(_textInputShows(tester), 0);
+      expect(_focusNode(tester), same(focus));
+      expect(focus.hasFocus, isFalse);
+      expect(tester.state(find.byType(AppTextField)), same(fieldState));
+    });
+
+    testWidgets('$label は iOS で欄の外を押すとキーボードが閉じ、ボタンに届く', (tester) async {
+      await _pumpForm(tester, ask: ask, ios: true);
+      _showKeyboard(tester);
+      await tester.pumpAndSettle();
+      final focus = _focusNode(tester);
+      expect(focus.hasFocus, isTrue);
+
+      await tester.tap(find.byType(AppTextField));
+      await tester.pump();
+      expect(focus.hasFocus, isTrue);
+
+      await tester.tap(find.text(ask ? 'AIに伝えてもらう' : '予約の編集'));
+      await tester.pump();
+      expect(focus.hasFocus, isFalse);
+      await _expectFooterAtRest(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+
+    testWidgets('$label は iOS で本文をドラッグするとキーボードが閉じ、ボタンに届く', (tester) async {
+      await _pumpForm(tester, ask: ask, ios: true);
+      _showKeyboard(tester);
+      await tester.pumpAndSettle();
+      final focus = _focusNode(tester);
+      expect(focus.hasFocus, isTrue);
+
+      await tester.drag(
+        find.byType(SingleChildScrollView),
+        const Offset(0, -200),
+      );
+      await tester.pumpAndSettle();
+      expect(focus.hasFocus, isFalse);
+      await _expectFooterAtRest(tester);
+    }, variant: TargetPlatformVariant.only(TargetPlatform.iOS));
+  }
 }
 
 Future<void> _pumpWithKeyboard(
@@ -160,6 +224,57 @@ Future<void> _expectRestingFooterReturns(
   expect(
     tester.getRect(find.widgetWithText(AppButton, '今すぐ通話')).bottom,
     closeTo(height - 8, 0.1),
+  );
+}
+
+Future<void> _pumpForm(
+  WidgetTester tester, {
+  required bool ask,
+  bool ios = false,
+}) {
+  final screen = ask ? const AskScreen() : const BookingEditScreen(index: 0);
+  // appTheme は読み込み時の OS を覚えている。iOS の跳ね返りを試すときは差し替える
+  return pumpScreenInLayout(
+    tester,
+    const LayoutCase(360, 1.0),
+    ios
+        ? Theme(
+            data: appTheme.copyWith(platform: TargetPlatform.iOS),
+            child: screen,
+          )
+        : screen,
+    overrides: ask
+        ? [
+            callScriptRepositoryProvider.overrideWithValue(
+              FakeCallScriptRepository(),
+            ),
+            idleCallProgress(),
+          ]
+        : const [],
+  );
+}
+
+void _showKeyboard(WidgetTester tester) {
+  tester.view.viewInsets = const FakeViewPadding(bottom: _keyboardHeight);
+}
+
+FocusNode _focusNode(WidgetTester tester) {
+  return tester.widget<TextField>(find.byType(TextField)).focusNode!;
+}
+
+int _textInputShows(WidgetTester tester) {
+  return tester.testTextInput.log
+      .where((call) => call.method == 'TextInput.show')
+      .length;
+}
+
+// キーボードを閉じると、ボタンはまた画面の下に戻る。高さは pumpScreenInLayout の 852
+Future<void> _expectFooterAtRest(WidgetTester tester) async {
+  tester.view.viewInsets = FakeViewPadding.zero;
+  await tester.pumpAndSettle();
+  expect(
+    tester.getRect(find.widgetWithText(AppButton, '今すぐ通話')).bottom,
+    closeTo(852 - 8, 0.1),
   );
 }
 
