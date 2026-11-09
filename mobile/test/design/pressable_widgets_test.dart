@@ -100,20 +100,6 @@ final _pressables = [
     isTransparent: true,
   ),
   _Pressable(
-    name: 'ボタン L record',
-    build: (onTap) => AppButton(
-      label: '通話',
-      variant: AppButtonVariant.record,
-      size: AppButtonSize.l,
-      leadingIcon: AppIcons.phone,
-      onTap: onTap,
-    ),
-    semanticLabel: '通話',
-    minHeight: 56,
-    surface: AppColors.accentCall,
-    foreground: AppColors.onAccentCall,
-  ),
-  _Pressable(
     name: 'ボタン M secondary',
     build: (onTap) => AppButton(
       label: '通話記録を見る',
@@ -290,8 +276,8 @@ void main() {
       tester,
       layout,
       AppButton(
-        label: '通話',
-        variant: AppButtonVariant.record,
+        label: 'この日時で予約する',
+        variant: AppButtonVariant.primary,
         size: AppButtonSize.l,
         onTap: () {},
       ),
@@ -307,8 +293,8 @@ void main() {
       Align(
         alignment: Alignment.centerLeft,
         child: AppButton(
-          label: '通話',
-          variant: AppButtonVariant.record,
+          label: 'この日時で予約する',
+          variant: AppButtonVariant.primary,
           size: AppButtonSize.l,
           onTap: () {},
         ),
@@ -384,7 +370,7 @@ void main() {
           tester,
           layout,
           AppButton(
-            label: '現在通話中です',
+            label: 'この日時で予約する',
             variant: variant,
             size: AppButtonSize.l,
             onTap: null,
@@ -397,7 +383,7 @@ void main() {
         expect(
           tester.getSemantics(inkWell),
           isSemantics(
-            label: '現在通話中です',
+            label: 'この日時で予約する',
             isButton: true,
             hasEnabledState: true,
             isEnabled: false,
@@ -411,7 +397,7 @@ void main() {
           tester,
           layoutCases.first,
           AppButton(
-            label: '現在通話中です',
+            label: 'この日時で予約する',
             variant: variant,
             size: AppButtonSize.l,
             leadingIcon: AppIcons.phone,
@@ -438,7 +424,7 @@ void main() {
           ),
         );
         expect(
-          tester.widget<Text>(find.text('現在通話中です')).style?.color,
+          tester.widget<Text>(find.text('この日時で予約する')).style?.color,
           AppColors.inkSecondary,
         );
         expect(
@@ -453,8 +439,8 @@ void main() {
         tester,
         layoutCases.first,
         const AppButton(
-          label: '現在通話中です',
-          variant: AppButtonVariant.record,
+          label: 'この日時で予約する',
+          variant: AppButtonVariant.primary,
           size: AppButtonSize.l,
           onTap: null,
         ),
@@ -478,8 +464,8 @@ void main() {
         tester,
         layoutCases.first,
         AppButton(
-          label: '通話',
-          variant: AppButtonVariant.record,
+          label: 'この日時で予約する',
+          variant: AppButtonVariant.primary,
           size: AppButtonSize.l,
           onTap: () {},
         ),

@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
-import 'package:kazokuai/design/widgets/app_chip.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
 
@@ -27,7 +26,7 @@ Future<void> _loadFonts() async {
 
 const _mockLayout = LayoutCase(393, 1.0);
 const _message = '金曜の通院、10時に迎えに行くと伝えて';
-const _suggestion = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
+const _script = '「ハナさん、美咲さんからご伝言です。\n金曜の通院は、朝10時に\nお迎えに来るそうです。」';
 const _removedNote = '電話ではこの言い方で伝えます。聞き返されたら、同じ内容をくり返します。';
 const _removedFootNote = '押すと、すぐにハナさんの固定電話にかけます';
 
@@ -42,44 +41,12 @@ Future<void> _pumpWithMessage(WidgetTester tester, LayoutCase layout) async {
   await tester.pump();
 }
 
-void _expectChipsOnOneRow(WidgetTester tester, List<Finder> chips) {
-  final tops = chips.map((chip) => tester.getTopLeft(chip).dy).toSet();
-  expect(tops, hasLength(1));
-}
-
 void main() {
   setUpAll(_loadFonts);
 
-  // docs/mock/ui.html を headless Chrome で開いて測った値
+  // docs/mock/ui.html の 01 を headless Chrome で、BIZ UDPゴシックを読み込んで測った値。
+  // 画面の上の状態バー 54 は引いてある。
   group('モックと同じ値', () {
-    testWidgets('チップの幅は 68.84、83.13、111.69 で、1 行に並ぶ', (tester) async {
-      await _pumpWithMessage(tester, _mockLayout);
-
-      const expected = {'ふつう': 67.03, 'ゆっくり': 77.67, 'カスタマイズ': 103.84};
-      for (final MapEntry(key: label, value: width) in expected.entries) {
-        expect(
-          tester.getSize(find.widgetWithText(AppChip, label).first).width,
-          closeTo(width, .5),
-          reason: label,
-        );
-      }
-      _expectChipsOnOneRow(tester, [
-        find.widgetWithText(AppChip, 'ふつう').first,
-        find.widgetWithText(AppChip, 'ゆっくり'),
-        find.widgetWithText(AppChip, 'カスタマイズ').first,
-      ]);
-    });
-
-    testWidgets('チップの左端は 88 で、チップの間隔は 6', (tester) async {
-      await _pumpWithMessage(tester, _mockLayout);
-
-      final normal = tester.getRect(find.widgetWithText(AppChip, 'ふつう').first);
-      final slow = tester.getRect(find.widgetWithText(AppChip, 'ゆっくり'));
-
-      expect(normal.left, 88);
-      expect(slow.left - normal.right, 6);
-    });
-
     testWidgets('入力欄の高さ 60、幅 361、上の見出しとの間隔 8', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
@@ -88,62 +55,58 @@ void main() {
       expect(field.top - tester.getBottomLeft(find.text('伝えたいこと')).dy, 8);
     });
 
-    testWidgets('案の文は 3 行で、削った説明はない', (tester) async {
+    testWidgets('通話内容の文は 3 行で、削った説明はない', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
       // 行の高さ 28
-      expect(tester.getSize(find.text(_suggestion)).height, 84);
+      expect(tester.getSize(find.text(_script)).height, 84);
       expect(find.text(_removedNote), findsNothing);
+      expect(find.text('話し方'), findsNothing);
     });
 
-    testWidgets('案のカードはモックの 162 より「なおす」の 12 だけ高い', (tester) async {
+    testWidgets('通話内容のカードはモックの 162 より「なおす」の 12 だけ高い', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
       // モックの「なおす」は高さ 32 で、44pt にした分だけ伸びる
       expect(tester.getSize(find.byType(AppCard)).height, 162 + 12);
     });
 
-    testWidgets('通話は 56、予約は 44 で、削った文言はない', (tester) async {
+    testWidgets('日付と時刻の欄は高さ 56、幅 176.5 で、間は 8', (tester) async {
+      await _pumpWithMessage(tester, _mockLayout);
+
+      final date = tester.getRect(find.text('11/6(金)'));
+      final time = tester.getRect(find.text('08:30'));
+      // 文字の箱ではなく、欄の面を測る
+      final dateField = tester.getRect(
+        find.ancestor(of: find.text('11/6(金)'), matching: find.byType(InkWell)),
+      );
+      final timeField = tester.getRect(
+        find.ancestor(of: find.text('08:30'), matching: find.byType(InkWell)),
+      );
+
+      expect(dateField.size, const Size(176.5, 56));
+      expect(timeField.size, const Size(176.5, 56));
+      expect(timeField.left - dateField.right, 8);
+      expect(date.top, time.top);
+      expect(
+        tester.getTopLeft(find.text('日付')).dy -
+            tester.getBottomLeft(find.byType(AppCard)).dy,
+        16,
+      );
+    });
+
+    testWidgets('予約は 56、今すぐ通話は 44 で、削った文言はない', (tester) async {
       await _pumpWithMessage(tester, _mockLayout);
 
       expect(find.text(_removedFootNote), findsNothing);
-      expect(tester.getSize(find.widgetWithText(AppButton, '通話')).height, 56);
       expect(
-        tester.getSize(find.widgetWithText(AppButton, '日時を決めて予約する')).height,
+        tester.getSize(find.widgetWithText(AppButton, 'この日時で予約する')),
+        const Size(361, 56),
+      );
+      expect(
+        tester.getSize(find.widgetWithText(AppButton, '今すぐ通話')).height,
         44,
       );
-    });
-  });
-
-  group('文字の幅', () {
-    testEachLayout('「ボリューム」はラベルの列に収まり、1 行のまま', (tester, layout) async {
-      await pumpScreenInLayout(tester, layout, const AskScreen());
-
-      final label = tester.getRect(find.text('ボリューム'));
-      final chipLeft = tester
-          .getTopLeft(find.widgetWithText(AppChip, 'ふつう').last)
-          .dx;
-      // 列の右に 8 の間隔が残る
-      expect(chipLeft - label.right, greaterThanOrEqualTo(8));
-
-      // 折り返すと 2 行分の高さになる
-      expect(label.height, closeTo(16 * layout.textScale, 1));
-    });
-
-    testWidgets('幅 360 ではチップが折り返す', (tester) async {
-      await pumpScreenInLayout(
-        tester,
-        const LayoutCase(360, 1.0),
-        const AskScreen(),
-      );
-
-      final first = tester.getTopLeft(
-        find.widgetWithText(AppChip, 'ふつう').first,
-      );
-      final last = tester.getTopLeft(
-        find.widgetWithText(AppChip, 'カスタマイズ').first,
-      );
-      expect(last.dy, greaterThan(first.dy));
     });
   });
 
@@ -167,43 +130,37 @@ void main() {
       await pumpOnDevice(tester, 1.0);
 
       final footTop = tester
-          .getTopLeft(find.widgetWithText(AppButton, '通話'))
+          .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
           .dy;
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
         lessThan(footTop),
       );
       expect(
-        tester.getBottomLeft(find.text(_suggestion)).dy,
+        tester.getBottomLeft(find.text(_script)).dy,
         lessThanOrEqualTo(footTop),
       );
     });
 
-    testWidgets('文字倍率 1.3 では、案の文はスクロールすれば全部見える', (tester) async {
+    testWidgets('文字倍率 1.3 では、通話内容の文はスクロールすれば全部見える', (tester) async {
       await pumpOnDevice(tester, 1.3);
 
       final footTop = tester
-          .getTopLeft(find.widgetWithText(AppButton, '通話'))
+          .getTopLeft(find.widgetWithText(AppButton, 'この日時で予約する'))
           .dy;
-      // 入力欄と案の見出しはスクロールしなくても見える
+      // 入力欄と通話内容の見出しはスクロールしなくても見える
       expect(
         tester.getBottomLeft(find.byType(AppTextField)).dy,
         lessThan(footTop),
       );
-      expect(
-        tester.getBottomLeft(find.text('Geminiの言い方の案')).dy,
-        lessThan(footTop),
-      );
-      expect(
-        tester.getBottomLeft(find.text(_suggestion)).dy,
-        greaterThan(footTop),
-      );
+      expect(tester.getBottomLeft(find.text('通話内容')).dy, lessThan(footTop));
+      expect(tester.getBottomLeft(find.text(_script)).dy, greaterThan(footTop));
 
-      await tester.ensureVisible(find.text(_suggestion));
+      await tester.ensureVisible(find.text(_script));
       await tester.pumpAndSettle();
 
       expect(
-        tester.getBottomLeft(find.text(_suggestion)).dy,
+        tester.getBottomLeft(find.text(_script)).dy,
         lessThanOrEqualTo(footTop),
       );
     });

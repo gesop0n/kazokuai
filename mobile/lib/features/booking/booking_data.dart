@@ -8,13 +8,17 @@ final bookingToday = DateTime(2026, 11, 5);
 class BookedCall {
   const BookedCall({
     required this.at,
-    required this.title,
-    required this.detail,
+    required this.message,
+    required this.script,
   });
 
   final DateTime at;
-  final String title;
-  final String detail;
+
+  // 伝えたいこと
+  final String message;
+
+  // 通話内容
+  final String script;
 }
 
 final bookedCallsProvider =
@@ -23,28 +27,37 @@ final bookedCallsProvider =
     );
 
 class BookedCallsNotifier extends Notifier<List<BookedCall>> {
-  // モックの 06 と同じ内容
+  // モックの BOOKED と同じ内容。日時の順
   @override
   List<BookedCall> build() => [
     BookedCall(
       at: DateTime(2026, 11, 5, 12, 0),
-      title: '昼の電話',
-      detail: '話し相手 ・ 毎日',
+      message: '話し相手',
+      script: '「ハナさん、こんにちは。\n体調はいかがですか。」',
     ),
     BookedCall(
       at: DateTime(2026, 11, 5, 19, 0),
-      title: '夜の電話',
-      detail: '薬と戸締まりの確認 ・ 毎日',
+      message: '薬と戸締まりの確認',
+      script: '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」',
     ),
     BookedCall(
       at: DateTime(2026, 11, 7, 10, 0),
-      title: '週末に帰ると伝える',
-      detail: '1回だけ',
+      message: '週末に帰ると伝える',
+      script: '「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」',
     ),
   ];
 
-  void addOnce({required DateTime at, required String message}) {
-    state = [...state, BookedCall(at: at, title: message, detail: '1回だけ')];
+  // 日時の順の場所に足す。同じ日時の予約がすでにあるときは、その後ろに入る
+  void add({
+    required DateTime at,
+    required String message,
+    required String script,
+  }) {
+    final booking = BookedCall(at: at, message: message, script: script);
+    final index = state.indexWhere((call) => call.at.isAfter(at));
+    state = index < 0
+        ? [...state, booking]
+        : [...state.sublist(0, index), booking, ...state.sublist(index)];
   }
 }
 

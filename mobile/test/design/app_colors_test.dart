@@ -14,8 +14,6 @@ void main() {
     expect(AppColors.inkTertiary, const Color(0xFF6E757C));
     expect(AppColors.line, const Color(0xFFC8C8CB));
     expect(AppColors.lineStrong, const Color(0xFF7F878F));
-    expect(AppColors.accentCall, const Color(0xFF0041FF));
-    expect(AppColors.onAccentCall, const Color(0xFFFFFFFF));
     expect(AppColors.stateCareSoft, const Color(0xFFFFFF99));
     expect(AppColors.stateOkSoft, const Color(0xFFD5F5E3));
     expect(AppColors.stateAlert, const Color(0xFFDC3800));
