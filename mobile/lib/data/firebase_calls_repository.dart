@@ -9,7 +9,7 @@ import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/calls_source.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
-// 通話記録と電話の詳細を Firestore から読む。アプリは Firestore に何も書かない
+// 通話記録と電話の詳細を Firestore から読む。ここでは Firestore に書かない
 class FirebaseCallsRepository
     with WidgetsBindingObserver
     implements CallsRepository {

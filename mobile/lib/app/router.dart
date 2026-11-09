@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/loading_screen.dart';
 import 'package:kazokuai/data/auth_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
-import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/features/account/document_screen.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
 import 'package:kazokuai/features/account/password_reset_screen.dart';
@@ -19,6 +18,7 @@ import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
+import 'package:kazokuai/features/tutorial/tutorial_shell.dart';
 
 abstract final class AppRoutes {
   static const welcome = 'welcome';
@@ -135,15 +135,8 @@ GoRouter createAppRouter({
         builder: (context, state) => const WatchedPersonNameScreen(),
       ),
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => Scaffold(
-          // 本文をタブバーの下まで伸ばす。タブバーの高さは本文の MediaQuery の padding.bottom に入る
-          extendBody: true,
-          body: navigationShell,
-          bottomNavigationBar: AppTabBar(
-            currentIndex: navigationShell.currentIndex,
-            onSelected: navigationShell.goBranch,
-          ),
-        ),
+        builder: (context, state, navigationShell) =>
+            TutorialShell(navigationShell: navigationShell),
         branches: [
           StatefulShellBranch(
             routes: [

@@ -12,6 +12,8 @@ import 'package:kazokuai/features/calls/calendar_sheet.dart';
 import 'package:kazokuai/features/calls/call_timeline.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/mini_calendar.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 class CallsScreen extends ConsumerStatefulWidget {
   const CallsScreen({super.key, this.log});
@@ -248,6 +250,7 @@ class _CallsScreenState extends ConsumerState<CallsScreen> {
     today: log.today,
     headingKey: _headingKeys.putIfAbsent(day.date, GlobalKey.new),
     onOpenCall: _openCall,
+    anchorFirstRow: log.days.isNotEmpty && day.date == log.days.first.date,
   );
 }
 
@@ -286,12 +289,15 @@ class _PinnedHeader extends StatelessWidget {
               ]
             : null,
       ),
-      child: MiniCalendar(
-        log: log,
-        selectedDay: selectedDay,
-        revealSerial: revealSerial,
-        revealDay: revealDay,
-        onTap: onOpenCalendar,
+      child: TutorialAnchor(
+        part: TutorialPart.calendar,
+        child: MiniCalendar(
+          log: log,
+          selectedDay: selectedDay,
+          revealSerial: revealSerial,
+          revealDay: revealDay,
+          onTap: onOpenCalendar,
+        ),
       ),
     );
   }

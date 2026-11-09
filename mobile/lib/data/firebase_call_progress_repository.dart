@@ -10,7 +10,7 @@ import 'package:kazokuai/data/call_progress_repository.dart';
 const _ringing = '呼び出し中';
 const _talking = '通話中';
 
-// 見守る方の電話が呼び出し中か通話中かを Firestore から読む。アプリは Firestore に何も書かない
+// 見守る方の電話が呼び出し中か通話中かを Firestore から読む。ここでは Firestore に書かない
 class FirebaseCallProgressRepository implements CallProgressRepository {
   FirebaseCallProgressRepository({
     required this._auth,

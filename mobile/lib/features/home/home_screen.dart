@@ -16,6 +16,8 @@ import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/reply_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
+import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key, this.data});
@@ -112,16 +114,31 @@ class _LiveHome extends StatelessWidget {
               if (latest == null)
                 const _NoCalls()
               else
-                RecentCallCard(
-                  call: latest,
-                  now: view.now,
-                  onOpenConversation: () => _openConversation(context, latest),
+                TutorialAnchor(
+                  part: TutorialPart.recent,
+                  child: RecentCallCard(
+                    call: latest,
+                    now: view.now,
+                    onOpenConversation: () =>
+                        _openConversation(context, latest),
+                  ),
                 ),
-              AskCard(onOpenAsk: () => context.pushNamed(AppRoutes.ask)),
+              TutorialAnchor(
+                part: TutorialPart.ask,
+                child: AskCard(
+                  onOpenAsk: () => context.pushNamed(AppRoutes.ask),
+                ),
+              ),
               if (latest != null)
                 view.todayCall == null
-                    ? const TodayCard.undisclosed()
-                    : TodayCard(call: view.todayCall!),
+                    ? const TutorialAnchor(
+                        part: TutorialPart.today,
+                        child: TodayCard.undisclosed(),
+                      )
+                    : TutorialAnchor(
+                        part: TutorialPart.today,
+                        child: TodayCard(call: view.todayCall!),
+                      ),
             ],
           ),
         );
@@ -162,13 +179,23 @@ class _HomeCards extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       spacing: 12,
       children: [
-        RecentCallCard(
-          call: data.latestCall,
-          now: data.now,
-          onOpenConversation: () => _openConversation(context, data.latestCall),
+        TutorialAnchor(
+          part: TutorialPart.recent,
+          child: RecentCallCard(
+            call: data.latestCall,
+            now: data.now,
+            onOpenConversation: () =>
+                _openConversation(context, data.latestCall),
+          ),
         ),
-        AskCard(onOpenAsk: () => context.pushNamed(AppRoutes.ask)),
-        TodayCard(call: data.latestCall),
+        TutorialAnchor(
+          part: TutorialPart.ask,
+          child: AskCard(onOpenAsk: () => context.pushNamed(AppRoutes.ask)),
+        ),
+        TutorialAnchor(
+          part: TutorialPart.today,
+          child: TodayCard(call: data.latestCall),
+        ),
       ],
     );
   }

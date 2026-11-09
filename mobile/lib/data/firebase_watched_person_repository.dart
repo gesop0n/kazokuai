@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:kazokuai/data/backend.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 
-// 見守る方は Firestore から読み、登録はバックエンドを通す。アプリは Firestore に何も書かない
+// 見守る方は Firestore から読み、登録はバックエンドを通す。ここでは Firestore に書かない
 class FirebaseWatchedPersonRepository implements WatchedPersonRepository {
   FirebaseWatchedPersonRepository({
     required FirebaseAuth auth,

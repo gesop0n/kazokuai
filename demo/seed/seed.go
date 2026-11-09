@@ -57,7 +57,8 @@ func validateRequest(req Request) error {
 	return nil
 }
 
-// Seed は、渡した Firebase に審査員と見本の電話を作る。もう一度実行すると、そのアカウントの電話を見本に戻す。
+// Seed は、渡した Firebase に審査員と見本の電話を作る。
+// もう一度実行すると、そのアカウントの電話を見本に戻し、チュートリアルを見た記録を消す。
 func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, req Request) (Result, error) {
 	user, err := upsertJudge(ctx, accounts, req.Email, req.Password)
 	if err != nil {
@@ -87,6 +88,9 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 			missed++
 		}
 	}
+	if err := resetTutorial(ctx, store, user.UID); err != nil {
+		return Result{}, err
+	}
 	return Result{
 		Email:           req.Email,
 		UID:             user.UID,
@@ -94,6 +98,15 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 		Calls:           len(calls),
 		Missed:          missed,
 	}, nil
+}
+
+// resetTutorial は、この審査員がチュートリアルを見た記録を消す。
+// 記録がなくても成功する。ほかの家族の記録は消さない。
+func resetTutorial(ctx context.Context, store *firestore.Client, uid string) error {
+	if _, err := store.Collection("tutorialSeen").Doc(uid).Delete(ctx); err != nil {
+		return fmt.Errorf("チュートリアルの記録を戻せなかった: %w", err)
+	}
+	return nil
 }
 
 func upsertJudge(ctx context.Context, accounts *auth.Client, email, password string) (*auth.UserRecord, error) {

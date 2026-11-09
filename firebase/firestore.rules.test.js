@@ -1,5 +1,6 @@
 // Firestore のセキュリティルールのテスト。エミュレーターの場所は FIRESTORE_EMULATOR_HOST から読む。
-// アプリは家族としてログインして読むだけで、書き込みはすべてバックエンドの、ルールに縛られない SDK を通す。
+// アプリは家族としてログインして読む。書くのは、その家族が見たチュートリアルの記録だけ。
+// ほかの書き込みはすべてバックエンドの、ルールに縛られない SDK を通す。
 import { readFileSync } from 'node:fs';
 import { after, afterEach, before, describe, test } from 'node:test';
 
@@ -212,5 +213,46 @@ describe('電話と会話', () => {
       updateDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001'), { text: '違う' }),
     );
     await assertFails(deleteDoc(doc(db, 'watchedPersons/hanako/calls/morning/utterances/0001')));
+  });
+});
+
+describe('チュートリアルを見た記録', () => {
+  test('家族は、自分の記録を読み書きできる', async () => {
+    const db = firestoreOf(misaki);
+    const ref = doc(db, 'tutorialSeen/misaki-uid');
+
+    await assertSucceeds(setDoc(ref, { seen: true }));
+    const got = await assertSucceeds(getDoc(ref));
+    if (got.data().seen !== true) {
+      throw new Error(`seen = ${got.data().seen}`);
+    }
+    await assertSucceeds(updateDoc(ref, { seen: true }));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  test('ほかの家族の記録は読み書きできない', async () => {
+    await env.withSecurityRulesDisabled((context) =>
+      setDoc(doc(context.firestore(), 'tutorialSeen/misaki-uid'), { seen: true }),
+    );
+    const db = firestoreOf(kenta);
+
+    await assertFails(getDoc(doc(db, 'tutorialSeen/misaki-uid')));
+    await assertFails(setDoc(doc(db, 'tutorialSeen/misaki-uid'), { seen: false }));
+    await assertFails(updateDoc(doc(db, 'tutorialSeen/misaki-uid'), { seen: false }));
+    await assertFails(deleteDoc(doc(db, 'tutorialSeen/misaki-uid')));
+  });
+
+  test('ログインしていなければ読み書きできない', async () => {
+    const db = env.unauthenticatedContext().firestore();
+
+    await assertFails(getDoc(doc(db, 'tutorialSeen/misaki-uid')));
+    await assertFails(setDoc(doc(db, 'tutorialSeen/misaki-uid'), { seen: true }));
+  });
+
+  test('自分の記録があっても、記録の一覧は読めない', async () => {
+    const db = firestoreOf(misaki);
+    await assertSucceeds(setDoc(doc(db, 'tutorialSeen/misaki-uid'), { seen: true }));
+
+    await assertFails(getDocs(collection(db, 'tutorialSeen')));
   });
 });
