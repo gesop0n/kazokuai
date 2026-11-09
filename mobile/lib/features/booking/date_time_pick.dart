@@ -1,15 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
+import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_radius.dart';
 import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 
-// 選べる期間の終わりはモックにないので、基準日の 1 年後にする
-final _lastDate = DateTime(2027, 11, 5);
-
-// モックの pick。01 と 06b が同じ欄と選び方を使う。
+// 06b の日付と時刻。01 は日時を 1 つにまとめて、01b で選ぶ。
 class DateTimeFields extends StatelessWidget {
   const DateTimeFields({
     super.key,
@@ -29,7 +27,7 @@ class DateTimeFields extends StatelessWidget {
       context: context,
       initialDate: date,
       firstDate: bookingToday,
-      lastDate: _lastDate,
+      lastDate: bookingLastDate,
       // 既定は端末の時計の日付になる
       currentDate: bookingToday,
     );
@@ -102,6 +100,61 @@ class DateTimePickField extends StatelessWidget {
             alignment: Alignment.centerLeft,
             heightFactor: 1,
             child: Text(value, style: AppTextStyles.monoM),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// 01 の日時。押すと 01b が開く。日付と時刻は別の文字にして、欄の値を別々に読める。
+class DateTimeItem extends StatelessWidget {
+  const DateTimeItem({
+    super.key,
+    required this.date,
+    required this.time,
+    required this.onTap,
+  });
+
+  final DateTime date;
+  final TimeOfDay time;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 8,
+      children: [
+        Text('日時', style: AppTextStyles.labelM),
+        AppPressable(
+          onTap: onTap,
+          foregroundColor: AppColors.inkPrimary,
+          backgroundColor: AppColors.paperRaised,
+          shape: RoundedRectangleBorder(
+            borderRadius: AppRadius.borderRadius,
+            side: const BorderSide(color: AppColors.lineStrong, width: 1.5),
+          ),
+          minHeight: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          semanticLabel: '日時を選ぶ',
+          child: ExcludeSemantics(
+            child: Row(
+              children: [
+                Text(formatPickDate(date), style: AppTextStyles.monoM),
+                Text(' ', style: AppTextStyles.monoM),
+                Text(
+                  formatSheetTime(time.hour, time.minute),
+                  style: AppTextStyles.monoM,
+                ),
+                const Spacer(),
+                const AppIcon(
+                  AppIcons.calendarClock,
+                  size: 20,
+                  color: AppColors.inkSecondary,
+                ),
+              ],
+            ),
           ),
         ),
       ],

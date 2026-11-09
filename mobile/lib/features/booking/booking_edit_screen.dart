@@ -27,7 +27,8 @@ class BookingEditRoute extends ConsumerWidget {
   }
 }
 
-// 06 で押した予約を直す。部品と日付・時刻の選び方は 01 と同じ。
+// 06 で押した予約を直す。伝えたいことと通話内容は 01 と同じ部品。
+// 日付と時刻は、モックの 06b のとおり 2 つの欄のまま。
 class BookingEditScreen extends ConsumerStatefulWidget {
   const BookingEditScreen({super.key, required this.index});
 

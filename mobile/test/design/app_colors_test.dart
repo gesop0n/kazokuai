@@ -15,6 +15,7 @@ void main() {
     expect(AppColors.line, const Color(0xFFC8C8CB));
     expect(AppColors.lineStrong, const Color(0xFF7F878F));
     expect(AppColors.stateCareSoft, const Color(0xFFFFFF99));
+    expect(AppColors.stateOk, const Color(0xFF35A16B));
     expect(AppColors.stateOkSoft, const Color(0xFFD5F5E3));
     expect(AppColors.stateAlert, const Color(0xFFDC3800));
     expect(AppColors.onStateAlert, const Color(0xFFFFFFFF));

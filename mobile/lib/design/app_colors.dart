@@ -14,6 +14,7 @@ abstract final class AppColors {
   static const lineStrong = Color(0xFF7F878F);
 
   static const stateCareSoft = Color(0xFFFFFF99);
+  static const stateOk = Color(0xFF35A16B);
   static const stateOkSoft = Color(0xFFD5F5E3);
   static const stateAlert = Color(0xFFDC3800);
   static const onStateAlert = Color(0xFFFFFFFF);

@@ -8,10 +8,13 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
+import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
+import 'package:kazokuai/features/booking/date_time_sheet.dart';
+import 'package:kazokuai/features/booking/usual_answer_times.dart';
 
 // 入力が止まってから、通話内容の案を頼むまでの時間
 const _draftPause = Duration(seconds: 1);
@@ -142,6 +145,29 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     }
   }
 
+  // キーボードがシートに被らないように、開く前に欄から焦点を外す。
+  // 通話記録はここを開いたときだけ読む。画面を描くたびに読まない。
+  Future<void> _pickWhen() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    final log = ref.read(callsRepositoryProvider).log.value;
+    final picked = await showDateTimeSheet(
+      context,
+      initial: DateTime(
+        _date.year,
+        _date.month,
+        _date.day,
+        _time.hour,
+        _time.minute,
+      ),
+      usualTimes: usualAnswerTimes(log),
+    );
+    if (!mounted || picked == null) return;
+    setState(() {
+      _date = DateTime(picked.year, picked.month, picked.day);
+      _time = TimeOfDay(hour: picked.hour, minute: picked.minute);
+    });
+  }
+
   void _book(String message) {
     final script = _script;
     if (script == null) return;
@@ -186,12 +212,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
           onChanged: _onMessageChanged,
         ),
         if (cardText != null) CallScriptCard(script: cardText),
-        DateTimeFields(
-          date: _date,
-          time: _time,
-          onDateChanged: (date) => setState(() => _date = date),
-          onTimeChanged: (time) => setState(() => _time = time),
-        ),
+        DateTimeItem(date: _date, time: _time, onTap: _pickWhen),
       ],
     );
   }
