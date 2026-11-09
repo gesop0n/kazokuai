@@ -276,16 +276,6 @@ class _ChoiceGroup<T> extends StatelessWidget {
 // モックの [data-retry] .chip。面の高さは AppChip の 36、左右の余白だけ 12
 const _retryChipPadding = 12.0;
 
-// モックの .field input。数字の書体の 16/24。500 は 400
-const _numberStyle = TextStyle(
-  fontFamily: 'BIZUDPGothic',
-  fontWeight: FontWeight.w400,
-  fontSize: 16,
-  height: 24 / 16,
-  letterSpacing: 0,
-  leadingDistribution: TextLeadingDistribution.even,
-);
-
 class _NumberField extends StatelessWidget {
   const _NumberField({
     required this.controller,
@@ -310,7 +300,11 @@ class _NumberField extends StatelessWidget {
       minHeight: 48,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      textStyle: _numberStyle,
+      // モックの .field input。16/24 は labelL。500 は 400、数字の字間は 0
+      textStyle: AppTextStyles.labelL.copyWith(
+        fontWeight: FontWeight.w400,
+        letterSpacing: 0,
+      ),
       onChanged: onChanged,
       trailing: ExcludeSemantics(
         child: Text(

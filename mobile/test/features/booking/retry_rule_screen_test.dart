@@ -235,9 +235,10 @@ void main() {
         isSemantics(label: 'かけなおす間隔を入力', isTextField: true, isFocused: true),
       );
       final number = tester.widget<EditableText>(find.byType(EditableText));
-      expect(number.style.fontFamily, 'BIZUDPGothic');
-      expect(number.style.fontSize, 16);
-      expect(number.style.height, 24 / 16);
+      expect(number.style.fontFamily, AppTextStyles.labelL.fontFamily);
+      expect(number.style.fontWeight, FontWeight.w400);
+      expect(number.style.fontSize, AppTextStyles.labelL.fontSize);
+      expect(number.style.height, AppTextStyles.labelL.height);
       expect(number.style.letterSpacing, 0);
       expect(
         tester.widget<Text>(find.text('分')).style?.fontSize,
