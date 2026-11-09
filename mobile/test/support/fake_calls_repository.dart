@@ -11,23 +11,23 @@ class FakeCallsRepository implements CallsRepository {
     CallLog? log,
     Map<String, CallDetail> details = const {},
   }) : log = ValueNotifier(log),
-       detail = ValueNotifier(null),
        _details = Map<String, CallDetail>.of(details);
 
   @override
   final ValueNotifier<CallLog?> log;
 
-  @override
-  final ValueNotifier<CallDetail?> detail;
-
   final Map<String, CallDetail> _details;
 
   @override
-  void open(String callId) {
-    detail.value = _details[callId];
-  }
+  CallSubscription open(String callId) =>
+      _FakeCallSubscription(_details[callId]);
+}
 
-  // 画面を閉じても通知しない。次に開くときに open が値を入れる
+// 閉じても値は変えない。次に開く画面は、自分の open が値を持つ
+class _FakeCallSubscription extends ValueNotifier<CallDetail?>
+    implements CallSubscription {
+  _FakeCallSubscription(super.value);
+
   @override
   void close() {}
 }

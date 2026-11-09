@@ -27,35 +27,34 @@ class FirebaseCallsRepository
   final DateTime Function() _now;
   final WidgetsBinding? _binding;
   final _log = ValueNotifier<CallLog?>(null);
-  final _detail = ValueNotifier<CallDetail?>(null);
+  final _subscriptions = <_CallSubscription>{};
   late final StreamSubscription<User?> _authSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _personSubscription;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _callsSubscription;
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _callSubscription;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
-  _utteranceSubscription;
   Timer? _dateChange;
   String? _personId;
   Map<String, dynamic>? _person;
   List<CallDocument>? _calls;
-  String? _openCallId;
-  bool _callReady = false;
-  bool _utterancesReady = false;
-  Map<String, dynamic>? _openCall;
-  List<Map<String, dynamic>>? _openUtterances;
 
   @override
   ValueListenable<CallLog?> get log => _log;
 
+  // 画面がそれぞれ自分の読み込みを持つ。開いても、ほかの画面には知らせない
   @override
-  ValueListenable<CallDetail?> get detail => _detail;
+  CallSubscription open(String callId) {
+    final subscription = _CallSubscription(this, callId);
+    _subscriptions.add(subscription);
+    subscription.start();
+    return subscription;
+  }
 
   void _watch(User? user) {
     _stop();
-    // 開く操作が最初の認証通知より先でも、その電話は残す。サインアウトでは閉じる
-    if (user == null) _openCallId = null;
+    // 開く操作が最初の認証通知より先でも、その読み込みは残す
     _log.value = null;
-    _detail.value = null;
+    for (final subscription in [..._subscriptions]) {
+      subscription.clear();
+    }
     if (user == null) return;
     _personSubscription = _firestore
         .collection('watchedPersons')
@@ -71,7 +70,9 @@ class FirebaseCallsRepository
       if (snapshot.metadata.isFromCache) return;
       _stopCalls();
       _log.value = null;
-      _detail.value = null;
+      for (final subscription in [..._subscriptions]) {
+        subscription.clear();
+      }
       return;
     }
     final doc = snapshot.docs.first;
@@ -87,7 +88,9 @@ class FirebaseCallsRepository
         .collection('calls')
         .snapshots(includeMetadataChanges: true)
         .listen(_onCalls, onError: _report);
-    _listenDetail();
+    for (final subscription in [..._subscriptions]) {
+      subscription.start();
+    }
   }
 
   void _onCalls(QuerySnapshot<Map<String, dynamic>> snapshot) {
@@ -100,56 +103,6 @@ class FirebaseCallsRepository
     _publish();
   }
 
-  @override
-  void open(String callId) {
-    _openCallId = callId;
-    _detail.value = null;
-    _listenDetail();
-  }
-
-  @override
-  void close() {
-    _openCallId = null;
-    _stopDetail();
-  }
-
-  void _listenDetail() {
-    _stopDetail();
-    _callReady = false;
-    _utterancesReady = false;
-    _openCall = null;
-    _openUtterances = null;
-    final personId = _personId;
-    final callId = _openCallId;
-    if (personId == null || callId == null) return;
-    final ref = _firestore
-        .collection('watchedPersons')
-        .doc(personId)
-        .collection('calls')
-        .doc(callId);
-    _callSubscription = ref
-        .snapshots(includeMetadataChanges: true)
-        .listen(_onCall, onError: _report);
-    _utteranceSubscription = ref
-        .collection('utterances')
-        .snapshots(includeMetadataChanges: true)
-        .listen(_onUtterances, onError: _report);
-  }
-
-  void _onCall(DocumentSnapshot<Map<String, dynamic>> snapshot) {
-    if (!snapshot.exists && snapshot.metadata.isFromCache) return;
-    _callReady = true;
-    _openCall = snapshot.data();
-    _publishDetail();
-  }
-
-  void _onUtterances(QuerySnapshot<Map<String, dynamic>> snapshot) {
-    if (snapshot.docs.isEmpty && snapshot.metadata.isFromCache) return;
-    _utterancesReady = true;
-    _openUtterances = [for (final doc in snapshot.docs) doc.data()];
-    _publishDetail();
-  }
-
   // バックグラウンドから戻ったとき。日付が変わっていれば「今日」を直す
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -160,23 +113,10 @@ class FirebaseCallsRepository
     final calls = _calls;
     if (_person == null || calls == null) return;
     _log.value = callLogFrom(calls: calls, now: _now());
-    _publishDetail();
-    _armDateChange();
-  }
-
-  void _publishDetail() {
-    if (!_callReady || !_utterancesReady) return;
-    final call = _openCall;
-    final utterances = _openUtterances;
-    if (call == null || utterances == null || _person == null) {
-      _detail.value = null;
-      return;
+    for (final subscription in [..._subscriptions]) {
+      subscription.publish();
     }
-    _detail.value = callDetailFrom(
-      callName: _callName,
-      call: call,
-      utterances: utterances,
-    );
+    _armDateChange();
   }
 
   String get _callName {
@@ -203,18 +143,9 @@ class FirebaseCallsRepository
     _personId = null;
     _person = null;
     _calls = null;
-    _stopDetail();
-  }
-
-  void _stopDetail() {
-    _callSubscription?.cancel();
-    _callSubscription = null;
-    _utteranceSubscription?.cancel();
-    _utteranceSubscription = null;
-    _callReady = false;
-    _utterancesReady = false;
-    _openCall = null;
-    _openUtterances = null;
+    for (final subscription in [..._subscriptions]) {
+      subscription.pause();
+    }
   }
 
   void _stop() {
@@ -240,8 +171,108 @@ class FirebaseCallsRepository
     _binding?.removeObserver(this);
     _authSubscription.cancel();
     _stop();
+    for (final subscription in [..._subscriptions]) {
+      subscription.close();
+    }
     _log.dispose();
-    _detail.dispose();
+  }
+}
+
+// 詳細の画面が 1 つ持つ読み込み。閉じても、ほかの画面の読み込みは残る
+class _CallSubscription extends ValueNotifier<CallDetail?>
+    implements CallSubscription {
+  _CallSubscription(this._repository, this.callId) : super(null);
+
+  final FirebaseCallsRepository _repository;
+  final String callId;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _callSubscription;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+  _utteranceSubscription;
+  var _callReady = false;
+  var _utterancesReady = false;
+  Map<String, dynamic>? _call;
+  List<Map<String, dynamic>>? _utterances;
+  var _closed = false;
+
+  void start() {
+    if (_closed) return;
+    pause();
+    final personId = _repository._personId;
+    if (personId == null) return;
+    final ref = _repository._firestore
+        .collection('watchedPersons')
+        .doc(personId)
+        .collection('calls')
+        .doc(callId);
+    _callSubscription = ref
+        .snapshots(includeMetadataChanges: true)
+        .listen(_onCall, onError: _repository._report);
+    _utteranceSubscription = ref
+        .collection('utterances')
+        .snapshots(includeMetadataChanges: true)
+        .listen(_onUtterances, onError: _repository._report);
+  }
+
+  // 見守る方が変わるとき。値はそのままにして、次のスナップショットで入れ直す
+  void pause() {
+    _cancel();
+    _callReady = false;
+    _utterancesReady = false;
+    _call = null;
+    _utterances = null;
+  }
+
+  void clear() {
+    if (_closed) return;
+    pause();
+    value = null;
+  }
+
+  void publish() {
+    if (_closed || !_callReady || !_utterancesReady) return;
+    final call = _call;
+    final utterances = _utterances;
+    if (call == null || utterances == null || _repository._person == null) {
+      value = null;
+      return;
+    }
+    value = callDetailFrom(
+      callName: _repository._callName,
+      call: call,
+      utterances: utterances,
+    );
+  }
+
+  void _onCall(DocumentSnapshot<Map<String, dynamic>> snapshot) {
+    if (_closed) return;
+    if (!snapshot.exists && snapshot.metadata.isFromCache) return;
+    _callReady = true;
+    _call = snapshot.data();
+    publish();
+  }
+
+  void _onUtterances(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    if (_closed) return;
+    if (snapshot.docs.isEmpty && snapshot.metadata.isFromCache) return;
+    _utterancesReady = true;
+    _utterances = [for (final doc in snapshot.docs) doc.data()];
+    publish();
+  }
+
+  void _cancel() {
+    _callSubscription?.cancel();
+    _callSubscription = null;
+    _utteranceSubscription?.cancel();
+    _utteranceSubscription = null;
+  }
+
+  // 値は変えない。変えると、画面を外している最中の builder に知らせてしまう
+  @override
+  void close() {
+    if (_closed) return;
+    _closed = true;
+    _cancel();
+    _repository._subscriptions.remove(this);
   }
 }
 
