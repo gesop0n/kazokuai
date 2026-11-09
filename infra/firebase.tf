@@ -65,11 +65,12 @@ resource "google_firebase_hosting_site" "web" {
 }
 
 # Web 版を公開するサイト。既定のサイトは残し、ここへ出す。
+# Web アプリは既定のサイトにつながっていて、1 つのアプリは 1 つのサイトにしかつなげないので、
+# このサイトには app_id を付けない。アプリは Firebase の設定をビルドのときに受け取るので、要らない。
 resource "google_firebase_hosting_site" "published" {
   provider = google-beta
   project  = var.project_id
   site_id  = var.hosting_site_id
-  app_id   = google_firebase_web_app.web.app_id
 
   # 既定の DELETE だと、replace のときにサイトを消す。PREVENT は ForceNew ではない。
   deletion_policy = "PREVENT"
