@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sort"
 	"sync"
-	"syscall"
 	"testing"
 	"time"
 
@@ -117,8 +116,8 @@ func TestRingerHoldsThePitchAndDutyOnTheRealClock(t *testing.T) {
 	// 幅は指定の 0.7–1.3 倍と、デューティー比 4–25% である。
 	// タイマー待ちの実測（260 Hz 前後、約 50%）はこの幅の外にある。
 	// mise run check は -short を付けない。-short のときだけ、この実時計の測定を飛ばす。
-	// 機械が忙しすぎて短い待ちを保てないとき、測っているあいだに CPU が回らなかったとき、
-	// 止めるゴルーチンが動き出せないときも、この測定だけを飛ばす。幅は変えない。
+	// 飛ばすのは、呼び出し音とは別に測って、機械が短い待ちを保てないときだけである。
+	// 呼び出し音自身が寝て周期が足りないときは、失敗のままにする。幅は変えない。
 	// タイマー待ちの音程は、忙しくなくても失敗する。
 	if testing.Short() {
 		t.Skip("実時計の音程は -short では測らない")
@@ -171,42 +170,37 @@ func TestRingerHoldsThePitchAndDutyOnTheRealClock(t *testing.T) {
 	t.Run("1600", func(t *testing.T) {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
+		var last error
 		for attempt := 0; attempt < realPitchAttempts; attempt++ {
 			if clockTooBusyForPitch(time.Second / 1600) {
 				t.Skip("実時計の音程は、この機械が忙しくて測れない")
 			}
 			pin := &timedPin{}
 			ringer := newRinger(pin, clock.Real{}, io.Discard)
-			cpu0, ok0 := procCPU()
-			started := time.Now()
 			if !ringer.tone(make(chan struct{}), ringerHighHz, realPitchWindow) {
 				t.Fatal("1,600 Hz が途中で止まった")
-			}
-			wall := time.Since(started)
-			cpu1, ok1 := procCPU()
-			cpu := wall
-			if ok0 && ok1 && cpu1 >= cpu0 {
-				cpu = cpu1 - cpu0
 			}
 			periods, duties := cycleStats(pin.snapshot(), 12)
 			err := pitchError(1600, periods, duties)
 			if err == nil {
 				return
 			}
-			// タイマー待ちは CPU を使わず、周期が揃ってデューティー比が約 50% になる。
-			// それは音程の失敗なので、忙しさでは飛ばさない。
+			last = err
+			// タイマー待ちは周期が揃って遅く、デューティー比が約 50% になる。
+			// 呼び出し音の側でそう見えるなら、機械の負荷では飛ばさない。
 			if timerPitch(1600, periods, duties) {
 				t.Fatal(err)
 			}
-			if measurementWasPreempted(1600, periods, duties) || cpuStarved(wall, cpu) {
-				continue
-			}
+			// ここでも呼び出し音は見ない。短い待ちを別の空回しで保てるなら、失敗のままにする。
 			if clockTooBusyForPitch(time.Second / 1600) {
-				t.Skip("実時計の音程は、この機械が忙しくて測れない")
+				continue
 			}
 			t.Fatal(err)
 		}
-		t.Skip("実時計の音程は、この機械が忙しくて測れない")
+		if last != nil && clockTooBusyForPitch(time.Second/1600) {
+			t.Skip("実時計の音程は、この機械が忙しくて測れない")
+		}
+		t.Fatal(last)
 	})
 }
 
@@ -288,20 +282,8 @@ func waitForCycles(pin *timedPin, n int) bool {
 	return true
 }
 
-// cpuStarved は、壁時計だけが進んで、このプロセスが半分も回っていなかったときである。
-func cpuStarved(wall, cpu time.Duration) bool {
-	return wall > 5*time.Millisecond && cpu*2 < wall
-}
-
-func procCPU() (time.Duration, bool) {
-	var usage syscall.Rusage
-	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
-		return 0, false
-	}
-	return time.Duration(usage.Utime.Nano() + usage.Stime.Nano()), true
-}
-
 // schedulerSlow は、別のゴルーチンが limit 以内に動き出せないときである。
+// 呼び出し音を止めるのにかかった時間では、機械が忙しいことにしない。
 func schedulerSlow(limit time.Duration) bool {
 	start := time.Now()
 	done := make(chan struct{})
@@ -421,21 +403,6 @@ func TestMeasurementWasPreemptedNeedsAStallAndTheRightPitch(t *testing.T) {
 	wrongDuty := []float64{0.50, 0.50, 0.50, 0.50, 0.50}
 	if measurementWasPreempted(1600, held, wrongDuty) {
 		t.Fatal("デューティー比が外れた測定を、忙しさで飛ばすとした")
-	}
-}
-
-func TestCPUStarvedWhenTheProcessDidNotRun(t *testing.T) {
-	if cpuStarved(15*time.Millisecond, 15*time.Millisecond) {
-		t.Fatal("回していた時間を、待たされたとした")
-	}
-	if cpuStarved(15*time.Millisecond, 8*time.Millisecond) {
-		t.Fatal("半分より長く回した時間を、待たされたとした")
-	}
-	if !cpuStarved(15*time.Millisecond, 2*time.Millisecond) {
-		t.Fatal("ほとんど回っていない時間を、測れるとした")
-	}
-	if cpuStarved(time.Millisecond, 0) {
-		t.Fatal("短すぎる測定を、待たされたとした")
 	}
 }
 
