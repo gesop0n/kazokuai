@@ -30,7 +30,9 @@ func (d *debouncer) update(raw int, now time.Time) int {
 }
 
 // contact は、接点のレベルから、電話に出るか切るかを決める。
-// 電話の開始時にすでに上がっている受話器は、一度置いてから上げるまで出ない。
+// 待ち始めたときにすでに上がっている受話器は、上がった出来事にはしない。
+// その受話器を置いたら伝える。置いたままの「＃」で認証コードを頼まないためである。
+// 電話に出るのは、一度置いてから上げたときである。
 type contact struct {
 	liftedWhenClosed bool
 	points           *debouncer
@@ -43,7 +45,9 @@ func newContact(initial int, now time.Time, liftedWhenClosed bool, debounce time
 		liftedWhenClosed: liftedWhenClosed,
 		points:           newDebouncer(initial, now, debounce),
 	}
-	c.seenDown = !c.lifted(initial)
+	// 初めから上がっていれば、次に置いた変化を置いたことにする。
+	c.up = c.lifted(initial)
+	c.seenDown = !c.up
 	return c
 }
 
