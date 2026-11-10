@@ -12,11 +12,20 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
 2. Fetch the icons into a folder outside the repository. Google Cloud's icons may not be redistributed, so never commit the icon files.
 
    ```bash
-   python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" \
-     "raspberrypi:raspberry-pi" gemini flutter firebase github "sa:lucide/key-round" "gcp:google-cloud" "run:gcp/cloud-run" \
+   python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" "browser:lucide/globe" \
+     "raspberrypi:raspberry-pi" gemini flutter firebase github "gcp:google-cloud" "run:gcp/cloud-run" \
      "secret:gcp/secret-manager" "hosting:firebase" "ar:gcp/artifact-registry" "iam:gcp/identity-and-access-management" \
      "tasks:gcp/cloud-tasks"
    cp <skill>/assets/generic/user.svg <icons>/person.svg
+   ```
+
+   Cloud Tasks, Secret Manager, Artifact Registry, and Workload Identity have no icon of their own in Google's current set, only their category's. The diagram uses their icons from Google Cloud's legacy icon set instead, which the person downloads from Google. Copy them over the fetched ones, from the folder `<legacy>` the set unpacks to:
+
+   ```bash
+   cp <legacy>/cloud_tasks/cloud_tasks.svg <icons>/tasks.svg
+   cp <legacy>/secret_manager/secret_manager.svg <icons>/secret.svg
+   cp <legacy>/artifact_registry/artifact_registry.svg <icons>/ar.svg
+   cp <legacy>/workload_identity_pool/workload_identity_pool.svg <icons>/iam.svg
    ```
 
 3. Build the HTML, then render both PNGs and look at them before you commit.
