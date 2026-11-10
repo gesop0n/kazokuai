@@ -19,6 +19,15 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
    cp <skill>/assets/generic/user.svg <icons>/person.svg
    ```
 
+   Cloud Tasks, Secret Manager, Artifact Registry, and Workload Identity have no icon of their own in Google's current set, only their category's. The diagram uses their icons from Google Cloud's legacy icon set instead, which the person downloads from Google. Copy them over the fetched ones, from the folder `<legacy>` the set unpacks to:
+
+   ```bash
+   cp <legacy>/cloud_tasks/cloud_tasks.svg <icons>/tasks.svg
+   cp <legacy>/secret_manager/secret_manager.svg <icons>/secret.svg
+   cp <legacy>/artifact_registry/artifact_registry.svg <icons>/ar.svg
+   cp <legacy>/workload_identity_pool/workload_identity_pool.svg <icons>/iam.svg
+   ```
+
 3. Build the HTML, then render both PNGs and look at them before you commit.
 
    ```bash
