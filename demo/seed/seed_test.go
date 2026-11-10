@@ -384,6 +384,8 @@ func TestReseededSampleRingsAtTheEditedTime(t *testing.T) {
 	waitSeedDeadline(t, clk, later)
 
 	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", now)
+	// 入れ直しはパスワードを設定し直す。エミュレーターは取り消しを秒で見るので、前の ID トークンは使えない。
+	token = signInToken(t, email, "judge-pass-1")
 	doc, err := person.Collection("bookings").Doc("sample-talk").Get(ctx)
 	if err != nil {
 		t.Fatal(err)
