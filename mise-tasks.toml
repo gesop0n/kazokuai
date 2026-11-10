@@ -82,7 +82,7 @@ dir = "{{config_root}}"
 run = "scripts/deploy_web.sh"
 
 ["demo:seed"]
-description = "審査員のアカウントと、田中 ハナの 1 週間の電話を作り直す。JUDGE_EMAIL と JUDGE_PASSWORD を環境に置く。例: mise run demo:seed -- --project=ID"
+description = "審査員のアカウントと、田中 ハナの 1 週間の電話と見本の予約を作り直す。見本の予約は実行した日の翌日以降で、タスクは作らない。JUDGE_EMAIL と JUDGE_PASSWORD を環境に置く。例: mise run demo:seed -- --project=ID"
 dir = "{{config_root}}"
 run = "go run ./demo/seed"
 

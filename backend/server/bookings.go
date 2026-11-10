@@ -54,6 +54,9 @@ type booking struct {
 	CallID  string    `firestore:"callId"`
 	// Sent は、電話機に届け終えたかである。かけていても、届く前に失敗したときは false のままである。
 	Sent bool `firestore:"sent"`
+	// Sample は、見本の予約である。demo:seed が true にする。タスクは作らない。
+	// 家族が直すと外す。
+	Sample bool `firestore:"sample,omitempty"`
 	// TaskPending は、この番号のタスクがまだ Cloud Tasks に無いとき true である。
 	// 保存と直しで立て、タスクを作れたら下ろす。見本の予約は持たないので、起動し直しても登録しない。
 	TaskPending bool `firestore:"taskPending"`
@@ -185,6 +188,7 @@ func waitFor(ctx context.Context, s *server, d time.Duration) bool {
 
 // loadUncalledBookings は、まだかけていない予約を読み、タイマーに入れる。
 // 起動の前に保存された予約を、動き直したあともかけるためである。
+// 見本の予約はタスクが無いので、読み直してもかけない。
 func (s *server) loadUncalledBookings() {
 	// 電話の接続だけを見る起動は Firestore を渡さない。予約は無いので読み直さない。
 	if s.firebase.Firestore == nil {
@@ -203,7 +207,7 @@ func (s *server) loadUncalledBookings() {
 			continue
 		}
 		var saved booking
-		if err := doc.DataTo(&saved); err != nil || saved.Called {
+		if err := doc.DataTo(&saved); err != nil || saved.Called || saved.Sample {
 			continue
 		}
 		s.scheduleBooking(person.ID, doc.Ref.ID, saved.Number)
@@ -419,6 +423,8 @@ func (s *server) saveBooking(ctx context.Context, personID, bookingID string, bo
 			{Path: "message", Value: body.Message},
 			{Path: "script", Value: body.Script},
 			{Path: "number", Value: number},
+			// 見本を直したときは見本ではなくする。このあとの予定と、動き直しがかかる。
+			{Path: "sample", Value: firestore.Delete},
 		}
 		if s.wantsBookingTask() {
 			updates = append(updates, firestore.Update{Path: "taskPending", Value: true})

@@ -149,6 +149,42 @@ func sampleDay(req Request) time.Time {
 	return day.In(japan)
 }
 
+// sampleBooking は、審査員の見守る方に入れる見本の予約である。
+// sample が true の予約はタスクを作らない。起動し直してもかけない。
+type sampleBooking struct {
+	id      string
+	at      time.Time
+	message string
+	script  string
+}
+
+// sampleBookings は、モックの予約 3 件である。
+// モックは今日の 12:00、今日の 19:00、2 日後の 10:00 だが、
+// 実行した日に置くと審査のあいだに鳴り得るので、全体を 1 日後ろへずらす。
+func sampleBookings(day time.Time) []sampleBooking {
+	y, m, d := day.In(japan).Date()
+	at := func(delta, hour, minute int) time.Time {
+		return time.Date(y, m, d+delta, hour, minute, 0, 0, japan)
+	}
+	return []sampleBooking{
+		{
+			id: "sample-talk", at: at(1, 12, 0),
+			message: "話し相手",
+			script:  "「ハナさん、こんにちは。\n体調はいかがですか。」",
+		},
+		{
+			id: "sample-evening", at: at(1, 19, 0),
+			message: "薬と戸締まりの確認",
+			script:  "「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」",
+		},
+		{
+			id: "sample-weekend", at: at(3, 10, 0),
+			message: "週末に帰ると伝える",
+			script:  "「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」",
+		},
+	}
+}
+
 // sampleCalls は、モックの通話記録に近い 1 週間である。出なかった電話を 1 件含む。
 // day の朝で終わり、その朝の電話がホームのまとめと詳細の会話になる。
 func sampleCalls(day time.Time) []sampleCall {
