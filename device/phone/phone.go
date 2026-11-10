@@ -1,6 +1,7 @@
 // Package phone は、電話機をバックエンドにつなぎ続け、来た指示ごとに電話を進める。
+// 電話の最中でないあいだは、フックとキーパッドを見て、受話器が上がっているときの「＃」で認証コードを読み上げる。
 //
-// 電話機のハードウェア(受話器の音声、フック、呼び出し音、ランプ)と Gemini は、
+// 電話機のハードウェア(受話器の音声、フック、キーパッド、呼び出し音、ランプ)と Gemini は、
 // この package のインターフェースの後ろに置く。Mac とラズパイで実装を差し替える。
 package phone
 
@@ -41,8 +42,7 @@ const (
 )
 
 // Hook は、受話器を上げ下げしたことを知らせる。
-// 電話のたびに Prepare で下ろした状態から始め、Rest でその監視を終える。
-// 待っているあいだに押した Enter は、次の電話の受話器上げにしない。
+// Prepare から Rest までが 1 回の監視で、その切れ目に押した Enter は次の監視へ持ち越さない。
 type Hook interface {
 	// Prepare は、受話器を下ろした状態から、この電話の上げ下げを知らせ始める。
 	Prepare()
@@ -63,10 +63,17 @@ type Lamp interface {
 	Off()
 }
 
+// Keypad は、押されたキーを 1 つずつ知らせる。
+// 受話器が上がっていて電話の最中でないときの「＃」で、認証コードを頼む。
+type Keypad interface {
+	Keys() <-chan string
+}
+
 // Phone は電話機である。
 type Phone struct {
 	Handset Handset
 	Hook    Hook
+	Keypad  Keypad
 	Ringer  Ringer
 	Lamp    Lamp
 }

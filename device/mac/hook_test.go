@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/gesop0n/kazokuai/device/phone"
 )
@@ -29,12 +30,45 @@ func TestIdleEnterDoesNotAnswerTheNextCall(t *testing.T) {
 		t.Fatalf("次の Enter = %v, want 受話器を上げた", got)
 	}
 
-	// 上がったまま電話が終わっても、次の電話は下ろした状態から始まる。
+	// 上がったまま次の監視が始まっても、空の行は置く方になる。上がった受話器では電話に出ない。
 	h.Rest()
 	h.Prepare()
 	fmt.Fprintln(inW, "")
-	if got := <-h.Events(); got != phone.PickedUp {
-		t.Fatalf("次の電話の Enter = %v, want 受話器を上げた", got)
+	if got := <-h.Events(); got != phone.PutDown {
+		t.Fatalf("上がったままの次の Enter = %v, want 受話器を置いた", got)
+	}
+}
+
+func TestHashLineIsAKeyAndNotTheHook(t *testing.T) {
+	inR, inW := io.Pipe()
+	defer inW.Close()
+	h := NewHook(inR, &bytes.Buffer{})
+
+	fmt.Fprintln(inW, "#")
+	if got := readKey(t, h); got != "#" {
+		t.Fatalf("キー = %q, want #", got)
+	}
+	fmt.Fprintln(inW, "5")
+	if got := readKey(t, h); got != "5" {
+		t.Fatalf("キー = %q, want 5", got)
+	}
+
+	h.Prepare()
+	select {
+	case ev := <-h.Events():
+		t.Fatalf("キーで %v を送った", ev)
+	default:
+	}
+}
+
+func readKey(t *testing.T, h *Hook) string {
+	t.Helper()
+	select {
+	case got := <-h.Keys():
+		return got
+	case <-time.After(time.Second):
+		t.Fatal("キーが届かなかった")
+		return ""
 	}
 }
 

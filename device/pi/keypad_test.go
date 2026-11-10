@@ -146,6 +146,29 @@ func TestKeypadCheckPrintsEachPressUntilStopped(t *testing.T) {
 	}
 }
 
+func TestListenKeysReportsHash(t *testing.T) {
+	cfg := loadedKeypad(t, func(string) string { return "" })
+	m := newMatrix(len(cfg.Rows), len(cfg.Cols))
+	k := mustKeypad(t, m, cfg.Keys, 0, clocktest.New(time.Unix(0, 0)))
+	m.Hold(3, 2)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	keys, done := ListenKeys(ctx, k)
+	select {
+	case got := <-keys.Keys():
+		if got != "#" {
+			t.Fatalf("キー = %q, want #", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("「＃」が届かなかった")
+	}
+	cancel()
+	done()
+	if err := k.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestKeypadCheckRejectsABadMapBeforeOpeningPins(t *testing.T) {
 	t.Setenv("KAZOKUAI_KEYPAD_KEYS", "1,2")
 	err := runCheck(context.Background(), "keypad", hardware{
