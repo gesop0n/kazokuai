@@ -191,21 +191,28 @@ func TestRefusedCallLogsThePersonWhenThePhoneDropsDuringCreation(t *testing.T) {
 		}
 		done <- response{status: got.StatusCode, body: body}
 	}()
+	// 作成が時計に着くまでに、家族と電話機の読み取りと、通話の一覧のトランザクションがある。
+	// エミュレーターがほかのテストと取り合っていると、2 秒では着かない。
 	select {
 	case <-entered:
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("電話を作り始める前に止まった")
 	}
 	if err := conn.Close(websocket.StatusNormalClosure, "作成中に切れた"); err != nil {
 		t.Fatal(err)
 	}
+	// 切れたことはログで待つ。Connected は電話機の読み取りに失敗すると、つながっていても切れたと返す。
+	// そのあいだに作成を進めると、電話が届いて、断ったログを確かめられない。
+	waitForLog(t, &logs, "電話機が切れました。見守る方: "+person)
 	waitConnected(t, handler, person, false)
 	letGo()
 
+	// 止めていた作成のトランザクションは、やり直しの待ちが 1 秒から倍々に伸びる。
+	// 戻ったあとの 409 と、届かなかった電話が残らないことと、見守る方の ID は、これまでどおり確かめる。
 	var resp response
 	select {
 	case resp = <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("今すぐ通話が戻らなかった")
 	}
 	if resp.status != http.StatusConflict || !strings.Contains(string(resp.body), protocol.PhoneNotConnected) {
@@ -570,9 +577,14 @@ func (l *lockedBuffer) String() string {
 	return l.b.String()
 }
 
+// slowEmulatorBound は、Firestore のエミュレーターがほかのテストと取り合っているときに、
+// 確かめたい出来事を待つ上限である。トランザクションのやり直しは最大 5 回で、
+// 待ちは 1 秒から倍々に伸び、その上限は 30 秒になる。その前の読み取りも 2 秒を超える。
+const slowEmulatorBound = 30 * time.Second
+
 func waitForLog(t *testing.T, logs *lockedBuffer, want string) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(slowEmulatorBound)
 	for {
 		if strings.Contains(logs.String(), want) {
 			return
@@ -672,7 +684,7 @@ func stayCallState(t *testing.T, personID, callID, want string, window time.Dura
 
 func waitCallState(t *testing.T, personID, callID, want string) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(slowEmulatorBound)
 	var got string
 	for {
 		got = callState(t, personID, callID)
@@ -688,7 +700,7 @@ func waitCallState(t *testing.T, personID, callID, want string) {
 
 func waitConnected(t *testing.T, handler *server.Handler, personID string, want bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(slowEmulatorBound)
 	for handler.Connected(personID) != want {
 		if time.Now().After(deadline) {
 			t.Fatalf("%s の接続 = %v, want %v", personID, handler.Connected(personID), want)

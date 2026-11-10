@@ -656,9 +656,11 @@ func TestReviewReplacementCannotReceiveStaleCall(t *testing.T) {
 		resp, err := postJSONBody(context.Background(), srv.URL+protocol.StartCallPath, "Bearer "+family.IDToken, `{"message":"金曜の通院","script":"ハナさん、美咲さんからです。"}`)
 		done <- callResult{resp: resp, err: err}
 	}()
+	// 作成が時計に着くまでに、家族と電話機の読み取りと、通話の一覧のトランザクションがある。
+	// エミュレーターがほかのテストと取り合っていると、2 秒では着かない。
 	select {
 	case <-gate.Hit():
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("電話の作成が止まらなかった")
 	}
 
@@ -677,7 +679,7 @@ func TestReviewReplacementCannotReceiveStaleCall(t *testing.T) {
 	var got callResult
 	select {
 	case got = <-done:
-	case <-time.After(30 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("今すぐ通話が戻らなかった")
 	}
 	if got.err != nil {

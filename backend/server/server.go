@@ -151,7 +151,9 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 			}
 		},
 		connected: func(personID string) bool {
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			// 読み取りの上限を短くすると、忙しいエミュレーターでは失敗が「つながっていない」になる。
+			// トランザクションのやり直しと同じく、30 秒まで待つ。
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			return s.personConnected(ctx, personID)
 		},
