@@ -16,6 +16,11 @@ service cloud.firestore {
           allow read: if isFamily(watchedPerson);
         }
       }
+
+      // 予約。家族は読める。書くのはバックエンドだけである
+      match /bookings/{booking} {
+        allow read: if isFamily(watchedPerson);
+      }
     }
 
     // 電話機。鍵のハッシュと、見守る方との結び付きを置く。アプリは読めない。

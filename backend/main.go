@@ -5,6 +5,8 @@
 // プロジェクトは環境変数 GOOGLE_CLOUD_PROJECT から読む。demo- のプロジェクトは Firebase のエミュレーターにつながり、
 // それ以外は渡したプロジェクトのサービスアカウントでつながる。手元では mise run backend が demo-kazokuai とエミュレーターを渡す。
 // 電話機の合言葉は環境変数 PHONE_SECRET から読む。前後の空白は除く。demo- のプロジェクトで未設定なら、開発用の合言葉を使う。
+// 予約のタスクの OIDC は、環境変数 BOOKING_TASK_AUDIENCE（バックエンド自身の URL）と BOOKING_TASK_ACCOUNT（サービスアカウントのメール）を読む。前後の空白は除く。
+// demo- のプロジェクトでは、その道を閉じ、中のタイマーが予約の時刻に電話をかける。
 // SIGTERM を受けると、電話機との接続を閉じてから止まる。
 //
 //	mise run backend
@@ -94,6 +96,8 @@ func run(config server.Config) error {
 	}
 	config.ProjectID = projectID
 	config.PhoneSecret = secret
+	config.TasksAudience = strings.TrimSpace(os.Getenv("BOOKING_TASK_AUDIENCE"))
+	config.TasksAccount = strings.TrimSpace(os.Getenv("BOOKING_TASK_ACCOUNT"))
 	addr, err := listenAddr(os.Getenv("PORT"))
 	if err != nil {
 		return err

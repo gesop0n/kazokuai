@@ -1,4 +1,4 @@
-// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話と通話内容の案を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
+// Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話と予約と通話内容の案を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
 // 古い道の電話機は見守る方の ID ごとに、ID と鍵で認証した電話機は電話機の ID ごとに、メモリーで持つ。
 package server
 
@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,6 +44,13 @@ type Config struct {
 	PhoneSecret string
 	// Logger は、電話機のつながりと、電話機がいない今すぐ通話を書く。nil なら標準のログである。
 	Logger *log.Logger
+	// TasksAudience は、予約のタスクの OIDC トークンの audience である。バックエンド自身の URL。
+	TasksAudience string
+	// TasksAccount は、予約のタスクのサービスアカウントのメールである。トークンの email と一致させる。
+	TasksAccount string
+	// CheckBookingOIDC は、予約のタスクの OIDC トークンを確かめ、そのメールアドレスを返す。
+	// nil なら Google の ID トークンを確かめる。テストが差し替える。
+	CheckBookingOIDC func(ctx context.Context, token, audience string) (email string, err error)
 }
 
 // DefaultSummaryModel は、まとめに使うモデルの既定値である。
@@ -76,9 +84,11 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 // protocol.PhoneRegisterPath で電話機の ID と鍵を登録し、protocol.PhoneCodePath で認証コードを出し、
 // watchedPersonsPath でアプリから見守る方の登録を受け、protocol.DraftScriptPath で通話内容の案を作り、
 // protocol.StartCallPath で今すぐ通話を始め、protocol.CallReportPath でデバイスから電話の報告を受け、
-// protocol.SyncPreparePath で同期の準備を始め、protocol.SyncCodePath で認証コードを受け付ける Handler を返す。
+// protocol.SyncPreparePath で同期の準備を始め、protocol.SyncCodePath で認証コードを受け付け、
+// protocol.BookingPath で予約を保存し直し、protocol.BookingTaskPath で予約の時刻に電話を始める Handler を返す。
 // アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
-// 電話機の道（登録、認証コード、/token、/calls、WebSocket）は、/api の下には置かない。
+// 電話機の道（登録、認証コード、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
+// demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約を読み直す。
 // clk が nil のとき、タイマーは実時間で進む。
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
@@ -90,7 +100,16 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 		clock:      clk,
 		phones:     newPhoneBook(),
 		syncs:      newSyncBook(),
+		delivered:  map[string]struct{}{},
 		base:       ctx,
+	}
+	var bookings *demoSchedule
+	if strings.HasPrefix(config.ProjectID, "demo-") {
+		bookings = newDemoSchedule(s)
+		s.schedule = bookings
+		s.loadUncalledBookings()
+	} else {
+		s.schedule = noopSchedule{}
 	}
 	router := chi.NewRouter()
 	router.Post(protocol.PhoneRegisterPath, s.registerPhone)
@@ -98,11 +117,18 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 	router.Get(protocol.PhonePath, s.requirePhone(s.phone))
 	router.Post(protocol.TokenPath, s.requirePhone(s.token))
 	router.Post(protocol.CallReportPath, s.requirePhone(s.reportCall))
+	router.Post(protocol.BookingTaskPath, s.fireBookingTask)
 	s.mountApp(router)
 	router.Route("/api", s.mountApp)
 	return &Handler{
 		Handler: s.withCORS(router),
-		stop:    stop,
+		stop: func() {
+			stop()
+			s.work.Wait()
+			if bookings != nil {
+				bookings.wg.Wait()
+			}
+		},
 		connected: func(personID string) bool {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
@@ -118,6 +144,8 @@ func (s *server) mountApp(r chi.Router) {
 	r.Post(protocol.StartCallPath, s.startCall)
 	r.Post(protocol.SyncPreparePath, s.startSyncPrep)
 	r.Post(protocol.SyncCodePath, s.sendSyncCode)
+	r.Post(protocol.BookingPath, s.createBooking)
+	r.Post(protocol.BookingPath+"/{booking}", s.editBooking)
 }
 
 func (s *server) newTimer(d time.Duration) clock.Timer {
@@ -138,8 +166,18 @@ type server struct {
 	// linkMu は、結び付きの確認から消費までと、電話を届ける直前の読み直しを重ねない。
 	// 同じ準備で二人分を結び付けたり、外した電話機へ電話を届けたりしないためである。
 	linkMu sync.Mutex
-	// clock は、トークンの期限と、ping と、切れた接続の猶予と、同期の期限を進める。nil なら実時間である。
+	// deliverMu は、予約の電話を届ける処理を 1 件ずつにする。
+	// 届けた印を付ける前に、もう一方が印の無い予約を戻さないためである。
+	deliverMu sync.Mutex
+	// delivered は、電話機には届いたが、届けた印を書けなかった電話の ID である。
+	// プロセスが終わると消える。印を書けたあとは見ない。
+	delivered map[string]struct{}
+	// work は、保存した予約を予定へ入れ続ける goroutine を待つ。
+	work sync.WaitGroup
+	// clock は、トークンの期限と、ping と、切れた接続の猶予と、同期の期限と、予約の時刻を進める。nil なら実時間である。
 	clock clock.Clock
+	// schedule は、予約の ID と番号で、その時刻に電話を予定へ入れる。
+	schedule bookingSchedule
 	// base は、このサーバーが止まるまで生きている context である。電話機の接続はこれに従う。
 	base context.Context
 }
