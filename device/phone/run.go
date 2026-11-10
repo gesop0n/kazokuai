@@ -161,23 +161,17 @@ func (q *callQueue) push(id string) {
 	}
 }
 
-func (q *callQueue) next(ctx context.Context) (string, bool) {
-	for {
-		q.mu.Lock()
-		if len(q.ids) > 0 {
-			id := q.ids[0]
-			q.ids[0] = ""
-			q.ids = q.ids[1:]
-			q.mu.Unlock()
-			return id, true
-		}
-		q.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return "", false
-		case <-q.wake:
-		}
+// try は、待っている電話が 1 本あればそれを返す。無ければ false で、待たない。
+func (q *callQueue) try() (string, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.ids) == 0 {
+		return "", false
 	}
+	id := q.ids[0]
+	q.ids[0] = ""
+	q.ids = q.ids[1:]
+	return id, true
 }
 
 // Run は、バックエンドと WebSocket でつながり続け、電話の指示が来るたびに電話をする。
@@ -193,6 +187,7 @@ func (d *Device) Run(ctx context.Context) error {
 			return err
 		}
 	}
+	d.speeches = make(chan speech, 1)
 	link := &sessionLink{}
 	commands := newCallQueue()
 	var wg sync.WaitGroup
@@ -274,15 +269,18 @@ func (d *Device) finish(err error) {
 	}
 }
 
-// handleCommands は、指示が来るたびに 1 本ずつ電話をする。
+// handleCommands は、電話が来るまでフックとキーパッドを見て、来たら 1 本ずつ電話をする。
 func (d *Device) handleCommands(ctx context.Context, link callLink, commands *callQueue) {
 	for {
-		callID, ok := commands.next(ctx)
+		callID, ok := d.idleUntilCall(ctx, commands)
 		if !ok {
 			return
 		}
+		d.setCalling(true)
+		d.stopSpeaking()
 		callCtx, cancel, armed := d.armCall(ctx)
 		if !armed {
+			d.setCalling(false)
 			d.sendState(link, callID, protocol.StateFailed)
 			d.finish(context.Canceled)
 			continue
@@ -290,6 +288,9 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 		err := d.place(callCtx, link, callID)
 		d.disarmCall()
 		cancel()
+		// 電話の最中に置いた受話器は出来事にならない。同期の知らせを見る前に、今の状態を読む。
+		d.adoptHandset()
+		d.setCalling(false)
 		d.finish(err)
 		if ctx.Err() != nil {
 			return
@@ -327,10 +328,18 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 			return true, err
 		}
 		var msg protocol.PhoneMessage
-		if json.Unmarshal(data, &msg) != nil || msg.Type != protocol.PhoneTypeCall || msg.CallID == "" {
+		if json.Unmarshal(data, &msg) != nil {
 			continue
 		}
-		commands.push(msg.CallID)
+		switch msg.Type {
+		case protocol.PhoneTypeCall:
+			if msg.CallID != "" {
+				commands.push(msg.CallID)
+			}
+		case protocol.PhoneTypeSynced:
+			// 受話器が上がっていて電話の最中でないときだけ、その場で完了を話す。あとには残さない。
+			d.deliverSynced()
+		}
 	}
 }
 
