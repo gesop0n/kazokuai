@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # main で追跡しているファイルを、提出先の作業ツリーへ写す。
-# 提出先の .git と LICENSE は残す。秘密があれば push しない。
+# 提出先の .git と LICENSE は残す。.github/workflows は写さない。
+# 秘密があれば push しない。
 # トークンは表示しない。提出先の認証は、workflow の checkout が済ませる。
 set -euo pipefail
 
@@ -58,6 +59,12 @@ find "$dest" -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
   git archive HEAD
 ) | tar -x -C "$dest"
 cp "$license" "$dest/LICENSE"
+
+# 提出先では Actions は動かない。workflows を入れると Contents の権限では push できない。
+rm -rf "$dest/.github/workflows"
+if [[ -d "$dest/.github" ]] && [[ -z $(find "$dest/.github" -mindepth 1 -print -quit) ]]; then
+  rmdir "$dest/.github"
+fi
 
 if ! python3 -I "$root/scripts/scan_secrets.py" "$dest"; then
   echo "秘密の形をした文字列があるため、提出先へは送りません。" >&2

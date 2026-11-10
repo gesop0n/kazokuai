@@ -39,6 +39,10 @@ class SubmitSnapshotTest(unittest.TestCase):
 
         script = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("git archive HEAD", script)
+        self.assertLess(
+            script.index('rm -rf "$dest/.github/workflows"'),
+            script.index("scan_secrets.py"),
+        )
         self.assertIn("LICENSE", script)
         self.assertIn(".git", script)
         self.assertIn("scan_secrets.py", script)
@@ -141,6 +145,36 @@ class SubmitSnapshotTest(unittest.TestCase):
                 "41898282+github-actions[bot]@users.noreply.github.com",
             )
 
+    def test_sync_omits_github_workflows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, bare, dest = repos(root)
+            init_repo(
+                source,
+                {
+                    "README.md": "from source\n",
+                    "LICENSE": "source license\n",
+                    ".github/workflows/submit.yml": "name: submit\n",
+                    ".github/CODEOWNERS": "owned\n",
+                },
+            )
+            init_repo(
+                dest,
+                {
+                    "README.md": "old\n",
+                    "LICENSE": "submission license\n",
+                    ".github/workflows/old.yml": "name: old\n",
+                },
+            )
+            publish(dest, bare)
+            result = run_sync(source, dest)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            names = tree_names(bare)
+            self.assertIn(".github/CODEOWNERS", names)
+            self.assertEqual(blob(bare, "main", ".github/CODEOWNERS"), "owned\n")
+            self.assertFalse(any(name.startswith(".github/workflows/") for name in names))
+            self.assertFalse((dest / ".github" / "workflows").exists())
+
     def test_sync_finishes_without_a_commit_when_nothing_changed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -193,6 +227,9 @@ class SubmitSnapshotTest(unittest.TestCase):
         self.assertIn("workflow_dispatch", section)
         self.assertIn("mise run check", section)
         self.assertIn("git archive HEAD", section)
+        self.assertIn(".github/workflows/", section)
+        self.assertIn("Workflows", section)
+        self.assertIn("Contents の読み書き", section)
         self.assertIn("gh secret set SUBMISSION_TOKEN --repo gesop0n/kazokuai", section)
         self.assertIn("読み取り専用", section)
 
@@ -349,6 +386,16 @@ def blob(bare, revspec, path):
     if result.returncode != 0:
         return None
     return result.stdout
+
+
+def tree_names(bare):
+    result = subprocess.run(
+        ["git", "--git-dir", str(bare), "ls-tree", "-r", "--name-only", "main"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return result.stdout.splitlines()
 
 
 def subject(bare):

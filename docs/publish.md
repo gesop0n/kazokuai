@@ -252,7 +252,7 @@ GitHub の Actions で、ワークフロー `deploy` を `main` から手で 1 �
 
 ハッカソンの審査は、公開のリポジトリ `Devfest-Hackathon-2026/df-2026-t086` の中身で行う。そこでは GitHub Actions は動かない。このリポジトリのワークフロー `submit` が、`main` のスナップショットを提出先の `main` へ写す。履歴は写さない。動かすのは手だけである。
 
-きっかけは `workflow_dispatch` だけである。`main` 以外の ref では断る。先に `mise run check` が動き、通ったときだけ写す。写すのは、ワークフローを動かしたコミットで git が追跡しているファイルである。コマンドは `git archive HEAD` である。提出先の `.git` と `LICENSE` は残す。`github-actions[bot]` が、このリポジトリの名前と短い SHA をメッセージにしてコミットし、提出先の `main` に push する。変更がなければコミットしない。
+きっかけは `workflow_dispatch` だけである。`main` 以外の ref では断る。先に `mise run check` が動き、通ったときだけ写す。写すのは、ワークフローを動かしたコミットで git が追跡しているファイルである。コマンドは `git archive HEAD` である。`.github/workflows/` は写さない。提出先では GitHub Actions が動かない。このフォルダを入れると push に Workflows の権限が要るが、トークンは Contents の読み書きだけである。提出先にすでにこのフォルダがあっても残さない。提出先の `.git` と `LICENSE` は残す。`github-actions[bot]` が、このリポジトリの名前と短い SHA をメッセージにしてコミットし、提出先の `main` に push する。変更がなければコミットしない。
 
 push の前に、スナップショットに秘密の形をした文字列（Google の API キー、秘密鍵の見出し、GitHub のトークン）がないかを調べる。見つかったら push せずに失敗する。出すのはファイルの名前だけで、値は出さない。
 
