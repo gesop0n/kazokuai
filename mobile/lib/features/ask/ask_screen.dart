@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
@@ -13,9 +14,6 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
 import 'package:kazokuai/features/booking/date_time_pick.dart';
 import 'package:kazokuai/features/booking/date_time_sheet.dart';
-
-// 入力が止まってから、通話内容の案を頼むまでの時間
-const _draftPause = Duration(seconds: 1);
 
 enum _DraftPhase { hidden, making, ready, failed }
 
@@ -28,8 +26,9 @@ class AskScreen extends ConsumerStatefulWidget {
 
 class _AskScreenState extends ConsumerState<AskScreen> {
   final _messageController = TextEditingController();
-  DateTime _date = DateTime(2026, 11, 6);
-  TimeOfDay _time = const TimeOfDay(hour: 8, minute: 30);
+  late DateTime _date;
+  late TimeOfDay _time;
+  var _saving = false;
 
   Timer? _draftTimer;
   int _draftGeneration = 0;
@@ -44,6 +43,11 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   @override
   void initState() {
     super.initState();
+    // モックの 11/6 8:30 は、基準日の翌朝。端末の今日の翌朝 8:30 にする。
+    final now = ref.read(bookingNowProvider)();
+    final morning = DateTime(now.year, now.month, now.day + 1, 8, 30);
+    _date = DateTime(morning.year, morning.month, morning.day);
+    _time = const TimeOfDay(hour: 8, minute: 30);
     _progress = ref.read(callProgressRepositoryProvider).inProgress;
     _progress.addListener(_onCallProgress);
   }
@@ -74,7 +78,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
       _phase = _DraftPhase.hidden;
     });
     if (message.isEmpty) return;
-    _draftTimer = Timer(_draftPause, () => _requestDraft(message));
+    _draftTimer = Timer(bookingDraftPause, () => _requestDraft(message));
   }
 
   Future<void> _requestDraft(String message) async {
@@ -148,6 +152,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDateTimeSheet(
       context,
+      now: ref.read(bookingNowProvider),
       initial: DateTime(
         _date.year,
         _date.month,
@@ -163,30 +168,56 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     });
   }
 
-  void _book(String message) {
+  Future<void> _book(String message) async {
     final script = _script;
-    if (script == null) return;
-    ref
-        .read(bookedCallsProvider.notifier)
-        .add(
-          at: DateTime(
-            _date.year,
-            _date.month,
-            _date.day,
-            _time.hour,
-            _time.minute,
-          ),
-          message: message,
-          script: script,
-        );
-    context.goNamed(AppRoutes.booking);
+    if (script == null || _saving) return;
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(bookingsRepositoryProvider)
+          .create(
+            at: DateTime(
+              _date.year,
+              _date.month,
+              _date.day,
+              _time.hour,
+              _time.minute,
+            ),
+            message: message,
+            script: script,
+          );
+      if (!mounted) return;
+      context.goNamed(AppRoutes.booking);
+    } catch (error) {
+      _showFailure(error);
+    }
+  }
+
+  void _showFailure(Object error) {
+    final message = bookingFailureMessage(error);
+    if (message == null) throw error;
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
     final message = _messageController.text.trim();
     final cardText = _cardText;
-    final canSend = _canSend;
+    final now = ref.watch(bookingNowProvider)();
+    final at = DateTime(
+      _date.year,
+      _date.month,
+      _date.day,
+      _time.hour,
+      _time.minute,
+    );
+    final canSend = _canSend && canBookAt(at, now) && !_saving;
     return BookingFormLayout(
       title: 'AIに伝えてもらう',
       onLeadingTap: () => popOrGoToParent(context),
@@ -196,7 +227,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
           final busy = inProgress || _refusedWhileBusy;
           return BookingFormActions(
             onBook: canSend ? () => _book(message) : null,
-            onCall: canSend && !busy ? () => _call(message) : null,
+            onCall: _canSend && !busy ? () => _call(message) : null,
             callLabel: busy ? '通話中です' : '今すぐ通話',
           );
         },

@@ -8,6 +8,7 @@ import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 
 import 'support/fake_auth_repository.dart';
+import 'support/fake_bookings_repository.dart';
 import 'support/fake_calls_repository.dart';
 import 'support/fake_home_repository.dart';
 import 'support/fake_watched_person_repository.dart';
@@ -23,6 +24,7 @@ void main() {
           registeredWatchedPerson(),
           sampleHome(),
           sampleCalls(),
+          emptyBookings(),
         ],
         child: const KazokuAiApp(),
       ),
@@ -44,6 +46,7 @@ void main() {
           registeredWatchedPerson(),
           sampleHome(),
           sampleCalls(),
+          emptyBookings(),
         ],
         child: const KazokuAiApp(),
       ),

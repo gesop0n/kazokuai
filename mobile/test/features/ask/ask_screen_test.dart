@@ -15,14 +15,15 @@ import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
-import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/home_status.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/fake_immediate_call_repository.dart';
@@ -59,6 +60,8 @@ Future<FakeCallScriptRepository> _pumpAsk(
       callProgressRepositoryProvider.overrideWithValue(
         progress ?? FakeCallProgressRepository(),
       ),
+      emptyBookings(),
+      mockBookingNow(),
     ],
   ).then((_) => repository);
 }
@@ -88,6 +91,8 @@ Future<FakeImmediateCallRepository> _pumpAppAndOpenAsk(
         callProgressRepositoryProvider.overrideWithValue(
           progress ?? FakeCallProgressRepository(),
         ),
+        emptyBookings(),
+        mockBookingNow(),
       ],
       child: const KazokuAiApp(),
     ),
@@ -134,6 +139,10 @@ Future<void> _setWheel(WidgetTester tester, Finder wheel, int index) async {
 
 AppButton _button(WidgetTester tester, String label) =>
     tester.widget<AppButton>(find.widgetWithText(AppButton, label));
+
+FakeBookingsRepository _bookings(WidgetTester tester) =>
+    tester.container().read(bookingsRepositoryProvider)
+        as FakeBookingsRepository;
 
 TextField _textField(WidgetTester tester) =>
     tester.widget<TextField>(find.byType(TextField));
@@ -620,10 +629,10 @@ void main() {
       expect(calls.started, isEmpty);
       expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
       expect(find.byType(AskScreen), findsOneWidget);
-      expect(tester.container().read(bookedCallsProvider), hasLength(3));
+      expect(_bookings(tester).bookings.value, isEmpty);
     });
 
-    testWidgets('「この日時で予約する」は日時の順に予約を足し、06 を開く', (tester) async {
+    testWidgets('「この日時で予約する」は予約を保存し、06 を開く', (tester) async {
       await _pumpAppAndOpenAsk(tester);
       await _enterMessage(tester);
       await _waitForDraft(tester);
@@ -637,30 +646,13 @@ void main() {
       expect(tester.container().read(homeStatusProvider), HomeStatus.normal);
       expect(tester.testTextInput.isVisible, isFalse);
 
-      final calls = tester.container().read(bookedCallsProvider);
-      expect(calls.map((call) => call.message), [
-        '話し相手',
-        '薬と戸締まりの確認',
-        _message,
-        '週末に帰ると伝える',
-      ]);
-      expect(calls[2].at, DateTime(2026, 11, 6, 8, 30));
-      expect(calls[2].script, _drafted);
+      final saved = _bookings(tester).created.single;
+      expect(saved.message, _message);
+      expect(saved.at, DateTime(2026, 11, 6, 8, 30));
+      expect(saved.script, _drafted);
       expect(find.text('11/6 08:30'), findsOneWidget);
       expect(find.text(_message), findsOneWidget);
-
-      final tops = [
-        for (final label in [
-          '今日 12:00',
-          '今日 19:00',
-          '11/6 08:30',
-          '11/7 10:00',
-        ])
-          tester.getTopLeft(find.text(label)).dy,
-      ];
-      expect(tops[0], lessThan(tops[1]));
-      expect(tops[1], lessThan(tops[2]));
-      expect(tops[2], lessThan(tops[3]));
+      expect(find.text('話し相手'), findsNothing);
     });
 
     testWidgets('選んだ日時の位置に予約を足す', (tester) async {
@@ -678,9 +670,9 @@ void main() {
       await tester.tap(find.text('この日時で予約する'));
       await tester.pumpAndSettle();
 
-      final calls = tester.container().read(bookedCallsProvider);
-      expect(calls.first.message, _message);
-      expect(calls.first.at, DateTime(2026, 11, 5, 9));
+      final saved = _bookings(tester).created.single;
+      expect(saved.message, _message);
+      expect(saved.at, DateTime(2026, 11, 5, 9));
       expect(find.text('今日 09:00'), findsOneWidget);
     });
 
@@ -694,11 +686,32 @@ void main() {
       await tester.tap(find.text('この日時で予約する'));
       await tester.pumpAndSettle();
 
-      expect(
-        tester.container().read(bookedCallsProvider)[2].message,
-        '週末に電話する',
-      );
+      expect(_bookings(tester).created.single.message, '週末に電話する');
     });
+
+    for (final (failure, text) in [
+      (const BookingTooCloseException(), '近い時刻に予約があります'),
+      (const BookingTooSoonException(), '早すぎる'),
+      (const BookingTooFarException(), '先すぎる'),
+      (const BookingFailedException(), '送れなかった'),
+    ]) {
+      testWidgets('$text と出て、01 に留まる', (tester) async {
+        await _pumpAppAndOpenAsk(tester);
+        await _enterMessage(tester);
+        await _waitForDraft(tester);
+        final bookings = _bookings(tester);
+        bookings.failure = failure;
+
+        await tester.tap(find.text('この日時で予約する'));
+        await tester.pump();
+
+        expect(find.text(text), findsOneWidget);
+        expect(find.byType(AskScreen), findsOneWidget);
+        expect(find.byType(BookingScreen), findsNothing);
+        expect(bookings.created, isEmpty);
+        await tester.pump(const Duration(seconds: 2));
+      });
+    }
 
     testWidgets('タブを切り替えても足した予約は残る', (tester) async {
       await _pumpAppAndOpenAsk(tester);
@@ -809,7 +822,7 @@ void main() {
 
       expect(find.byType(BookingScreen), findsOneWidget);
       expect(calls.started, isEmpty);
-      expect(tester.container().read(bookedCallsProvider)[2].message, _message);
+      expect(_bookings(tester).created.single.message, _message);
       expect(find.text('11/6 08:30'), findsOneWidget);
     });
 
