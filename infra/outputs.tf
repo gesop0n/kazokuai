@@ -63,6 +63,21 @@ output "phone_shared_secret" {
   value       = google_secret_manager_secret.phone_shared_secret.secret_id
 }
 
+output "booking_task_queue" {
+  description = "予約のタスクを入れる Cloud Tasks のキュー。"
+  value       = google_cloud_tasks_queue.bookings.id
+}
+
+output "booking_task_account" {
+  description = "予約のタスクのサービスアカウントのメールアドレス。鍵は出ない。"
+  value       = google_service_account.tasks.email
+}
+
+output "booking_task_audience" {
+  description = "予約のタスクの OIDC の audience。バックエンド自身の決定的な URL。"
+  value       = local.backend_url
+}
+
 output "workload_identity_provider" {
   description = "GitHub Actions が使う Workload Identity のプロバイダー。名前はプロジェクト番号を含む。秘密の値は出ない。"
   value       = google_iam_workload_identity_pool_provider.github.name

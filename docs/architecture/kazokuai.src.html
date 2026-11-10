@@ -173,7 +173,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
 
   <header class="head">
     <div>
-      <div class="kicker">ADR 0003 · ADR 0011 · 2026-11-10</div>
+      <div class="kicker">ADR 0003 · ADR 0011 · ADR 0014 · 2026-11-10</div>
       <h1>かぞくAI の構成</h1>
     </div>
     <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。公開は GitHub Actions から手で行う。</p>
@@ -238,16 +238,18 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <text class="el" x="1040" y="122" text-anchor="middle">イメージ</text>
       <path class="n dash" d="M960 204 V230 H660 V276" marker-end="url(#ar)"/>
       <text class="el" x="710" y="222" text-anchor="middle">リビジョン</text>
-      <path class="n dash" d="M880 230 V276" marker-end="url(#ar)"/>
-      <text class="el" x="920" y="222" text-anchor="middle">Web 版</text>
+      <path class="n dash" d="M960 230 V276" marker-end="url(#ar)"/>
+      <text class="el" x="1000" y="222" text-anchor="middle">Web 版</text>
 
       <!-- the 家族's app -->
       <path class="n" d="M994 570 H916" marker-end="url(#ar)"/>
       <text class="el" x="955" y="562" text-anchor="middle">使う</text>
-      <path class="n" d="M880 534 V386" marker-end="url(#ar)"/>
-      <text class="el" x="870" y="420" text-anchor="end">Web 版・操作</text>
-      <path class="n" d="M844 310 H676" marker-end="url(#ar)"/>
-      <text class="el" x="760" y="302" text-anchor="middle">/api/**</text>
+      <path class="n" d="M880 534 V520 H960 V386" marker-end="url(#ar)"/>
+      <text class="el" x="970" y="470">Web 版・操作</text>
+      <path class="n" d="M766 310 H674" marker-end="url(#ar)"/>
+      <text class="el" x="720" y="302" text-anchor="middle">予約の時刻</text>
+      <path class="n" d="M960 386 V412 H700 V386" marker-end="url(#ar)"/>
+      <text class="el" x="830" y="404" text-anchor="middle">/api/**</text>
       <path class="n" d="M856 534 V465 H676 V386" marker-end="url(#ar)"/>
       <text class="el" x="766" y="457" text-anchor="middle">操作 · iOS</text>
       <path class="n" d="M904 534 V450 H1120 V386" marker-end="url(#ar)"/>
@@ -291,7 +293,11 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <div class="tile"><img src="%%ICON_run%%" alt=""></div>
       <div class="name"><span>Cloud Run</span></div><div class="role"><span>最大 1 インスタンス</span></div>
     </div>
-    <div class="node" style="left:814px;top:280px">
+    <div class="node" style="left:734px;top:280px">
+      <div class="tile"><img src="%%ICON_tasks%%" alt=""></div>
+      <div class="name"><span>Cloud Tasks</span></div><div class="role"><span>予約の時刻</span></div>
+    </div>
+    <div class="node" style="left:894px;top:280px">
       <div class="tile"><img src="%%ICON_hosting%%" alt=""></div>
       <div class="name"><span>Firebase Hosting</span></div><div class="role"><span>Web 版・/api/**</span></div>
     </div>

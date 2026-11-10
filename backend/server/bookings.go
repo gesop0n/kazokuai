@@ -71,6 +71,8 @@ var (
 	errBookingStale = errors.New("予約の番号が違うか、もうかけた")
 	// errReleaseFailed は、届けられなかった電話の印を外せなかったときである。呼んだ側はやり直す。
 	errReleaseFailed = errors.New("予約の電話を戻せなかった")
+	// errBookingTaskConfig は、本物のプロジェクトなのにキューか URL かサービスアカウントが無い。
+	errBookingTaskConfig = errors.New("予約のタスクの設定が無い")
 )
 
 // 予定へ入れる前の読み直しと、届ける直前と、印を外す直前を、テストが一時的な失敗に差し替える。
@@ -93,7 +95,7 @@ func readBookingForSchedule(ctx context.Context, ref *firestore.DocumentRef) (*f
 
 // bookingSchedule は、予約の ID と番号で、その時刻に電話を予定へ入れる。
 // 予約の ID は見守る方の下で一意なので、見守る方の ID も受け取る。
-// demo- のプロジェクトはタイマーである。本物のプロジェクトの Cloud Tasks は次の ticket である。
+// demo- のプロジェクトはタイマーである。本物のプロジェクトは Cloud Tasks である。
 type bookingSchedule interface {
 	Schedule(ctx context.Context, personID, bookingID string, number int64) error
 }
