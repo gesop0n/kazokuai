@@ -11,8 +11,7 @@ SCAN = ROOT / "scripts" / "scan_secrets.py"
 PUBLISH = ROOT / "docs" / "publish.md"
 LICENSE = ROOT / "LICENSE"
 
-SHA = "0123456789abcdef0123456789abcdef01234567"
-REPOSITORY = "gesop0n/kazokuai"
+MESSAGE = "README を更新"
 # 秘密の形ではない。値を出していないことの印にだけ使う。
 TOKEN = "test-submission-token"
 
@@ -36,6 +35,8 @@ class SubmitSnapshotTest(unittest.TestCase):
         self.assertNotIn("echo $SUBMISSION_TOKEN", workflow)
         self.assertNotIn('echo "$SUBMISSION_TOKEN"', workflow)
         self.assertNotIn("set -x", workflow)
+        self.assertIn("SUBMISSION_MESSAGE: ${{ inputs.message }}", workflow)
+        self.assertNotIn("run: bash scripts/submit_snapshot.sh ${{", workflow)
 
         script = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("git archive HEAD", script)
@@ -138,12 +139,24 @@ class SubmitSnapshotTest(unittest.TestCase):
             self.assertIsNone(blob(bare, "main", "obsolete.txt"))
             self.assertIsNone(blob(bare, "main", "untracked.txt"))
             self.assertEqual(rev(bare, "main^"), old)
-            self.assertEqual(subject(bare), "gesop0n/kazokuai の 0123456 を写す")
+            self.assertEqual(subject(bare), MESSAGE)
             self.assertEqual(log_format(bare, "%an"), "github-actions[bot]")
             self.assertEqual(
                 log_format(bare, "%ae"),
                 "41898282+github-actions[bot]@users.noreply.github.com",
             )
+
+    def test_sync_refuses_without_a_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source, bare, dest = repos(Path(tmp))
+            init_repo(source, {"README.md": "from source\n"})
+            init_repo(dest, {"LICENSE": "submission license\n"})
+            publish(dest, bare)
+            old = rev(bare, "main")
+            result = run_sync(source, dest, message=None)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("SUBMISSION_MESSAGE", result.stderr)
+            self.assertEqual(rev(bare, "main"), old)
 
     def test_sync_omits_github_workflows(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,6 +245,7 @@ class SubmitSnapshotTest(unittest.TestCase):
         self.assertIn("Contents の読み書き", section)
         self.assertIn("gh secret set SUBMISSION_TOKEN --repo gesop0n/kazokuai", section)
         self.assertIn("読み取り専用", section)
+        self.assertIn("SUBMISSION_MESSAGE", section)
 
     def test_repository_license_matches_the_submission(self):
         text = LICENSE.read_text(encoding="utf-8")
@@ -301,13 +315,13 @@ def run_scan(root):
     )
 
 
-def run_sync(source, dest):
+def run_sync(source, dest, message=MESSAGE):
     env = clean_env()
     env["SUBMISSION_TOKEN"] = TOKEN
     env["SOURCE_DIR"] = str(source)
     env["SUBMISSION_DIR"] = str(dest)
-    env["GITHUB_SHA"] = SHA
-    env["GITHUB_REPOSITORY"] = REPOSITORY
+    if message is not None:
+        env["SUBMISSION_MESSAGE"] = message
     return subprocess.run(
         ["bash", str(SCRIPT)],
         env=env,
