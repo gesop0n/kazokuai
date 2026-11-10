@@ -48,6 +48,9 @@ func TestHandsetAlreadyUpDoesNotAnswerTheCall(t *testing.T) {
 	}
 
 	line.Set(1)
+	if got := recv(t, h); got != phone.PutDown {
+		t.Fatalf("初めから上がっていた受話器を置いた = %v", got)
+	}
 	line.Set(0)
 	if got := recv(t, h); got != phone.PickedUp {
 		t.Fatalf("置いてから上げた = %v, want 受話器を上げた", got)
@@ -88,6 +91,9 @@ func TestLiftBeforeThePhoneListensDoesNotAnswer(t *testing.T) {
 	}
 
 	line.Set(1)
+	if got := recv(t, h); got != phone.PutDown {
+		t.Fatalf("呼び出しの前から上がっていた受話器を置いた = %v", got)
+	}
 	line.Set(0)
 	if got := recv(t, h); got != phone.PickedUp {
 		t.Fatalf("呼び出しのあとに置いて上げた = %v", got)

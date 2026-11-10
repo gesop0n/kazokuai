@@ -88,11 +88,7 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
 		return
 	}
-	online := s.phones.connected(personID)
-	if linked {
-		online = s.phones.hasPhone(phoneID)
-	}
-	if !online {
+	if !linked || !s.phones.hasPhone(phoneID) {
 		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
 		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 		return
@@ -108,24 +104,17 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: ref.ID}
-	if linked {
-		// 文書を作るあいだに電話機が替わっていることがある。届ける直前に、今の結び付きと一致するときだけ送る。
-		err = s.sendToLinkedPhone(r.Context(), personID, phoneID, msg)
-		if err != nil {
-			s.discardCall(r.Context(), ref)
-			if errors.Is(err, errPhoneNotConnected) {
-				s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
-				writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
-				return
-			}
-			log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
-			http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
+	// 文書を作るあいだに電話機が替わっていることがある。届ける直前に、今の結び付きと一致するときだけ送る。
+	err = s.sendToLinkedPhone(r.Context(), personID, phoneID, msg)
+	if err != nil {
+		s.discardCall(r.Context(), ref)
+		if errors.Is(err, errPhoneNotConnected) {
+			s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
+			writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
 			return
 		}
-	} else if err = s.phones.send(personID, msg); err != nil {
-		s.discardCall(r.Context(), ref)
-		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
-		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
+		log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
+		http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -219,11 +208,13 @@ func (s *server) reportCall(w http.ResponseWriter, r *http.Request) {
 	if refuseOtherPerson(w, identity, report.WatchedPersonID) {
 		return
 	}
-	if identity.phoneID != "" && report.WatchedPersonID == "" {
-		report.WatchedPersonID = identity.personID
+	if identity.personID == "" {
+		http.Error(w, "この電話機は同期していません", http.StatusConflict)
+		return
 	}
-	if report.CallID == "" || report.WatchedPersonID == "" {
-		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)
+	report.WatchedPersonID = identity.personID
+	if report.CallID == "" {
+		http.Error(w, "電話の ID を入れてください", http.StatusBadRequest)
 		return
 	}
 	for _, utterance := range report.Utterances {

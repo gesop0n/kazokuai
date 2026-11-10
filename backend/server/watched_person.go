@@ -81,7 +81,7 @@ func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "見守る方を登録できなかった", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("見守る方を登録しました。この見守る方の電話機は、--watched-person %s で起動してください", id)
+	log.Printf("見守る方を登録しました。電話機はアプリから同期してください。見守る方: %s", id)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(registered{ID: id})

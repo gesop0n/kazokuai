@@ -33,9 +33,7 @@ func newIdentitySystem(t *testing.T, now time.Time) (*system, phone.Identity, st
 		t.Fatal("ID と鍵が作られなかった")
 	}
 	s := newPreparedSystem(t, hanako, now, func(d *phone.Device) {
-		d.ID = identity.ID
-		d.Key = identity.Key
-		d.WatchedPerson = ""
+		d.Identity = identity
 	})
 	t.Cleanup(func() {
 		_, _ = emulators.Firestore.Collection("phones").Doc(identity.ID).Delete(context.Background())

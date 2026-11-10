@@ -94,7 +94,7 @@ env = { FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099", FIRESTORE_EMULATOR_HOST 
 run = "go run ./backend"
 
 [device]
-description = "Mac で電話機を起動する。合言葉は PHONE_SECRET、未設定なら開発用を使う。先に backend を起動しておく。例: mise run device -- --watched-person <見守る方の ID>。Cloud Run のサービス kazokuai へは --backend https://… を付ける（https は wss になる）"
+description = "Mac で電話機を起動する。合言葉は PHONE_SECRET、未設定なら開発用を使う。先に backend を起動しておく。電話機は ID と鍵でつながり、同期はアプリから行う。Cloud Run のサービス kazokuai へは --backend https://… を付ける（https は wss になる）"
 dir = "{{config_root}}"
 run = "go run ./device"
 
@@ -114,6 +114,6 @@ description = "英語の Markdown を plamo-translate で日本語に訳す。�
 run = "python3 -I {{config_root}}/scripts/plamo_translate.py"
 
 [launcher-icons]
-description = "元の画像から iOS と Android のホーム画面のアイコンを作り直す"
+description = "元の画像から iOS、Android、Web のホーム画面のアイコンを作り直す"
 dir = "{{config_root}}/mobile"
 run = "dart run tool/launcher_icons.dart"

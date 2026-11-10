@@ -397,7 +397,7 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertIn("バックエンドの URL", result.stderr)
         self.assertFalse(self.systemctl_log.exists())
 
-    def test_refuses_to_start_when_the_person_id_contains_whitespace(self):
+    def test_starts_when_an_old_person_line_contains_a_space(self):
         binary = Path(self.tmp.name) / "kazokuai-device"
         binary.write_bytes(ARM64_ELF)
         env_dir = self.dest / "etc" / "kazokuai"
@@ -411,15 +411,17 @@ class DeviceInstallTest(unittest.TestCase):
 
         result = self.run_install(str(binary))
 
-        self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn("空白", result.stderr)
-        self.assertFalse(self.systemctl_log.exists())
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            "restart\nkazokuai-device.service",
+            self.systemctl_log.read_text(encoding="utf-8"),
+        )
 
     def test_example_env_has_defaults_and_no_secret_or_id(self):
         text = ENV_EXAMPLE.read_text(encoding="utf-8")
         values = assignments(text)
         self.assertEqual(values["KAZOKUAI_BACKEND"], "http://localhost:8080")
-        self.assertEqual(values["KAZOKUAI_WATCHED_PERSON"], "")
+        self.assertNotIn("KAZOKUAI_WATCHED_PERSON", values)
         self.assertEqual(values["PHONE_SECRET"], "")
         self.assertEqual(values["KAZOKUAI_PHONE_FILE"], "")
         self.assertEqual(

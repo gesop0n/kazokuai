@@ -61,8 +61,8 @@ func TestHookPolarity(t *testing.T) {
 			if !ok || got != phone.PickedUp {
 				t.Fatalf("閉じると上がる設定で、閉じた = %v, %v", got, ok)
 			}
-		} else if ok {
-			t.Fatalf("開くと上がる設定で、閉じたのに %v を出した", got)
+		} else if !ok || got != phone.PutDown {
+			t.Fatalf("開くと上がる設定で、初めから上がっていた受話器を閉じた = %v, %v", got, ok)
 		}
 		got, ok = c.level(1, start)
 		if wantUp {
@@ -84,13 +84,18 @@ func TestHandsetAlreadyUpDoesNotAnswerUntilItIsPutDown(t *testing.T) {
 		t.Fatal("上がったままの受話器が電話に出た")
 	}
 	down := start.Add(time.Second)
-	c.level(1, down)
-	if _, ok := c.level(1, down.Add(50*time.Millisecond)); ok {
-		t.Fatal("一度置いただけなのに電話の出来事にした")
+	if _, ok := c.level(1, down); ok {
+		t.Fatal("置き始めた瞬間に出来事にした")
+	}
+	got, ok := c.level(1, down.Add(50*time.Millisecond))
+	if !ok || got != phone.PutDown {
+		t.Fatalf("初めから上がっていた受話器を置いた = %v, %v, want 受話器を置いた", got, ok)
 	}
 	up := down.Add(time.Second)
-	c.level(0, up)
-	got, ok := c.level(0, up.Add(50*time.Millisecond))
+	if _, ok := c.level(0, up); ok {
+		t.Fatal("上げ始めた瞬間に電話に出た")
+	}
+	got, ok = c.level(0, up.Add(50*time.Millisecond))
 	if !ok || got != phone.PickedUp {
 		t.Fatalf("置いてから上げた = %v, %v, want 受話器を上げた", got, ok)
 	}

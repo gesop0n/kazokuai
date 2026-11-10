@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -64,7 +65,21 @@ type system struct {
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
-	return newPreparedSystem(t, config, now, nil)
+	identity, err := phone.LoadOrCreateIdentity(filepath.Join(t.TempDir(), phone.IdentityFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 電話機を止めてから文書を消す。消す方が先だと、動いている電話機が登録し直す。
+	t.Cleanup(func() {
+		_, _ = emulators.Firestore.Collection("phones").Doc(identity.ID).Delete(context.Background())
+	})
+	s := newPreparedSystem(t, config, now, func(d *phone.Device) {
+		d.Identity = identity
+	})
+	waitPhoneDoc(t, identity.ID)
+	linkPhone(t, identity.ID, hanakoID)
+	waitUntil(t, "電話機がつながらなかった", func() bool { return s.api.Connected(hanakoID) })
+	return s
 }
 
 func newPreparedSystem(t *testing.T, config server.Config, now time.Time, prepare func(*phone.Device)) *system {
@@ -90,13 +105,12 @@ func newPreparedSystem(t *testing.T, config server.Config, now time.Time, prepar
 	s.clock = clock
 	s.backend = backend
 	s.device = &phone.Device{
-		Backend:       backend.URL,
-		Secret:        s.config.PhoneSecret,
-		WatchedPerson: hanakoID,
-		Gemini:        gemini,
-		Phone:         phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
-		Out:           term,
-		Clock:         clock,
+		Backend: backend.URL,
+		Secret:  s.config.PhoneSecret,
+		Gemini:  gemini,
+		Phone:   phone.Phone{Handset: p, Hook: p, Ringer: p, Lamp: p},
+		Out:     term,
+		Clock:   clock,
 		AfterCall: func(err error) {
 			s.results <- err
 		},

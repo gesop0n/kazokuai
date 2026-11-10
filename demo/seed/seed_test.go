@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -373,7 +374,7 @@ func TestReseededSampleRingsAtTheEditedTime(t *testing.T) {
 		handler.Stop()
 		srv.Close()
 	})
-	conn := dialSeedPhone(t, srv.URL, watchedPersonID)
+	conn := dialSeedPhone(t, store, srv.URL, watchedPersonID)
 	calls := readSeedPhoneCalls(conn)
 	waitSeedConnected(t, handler, watchedPersonID)
 	token := signInToken(t, email, "judge-pass-1")
@@ -887,7 +888,72 @@ func editSeedBooking(t *testing.T, backend, token, id string, at time.Time, mess
 	}
 }
 
-func dialSeedPhone(t *testing.T, backend, person string) *websocket.Conn {
+// dialSeedPhone は、鍵のある電話機を登録して person に結び、その ID と鍵でつなぐ。
+// 合言葉は登録だけに使う。つなぐときに見守る方は名乗らない。
+// 同じ見守る方に前の電話機が残っていると、電話の届く先が決まらないので、先に外す。
+func dialSeedPhone(t *testing.T, store *firestore.Client, backend, person string) *websocket.Conn {
+	t.Helper()
+	id := seedPhoneID(t)
+	const key = "dial-key"
+	releaseSeedPhones(t, store, person)
+	status, body := registerSeedPhone(t, backend, id, key)
+	if status != http.StatusCreated && status != http.StatusOK {
+		t.Fatalf("登録 = %d, want 201 か 200: %s", status, body)
+	}
+	if _, err := store.Collection("phones").Doc(id).Update(t.Context(), []firestore.Update{
+		{Path: "watchedPersonId", Value: person},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return dialSeedPhoneKey(t, backend, id, key)
+}
+
+func seedPhoneID(t *testing.T) string {
+	t.Helper()
+	var nonce [6]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		t.Fatal(err)
+	}
+	return "phone-" + hex.EncodeToString(nonce[:])
+}
+
+func releaseSeedPhones(t *testing.T, store *firestore.Client, person string) {
+	t.Helper()
+	docs, err := store.Collection("phones").Where("watchedPersonId", "==", person).Documents(t.Context()).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, doc := range docs {
+		if _, err := doc.Ref.Update(t.Context(), []firestore.Update{
+			{Path: "watchedPersonId", Value: ""},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func registerSeedPhone(t *testing.T, backend, id, key string) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, backend+protocol.PhoneRegisterPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(protocol.PhoneSecretHeader, protocol.DevPhoneSecret)
+	req.Header.Set(protocol.PhoneIDHeader, id)
+	req.Header.Set(protocol.PhoneKeyHeader, key)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp.StatusCode, body
+}
+
+func dialSeedPhoneKey(t *testing.T, backend, id, key string) *websocket.Conn {
 	t.Helper()
 	u, err := url.Parse(backend)
 	if err != nil {
@@ -895,9 +961,9 @@ func dialSeedPhone(t *testing.T, backend, person string) *websocket.Conn {
 	}
 	u.Scheme = "ws"
 	u.Path = protocol.PhonePath
-	u.RawQuery = url.Values{"watchedPerson": {person}}.Encode()
 	header := http.Header{}
-	header.Set(protocol.PhoneSecretHeader, protocol.DevPhoneSecret)
+	header.Set(protocol.PhoneIDHeader, id)
+	header.Set(protocol.PhoneKeyHeader, key)
 	conn, _, err := websocket.Dial(t.Context(), u.String(), &websocket.DialOptions{HTTPHeader: header})
 	if err != nil {
 		t.Fatal(err)

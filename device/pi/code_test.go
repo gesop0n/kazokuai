@@ -19,8 +19,8 @@ import (
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
-// 呼び出し中に置いた受話器は、Pi の接点では出来事にならない。
-// 出なかったあとに、置いたままの「＃」と同期の知らせは何もしない。
+// 呼び出し中に置いても、出なかった電話はそこで終わらない。
+// 戻った待機は置いた受話器から始まるので、「＃」も同期の知らせも何もしない。
 func TestDownHandsetAfterMissedCallDoesNotRequestCode(t *testing.T) {
 	var codes hitCount
 	connections := make(chan *websocket.Conn, 1)
@@ -64,11 +64,10 @@ func TestDownHandsetAfterMissedCallDoesNotRequestCode(t *testing.T) {
 	handset := &recordingHandset{ring: make(chan struct{}, 1)}
 	finished := make(chan struct{}, 1)
 	d := &phone.Device{
-		Backend: srv.URL,
-		ID:      "phone-1",
-		Key:     "key-1",
-		Secret:  "secret-test",
-		Gemini:  silentGemini{},
+		Backend:  srv.URL,
+		Identity: phone.Identity{ID: "phone-1", Key: "key-1"},
+		Secret:   "secret-test",
+		Gemini:   silentGemini{},
 		Phone: phone.Phone{
 			Handset: handset,
 			Hook:    hook,
@@ -179,6 +178,93 @@ func TestDownHandsetAfterMissedCallDoesNotRequestCode(t *testing.T) {
 	}
 }
 
+// 受話器が上がったまま待ち始めると、認証コードの途中で置いたときに音声が止まり、そのあとの「＃」は何もしない。
+func TestPuttingDownAHandsetThatStartedUpStopsTheCode(t *testing.T) {
+	var codes hitCount
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case protocol.PhoneRegisterPath:
+			w.WriteHeader(http.StatusCreated)
+		case protocol.PhonePath:
+			conn, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				return
+			}
+			defer conn.CloseNow()
+			for {
+				if _, _, err := conn.Read(r.Context()); err != nil {
+					return
+				}
+			}
+		case protocol.PhoneCodePath:
+			codes.add()
+			io.WriteString(w, `{"code":"482751"}`)
+		default:
+			w.WriteHeader(http.StatusAccepted)
+		}
+	}))
+	defer srv.Close()
+
+	// 0 は閉じている。閉じると上がる設定なので、受話器はすでに上がっている。
+	line := newFakeLine(0)
+	hook := newHook(line, Config{LiftedWhenClosed: true}, clock.Real{}, io.Discard)
+	keys := make(chan string, 1)
+	handset := &recordingHandset{}
+	d := &phone.Device{
+		Backend:  srv.URL,
+		Identity: phone.Identity{ID: "phone-1", Key: "key-1"},
+		Secret:   "secret-test",
+		Gemini:   silentGemini{},
+		Phone: phone.Phone{
+			Handset: handset,
+			Hook:    hook,
+			Keypad:  chanKeys(keys),
+			Ringer:  handset,
+			Lamp:    handset,
+		},
+		Out:   io.Discard,
+		Clock: clock.Real{},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- d.Run(ctx) }()
+	defer func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("電話機が終わらなかった")
+		}
+	}()
+
+	waitUntil(t, "待機のフックが始まらなかった", func() bool { return hookArmed(hook) })
+	requestCode(t, keys, &codes)
+	quiesce(t, &codes)
+	waitUntil(t, "上げたままの受話器で認証コードを流さなかった", func() bool { return len(handset.audio()) > 0 })
+	baseline := codes.get()
+	spoken := len(handset.audio())
+	before := handset.hushCount()
+
+	line.Set(1)
+	waitUntil(t, "置いても音声が止まらなかった", func() bool { return handset.hushCount() > before })
+
+	select {
+	case keys <- "#":
+	case <-time.After(time.Second):
+		t.Fatal("置いたあとの「＃」を受け取らなかった")
+	}
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if codes.get() > baseline {
+			t.Fatal("置いたあとの「＃」が認証コードを頼んだ")
+		}
+		if got := len(handset.audio()); got != spoken {
+			t.Fatalf("置いたあとの音声 = %d バイト, want %d", got, spoken)
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func waitUntil(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
@@ -257,8 +343,9 @@ func (k chanKeys) Keys() <-chan string { return k }
 type recordingHandset struct {
 	ring chan struct{}
 
-	mu  sync.Mutex
-	pcm []byte
+	mu     sync.Mutex
+	pcm    []byte
+	hushes int
 }
 
 func (h *recordingHandset) Listen(context.Context) (<-chan []byte, error) { return nil, nil }
@@ -267,7 +354,16 @@ func (h *recordingHandset) Play(pcm []byte) {
 	h.pcm = append(h.pcm, pcm...)
 	h.mu.Unlock()
 }
-func (h *recordingHandset) Hush() {}
+func (h *recordingHandset) Hush() {
+	h.mu.Lock()
+	h.hushes++
+	h.mu.Unlock()
+}
+func (h *recordingHandset) hushCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.hushes
+}
 func (h *recordingHandset) Ring() { h.ring <- struct{}{} }
 func (h *recordingHandset) Stop() {}
 func (h *recordingHandset) On()   {}

@@ -8,8 +8,9 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
+
+	"cloud.google.com/go/firestore"
 	"sync"
 	"testing"
 	"time"
@@ -109,9 +110,9 @@ func TestPhoneSecretWithTrailingNewlineStillPasses(t *testing.T) {
 		t.Fatalf("読んだ合言葉 = %q, want shared-secret", secret)
 	}
 	srv := newDemoServer(t, "kazokuai-prod", secret, nil)
-	resp := call(t, srv.URL, http.MethodPost, "/token", secret, `{}`)
-	if resp.status != http.StatusBadRequest {
-		t.Fatalf("合言葉の確かめ = %d, want 400（合言葉では断らない）: %s", resp.status, resp.body)
+	resp := registerPhone(t, srv.URL, secret, testPhoneID(t), "alpha-key")
+	if resp.status != http.StatusCreated {
+		t.Fatalf("登録 = %d, want 201: %s", resp.status, resp.body)
 	}
 }
 
@@ -165,6 +166,8 @@ func TestRefusedCallLogsThePersonWhenThePhoneDropsDuringCreation(t *testing.T) {
 	conn := dialPhone(t, srv.URL, person, secret)
 	readPhone(conn)
 	waitConnected(t, handler, person, true)
+	// 登録の時刻では止めない。電話を作り始める Now で止める。
+	clk.Arm()
 
 	done := make(chan response, 1)
 	go func() {
@@ -246,64 +249,60 @@ func TestDropLogStaysOneLineWhenTheReasonHasALineBreak(t *testing.T) {
 	}
 }
 
-// holdClock は、最初の Now で入り、release が閉じるまで電話の作成を止める。
+// holdClock は、Arm のあとの最初の Now で入り、release が閉じるまで止める。
+// 登録も Now を使うので、電話を作り始める直前に Arm する。
 type holdClock struct {
 	clock.Clock
+	mu      sync.Mutex
+	armed   bool
 	once    sync.Once
 	entered chan struct{}
 	release chan struct{}
 }
 
+func (c *holdClock) Arm() {
+	c.mu.Lock()
+	c.armed = true
+	c.mu.Unlock()
+}
+
 func (c *holdClock) Now() time.Time {
-	c.once.Do(func() {
-		close(c.entered)
-		<-c.release
-	})
+	c.mu.Lock()
+	armed := c.armed
+	c.mu.Unlock()
+	if armed {
+		c.once.Do(func() {
+			close(c.entered)
+			<-c.release
+		})
+	}
 	return c.Clock.Now()
 }
 
-func TestPhoneSecretGatesTheDeviceRoutes(t *testing.T) {
+func TestPhoneSecretAloneDoesNotOpenTheDeviceRoutes(t *testing.T) {
 	srv := newDemoServer(t, "demo-kazokuai", "dev-phone-secret", nil)
 
-	t.Run("合言葉がないとトークンも報告も WebSocket も断る", func(t *testing.T) {
+	t.Run("合言葉だけでは、トークンも報告も WebSocket も断る", func(t *testing.T) {
 		for _, target := range []struct{ method, path string }{
 			{http.MethodPost, "/token"},
 			{http.MethodPost, "/calls"},
+			{http.MethodGet, "/phone"},
 			{http.MethodGet, "/phone?watchedPerson=hanako"},
 		} {
-			resp := call(t, srv.URL, target.method, target.path, "", `{}`)
-			if resp.status != http.StatusUnauthorized || !strings.Contains(string(resp.body), "合言葉が違います") {
-				t.Errorf("%s %s = %d %s, want 401 合言葉が違います", target.method, target.path, resp.status, resp.body)
+			for _, secret := range []string{"", "other-secret", "dev-phone-secret"} {
+				resp := call(t, srv.URL, target.method, target.path, secret, `{}`)
+				if resp.status != http.StatusUnauthorized || !strings.Contains(string(resp.body), "電話機の ID と鍵を入れてください") {
+					t.Errorf("%s %s 合言葉 %q = %d %s, want 401", target.method, target.path, secret, resp.status, resp.body)
+				}
 			}
 		}
 	})
 
-	t.Run("違う合言葉でも断る", func(t *testing.T) {
-		resp := call(t, srv.URL, http.MethodPost, "/token", "other-secret", `{}`)
-		if resp.status != http.StatusUnauthorized {
-			t.Errorf("ステータス = %d, want 401: %s", resp.status, resp.body)
-		}
-	})
-
-	t.Run("合言葉があれば、中身が空でも合言葉では断らない", func(t *testing.T) {
-		for _, path := range []string{"/token", "/calls"} {
-			resp := call(t, srv.URL, http.MethodPost, path, "dev-phone-secret", `{}`)
-			if resp.status != http.StatusBadRequest {
-				t.Errorf("POST %s = %d, want 400: %s", path, resp.status, resp.body)
-			}
-		}
-	})
-
-	t.Run("合言葉があれば WebSocket はつながる", func(t *testing.T) {
-		conn := dialPhone(t, srv.URL, "hanako", "dev-phone-secret")
-		conn.CloseNow()
-	})
-
-	t.Run("サーバーの合言葉が空なら、開発用の合言葉でも断る", func(t *testing.T) {
+	t.Run("サーバーの合言葉が空なら、登録も断る", func(t *testing.T) {
 		open := newDemoServer(t, "demo-kazokuai", "", nil)
-		resp := call(t, open.URL, http.MethodPost, "/token", "dev-phone-secret", `{}`)
-		if resp.status != http.StatusUnauthorized {
-			t.Errorf("ステータス = %d, want 401: %s", resp.status, resp.body)
+		resp := registerPhone(t, open.URL, "dev-phone-secret", testPhoneID(t), "alpha-key")
+		if resp.status != http.StatusUnauthorized || !strings.Contains(string(resp.body), protocol.PhoneAnswerBadSecret) {
+			t.Errorf("登録 = %d %s, want 401 %s", resp.status, resp.body, protocol.PhoneAnswerBadSecret)
 		}
 	})
 }
@@ -501,16 +500,17 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 	t.Run("読んでいればつながったまま", func(t *testing.T) {
 		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
-		conn := dialPhone(t, srv.URL, "reading", "dev-phone-secret")
+		person := testPhoneID(t)
+		conn := dialPhone(t, srv.URL, person, "dev-phone-secret")
 		readPhone(conn)
-		waitConnected(t, handler, "reading", true)
+		waitConnected(t, handler, person, true)
 		// つながったと分かるのは、ping のタイマーを作る前である。
 		// その前に時計を進めると ping が飛ばず、読んでいても切っていないことを確かめられない。
 		clock.WaitForTimers(1)
 		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(1500 * time.Millisecond)
 		for time.Now().Before(deadline) {
-			if !handler.Connected("reading") {
+			if !handler.Connected(person) {
 				t.Fatal("pong を返している電話機を切った")
 			}
 			time.Sleep(20 * time.Millisecond)
@@ -520,14 +520,15 @@ func TestBackendDropsAPhoneThatDoesNotPong(t *testing.T) {
 	t.Run("読まなければ切る", func(t *testing.T) {
 		clock := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
 		srv, handler := newDemoServerWith(t, "demo-kazokuai", "dev-phone-secret", clock)
-		conn := dialPhone(t, srv.URL, "silent", "dev-phone-secret")
-		waitConnected(t, handler, "silent", true)
+		person := testPhoneID(t)
+		conn := dialPhone(t, srv.URL, person, "dev-phone-secret")
+		waitConnected(t, handler, person, true)
 		// つながったと分かるのは、ping のタイマーを作る前である。
 		// その前に時計を進めるとタイマーは鳴らず、忙しいマシンでは 3 秒待っても切れない。
 		clock.WaitForTimers(1)
 		clock.Advance(30 * time.Second)
 		deadline := time.Now().Add(3 * time.Second)
-		for handler.Connected("silent") {
+		for handler.Connected(person) {
 			if time.Now().After(deadline) {
 				t.Fatal("pong が無い電話機を切らなかった")
 			}
@@ -698,21 +699,18 @@ func waitConnected(t *testing.T, handler *server.Handler, personID string, want 
 
 func dialPhone(t *testing.T, backend, person, secret string) *websocket.Conn {
 	t.Helper()
-	u, err := url.Parse(backend)
-	if err != nil {
+	id := testPhoneID(t)
+	const key = "dial-key"
+	resp := registerPhone(t, backend, secret, id, key)
+	if resp.status != http.StatusCreated && resp.status != http.StatusOK {
+		t.Fatalf("登録 = %d, want 201 か 200: %s", resp.status, resp.body)
+	}
+	if _, err := emulators.Firestore.Collection("phones").Doc(id).Update(t.Context(), []firestore.Update{
+		{Path: "watchedPersonId", Value: person},
+	}); err != nil {
 		t.Fatal(err)
 	}
-	u.Scheme = "ws"
-	u.Path = protocol.PhonePath
-	u.RawQuery = url.Values{"watchedPerson": {person}}.Encode()
-	header := http.Header{}
-	header.Set(protocol.PhoneSecretHeader, secret)
-	conn, _, err := websocket.Dial(t.Context(), u.String(), &websocket.DialOptions{HTTPHeader: header})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { conn.CloseNow() })
-	return conn
+	return dialPhoneKey(t, backend, id, key)
 }
 
 func readPhone(conn *websocket.Conn) {

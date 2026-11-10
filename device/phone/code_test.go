@@ -323,15 +323,14 @@ func newCodeRig(t *testing.T, kind string) *codeRig {
 func runCodeDevice(t *testing.T, srv *httptest.Server, backend *codeBackend, hw phone.Phone, out io.Writer, echo bool) {
 	t.Helper()
 	device := &phone.Device{
-		Backend: srv.URL,
-		Secret:  "secret-test",
-		ID:      testPhoneID,
-		Key:     testPhoneKey,
-		Gemini:  &fakeGemini{},
-		Phone:   hw,
-		Out:     out,
-		Clock:   clock.Real{},
-		Echo:    echo,
+		Backend:  srv.URL,
+		Secret:   "secret-test",
+		Identity: phone.Identity{ID: testPhoneID, Key: testPhoneKey},
+		Gemini:   &fakeGemini{},
+		Phone:    hw,
+		Out:      out,
+		Clock:    clock.Real{},
+		Echo:     echo,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

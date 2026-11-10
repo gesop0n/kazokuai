@@ -131,7 +131,7 @@ func (d *Device) drainKeys() {
 }
 
 // adoptHandset は、監視を切り替えるときに、受話器が今上がっているかを覚え直す。
-// すでに上がっている受話器を置いても、Pi の接点は置いた出来事を出さない。
+// すでに上がっている受話器は、上がった出来事にならない。
 func (d *Device) adoptHandset() {
 	if d.Phone.Hook == nil {
 		return

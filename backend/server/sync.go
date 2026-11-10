@@ -265,10 +265,6 @@ func (s *server) startSyncPrep(w http.ResponseWriter, r *http.Request) {
 // 同期していない電話機はいつでももらえる。同期済みの電話機は、その見守る方の家族が同期の準備を始めているあいだだけもらえる。
 func (s *server) issueSyncCode(w http.ResponseWriter, r *http.Request) {
 	identity := phoneIdentityFrom(r.Context())
-	if identity.legacy || identity.phoneID == "" {
-		http.Error(w, "電話機の ID と鍵を入れてください", http.StatusBadRequest)
-		return
-	}
 	allowed, err := s.phoneMayHaveCode(r.Context(), identity)
 	if err != nil {
 		log.Printf("認証コードを出せなかった: %v", err)

@@ -9,7 +9,7 @@ Type=simple
 # /var/lib/kazokuai を作り、ID と鍵のファイルをそこに置く。
 StateDirectory=kazokuai
 EnvironmentFile=/etc/kazokuai/device.env
-# 見守る方の ID は環境ファイルから読む。空なら、電話機が作った ID と鍵でつなぐ。
+# 電話機は自分の ID と鍵でつなぐ。同期はアプリから行う。
 ExecStart=/usr/local/bin/kazokuai-device --backend ${KAZOKUAI_BACKEND}
 Restart=on-failure
 RestartSec=5
