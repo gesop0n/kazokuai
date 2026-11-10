@@ -255,7 +255,7 @@ void main() {
     expect(find.text('tanaka.taro@example.com'), findsWidgets);
     expect(find.text('メールアドレスとパスワード'), findsOneWidget);
     expect(find.text('2026年11月5日'), findsOneWidget);
-    expect(find.text('使い方をもう一度見る'), findsOneWidget);
+    expect(find.text('チュートリアル確認'), findsNothing);
 
     await tester.enterText(find.byType(TextField), '佐藤 花子');
     await tester.tap(find.text('メールアドレス'));
