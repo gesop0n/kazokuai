@@ -12,7 +12,7 @@ Run the commands below in `docs/architecture/`. `<skill>` is the folder of the `
 2. Fetch the icons into a folder outside the repository. Google Cloud's icons may not be redistributed, so never commit the icon files.
 
    ```bash
-   python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" \
+   python3 <skill>/scripts/fetch_icons.py <icons> "phone:lucide/phone" "home:lucide/house" "smartphone:lucide/smartphone" "browser:lucide/globe" \
      "raspberrypi:raspberry-pi" gemini flutter firebase github "gcp:google-cloud" "run:gcp/cloud-run" \
      "secret:gcp/secret-manager" "hosting:firebase" "ar:gcp/artifact-registry" "iam:gcp/identity-and-access-management" \
      "tasks:gcp/cloud-tasks"

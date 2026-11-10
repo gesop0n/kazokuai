@@ -176,14 +176,14 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <div class="kicker">ADR 0003 · ADR 0011 · ADR 0014 · 2026-11-10</div>
       <h1>かぞくAI の構成</h1>
     </div>
-    <p class="lede">いま作ってあるものだけを描く。左の見守る方の声は、電話機の Raspberry Pi から Gemini Live API へ届き、右の家族はアプリで電話の記録を見る。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動き、予約の時刻は Cloud Tasks が知らせる。アプリの Web 版は Firebase Hosting の /api/** から、iOS 版は直接 Cloud Run を呼ぶ。公開は GitHub Actions から手で行い、提出用リポジトリへは手元から main のスナップショットを写す。</p>
+    <p class="lede">いま作ってあるものだけを描く。左の見守る方の声は、電話機の Raspberry Pi から Gemini Live API へ届き、右の家族はアプリで電話の記録を見る。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動き、予約の時刻は Cloud Tasks が知らせる。家族はブラウザでは Firebase Hosting の Web 版を開いて /api/** から、iOS のアプリでは直接 Cloud Run を呼ぶ。公開は GitHub Actions から手で行う。</p>
   </header>
 
   <div class="scroller">
   <div class="canvas">
 
     <!-- GROUPS -->
-    <div class="group gb" style="left:30px; top:50px; width:500px; height:210px;">
+    <div class="group gb" style="left:350px; top:50px; width:180px; height:210px;">
       <div class="g-label"><img class="lt" src="%%ICON_github%%" alt=""><img class="dk" src="%%ICON_github_dark%%" alt="">GitHub</div>
     </div>
     <div class="group gcp" style="left:560px; top:50px; width:660px; height:640px;">
@@ -192,7 +192,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <div class="group gb" style="left:30px; top:290px; width:500px; height:210px;">
       <div class="g-label"><img class="plate" src="%%ICON_home%%" alt="">高齢者の家</div>
     </div>
-    <div class="group gb" style="left:1270px; top:290px; width:340px; height:210px;">
+    <div class="group gb" style="left:1270px; top:290px; width:340px; height:400px;">
       <div class="g-label"><img class="plate" src="%%ICON_smartphone%%" alt="">家族</div>
     </div>
     <div class="group ga" style="left:350px; top:720px; width:390px; height:210px;">
@@ -226,27 +226,29 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <path class="n" d="M686 380 H774" marker-start="url(#ar)" marker-end="url(#ar)"/>
       <text class="el" x="730" y="372" text-anchor="middle">予約</text>
       <path class="n" d="M650 456 V774" marker-end="url(#ar)"/>
-      <text class="el" x="640" y="612" text-anchor="end">まとめ・案</text>
-      <path class="n" d="M694 456 V570 H774" marker-end="url(#ar)"/>
-      <text class="el" x="734" y="562" text-anchor="middle">読む</text>
+      <text class="el" x="660" y="642">まとめ・案</text>
+      <path class="n" d="M694 456 V570 H934" marker-end="url(#ar)"/>
+      <text class="el" x="814" y="562" text-anchor="middle">読む</text>
       <path class="n" d="M670 346 V310 H1130 V344" marker-end="url(#ar)"/>
       <text class="el" x="1050" y="302" text-anchor="middle">保存</text>
       <path class="n" d="M950 456 V490 H672 V460" marker-end="url(#ar)"/>
       <text class="el" x="810" y="482" text-anchor="middle">/api/**</text>
 
-      <!-- the 家族 on the right -->
+      <!-- the 家族 on the right: the browser opens the Web 版, the iOS app calls Cloud Run -->
       <path class="n" d="M1486 380 H1396" marker-end="url(#ar)"/>
       <text class="el" x="1441" y="372" text-anchor="middle">使う</text>
+      <path class="n" d="M1520 456 V570 H1396" marker-end="url(#ar)"/>
+      <text class="el" x="1458" y="562" text-anchor="middle">使う</text>
       <path class="n" d="M1326 380 H1166" marker-end="url(#ar)"/>
       <text class="el" x="1246" y="372" text-anchor="middle">ログイン・読み書き</text>
-      <path class="n" d="M1340 456 V510 H990 V460" marker-end="url(#ar)"/>
-      <text class="el" x="1165" y="502" text-anchor="middle">Web 版</text>
+      <path class="n" d="M1340 456 V505 H990 V460" marker-end="url(#ar)"/>
+      <text class="el" x="1070" y="497" text-anchor="middle">Web 版</text>
+      <path class="n" d="M1326 570 H1150 V460" marker-end="url(#ar)"/>
+      <text class="el" x="1238" y="562" text-anchor="middle">ログイン・読み書き</text>
+      <path class="n" d="M1360 646 V670 H606 V460" marker-end="url(#ar)"/>
+      <text class="el" x="1100" y="662" text-anchor="middle">API</text>
 
       <!-- publishing, on the top row. Dashed. -->
-      <path class="n dash" d="M244 140 H156" marker-end="url(#ar)"/>
-      <text class="el" x="200" y="132" text-anchor="middle">写す</text>
-      <path class="n dash" d="M316 140 H404" marker-end="url(#ar)"/>
-      <text class="el" x="360" y="132" text-anchor="middle">手で</text>
       <path class="n dash" d="M476 140 H614" marker-end="url(#ar)"/>
       <text class="el" x="545" y="132" text-anchor="middle">認証</text>
       <path class="n dash" d="M686 140 H774" marker-end="url(#ar)"/>
@@ -258,17 +260,9 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     </svg>
 
     <!-- NODES -->
-    <div class="node" style="left:54px;top:110px">
-      <div class="tile"><img src="%%ICON_github%%" alt=""></div>
-      <div class="name"><span>提出用リポジトリ</span></div><div class="role"><span>df-2026-t086</span></div>
-    </div>
-    <div class="node" style="left:214px;top:110px">
-      <div class="tile"><img src="%%ICON_github%%" alt=""></div>
-      <div class="name"><span>このリポジトリ</span></div><div class="role"><span>main</span></div>
-    </div>
     <div class="node" style="left:374px;top:110px">
       <div class="tile"><img src="%%ICON_github%%" alt=""></div>
-      <div class="name"><span>GitHub Actions</span></div><div class="role"><span>deploy を手で</span></div>
+      <div class="name"><span>GitHub Actions</span></div>
     </div>
     <div class="node" style="left:584px;top:110px">
       <div class="tile"><img src="%%ICON_iam%%" alt=""></div>
@@ -306,17 +300,21 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <div class="tile"><img src="%%ICON_firebase%%" alt=""></div>
       <div class="name"><span>Firebase</span></div><div class="role"><span>Auth・Firestore</span></div>
     </div>
-    <div class="node" style="left:744px;top:540px">
+    <div class="node" style="left:904px;top:540px">
       <div class="tile"><img src="%%ICON_secret%%" alt=""></div>
       <div class="name"><span>Secret Manager</span></div><div class="role"><span>API キー・合言葉</span></div>
     </div>
     <div class="node" style="left:1294px;top:350px">
+      <div class="tile"><img src="%%ICON_browser%%" alt=""></div>
+      <div class="name"><span>ブラウザ</span></div><div class="role"><span>Flutter の Web 版</span></div>
+    </div>
+    <div class="node" style="left:1294px;top:540px">
       <div class="tile"><img src="%%ICON_flutter%%" alt=""></div>
-      <div class="name"><span>Flutter のアプリ</span></div><div class="role"><span>Web 版・iOS</span></div>
+      <div class="name"><span>アプリ</span></div><div class="role"><span>Flutter の iOS 版</span></div>
     </div>
     <div class="node" style="left:1454px;top:350px">
       <div class="tile"><img src="%%ICON_person%%" alt=""></div>
-      <div class="name"><span>家族</span></div><div class="role"><span>アプリで見る</span></div>
+      <div class="name"><span>家族</span></div><div class="role"><span>電話の記録を見る</span></div>
     </div>
     <div class="node" style="left:374px;top:780px">
       <div class="tile"><img src="%%ICON_gemini%%" alt=""></div>
