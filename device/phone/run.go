@@ -138,35 +138,36 @@ func writeState(conn *websocket.Conn, msg protocol.PhoneMessage) error {
 	return conn.Write(ctx, websocket.MessageText, body)
 }
 
+// queuedCall は、まだ始めていない 1 本の電話である。
+type queuedCall struct {
+	id          string
+	fromHandset bool
+}
+
 // callQueue は、電話の指示を、読む側を止めずに貯める。
 // 通話中も接続の切断を読めるようにするため、入れた側は待たない。
-// own は、電話機が「＊」で始めた電話である。受話器は上がっているので、鳴らさない。
 type callQueue struct {
-	mu   sync.Mutex
-	ids  []string
-	own  map[string]bool
-	wake chan struct{}
+	mu    sync.Mutex
+	items []queuedCall
+	wake  chan struct{}
 }
 
 func newCallQueue() *callQueue {
-	return &callQueue{wake: make(chan struct{}, 1), own: map[string]bool{}}
+	return &callQueue{wake: make(chan struct{}, 1)}
 }
 
 func (q *callQueue) push(id string) {
-	q.pushCall(id, false)
+	q.enqueue(queuedCall{id: id})
 }
 
-// pushOwn は、電話機が始めた電話を貯める。受話器は上がっている。
+// pushOwn は、電話機が始めた電話を貯める。受話器は上がっているので、鳴らさない。
 func (q *callQueue) pushOwn(id string) {
-	q.pushCall(id, true)
+	q.enqueue(queuedCall{id: id, fromHandset: true})
 }
 
-func (q *callQueue) pushCall(id string, own bool) {
+func (q *callQueue) enqueue(item queuedCall) {
 	q.mu.Lock()
-	q.ids = append(q.ids, id)
-	if own {
-		q.own[id] = true
-	}
+	q.items = append(q.items, item)
 	q.mu.Unlock()
 	select {
 	case q.wake <- struct{}{}:
@@ -175,19 +176,16 @@ func (q *callQueue) pushCall(id string, own bool) {
 }
 
 // try は、待っている電話が 1 本あればそれを返す。無ければ false で、待たない。
-// own は、電話機が「＊」で始めた電話である。
-func (q *callQueue) try() (id string, own bool, ok bool) {
+func (q *callQueue) try() (queuedCall, bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-	if len(q.ids) == 0 {
-		return "", false, false
+	if len(q.items) == 0 {
+		return queuedCall{}, false
 	}
-	id = q.ids[0]
-	q.ids[0] = ""
-	q.ids = q.ids[1:]
-	own = q.own[id]
-	delete(q.own, id)
-	return id, own, true
+	item := q.items[0]
+	q.items[0] = queuedCall{}
+	q.items = q.items[1:]
+	return item, true
 }
 
 // Run は、バックエンドと WebSocket でつながり続け、電話の指示が来るたびに電話をする。
@@ -286,7 +284,7 @@ func (d *Device) finish(err error) {
 // handleCommands は、電話が来るまでフックとキーパッドを見て、来たら 1 本ずつ電話をする。
 func (d *Device) handleCommands(ctx context.Context, link callLink, commands *callQueue) {
 	for {
-		callID, fromHandset, ok := d.idleUntilCall(ctx, commands)
+		call, ok := d.idleUntilCall(ctx, commands)
 		if !ok {
 			return
 		}
@@ -295,11 +293,11 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 		callCtx, cancel, armed := d.armCall(ctx)
 		if !armed {
 			d.setCalling(false)
-			d.sendState(link, callID, protocol.StateFailed)
+			d.sendState(link, call.id, protocol.StateFailed)
 			d.finish(context.Canceled)
 			continue
 		}
-		err := d.place(callCtx, link, callID, fromHandset)
+		err := d.place(callCtx, link, call.id, call.fromHandset)
 		d.disarmCall()
 		cancel()
 		// 呼び出し中に置いても、出なかった電話はそこで終わらない。戻ったときに、今の受話器を読み直す。

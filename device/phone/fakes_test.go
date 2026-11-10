@@ -537,11 +537,13 @@ type fakePhone struct {
 	played  []byte
 	hushes  int
 	offs    int
+	listens int
 }
 
 func (p *fakePhone) Listen(ctx context.Context) (<-chan []byte, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	p.listens++
 	mic := make(chan []byte, 16)
 	p.mic = mic
 	go func() {
@@ -632,6 +634,12 @@ func (p *fakePhone) micOpen() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.mic != nil
+}
+
+func (p *fakePhone) listenCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.listens
 }
 
 func (p *fakePhone) pickUp()  { p.hook <- phone.PickedUp }

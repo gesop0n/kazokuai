@@ -72,6 +72,9 @@ type Device struct {
 // errNoAnswer は、呼び出しの上限を過ぎても受話器が上がらなかったときである。
 var errNoAnswer = errors.New("見守る方が出ませんでした")
 
+// errHandsetDown は、会話を始める直前に受話器が置かれていたときである。マイクは開けない。
+var errHandsetDown = errors.New("受話器が置かれています")
+
 // place は、callID の電話を 1 回する。受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
 // 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
 // エラーで戻った電話は、受話器が上がっていても、つながらなかったである。
@@ -181,10 +184,11 @@ func (d *Device) place(ctx context.Context, link callLink, callID string, fromHa
 	}()
 
 	if fromHandset {
-		if !d.handsetIsUp() {
+		mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns, true)
+		// トークンを待っているあいだに置かれていた。マイクは開けず、つながらなかったで終わる。
+		if errors.Is(err, errHandsetDown) {
 			return nil
 		}
-		mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns)
 		if err != nil {
 			return err
 		}
@@ -217,7 +221,7 @@ func (d *Device) place(ctx context.Context, link callLink, callID string, fromHa
 				ringTimer.Stop()
 				ringC = nil
 				// 受話器が上がるまでは何も送らないので、turns は空で、ここで待つことはない
-				mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns)
+				mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns, false)
 				if err != nil {
 					return err
 				}
@@ -253,7 +257,11 @@ func (d *Device) place(ctx context.Context, link callLink, callID string, fromHa
 }
 
 // beginTalk は、受話器が上がったあとの会話を始める。呼び出し音は止めない。止めるのは呼び出し側である。
-func (d *Device) beginTalk(link callLink, callID string, lines *transcript, token *protocol.TokenResponse, micCtx context.Context, turns chan<- func(Session) error) (mic <-chan []byte, wrapUp, limit Timer, wrapUpC, limitC <-chan time.Time, err error) {
+func (d *Device) beginTalk(link callLink, callID string, lines *transcript, token *protocol.TokenResponse, micCtx context.Context, turns chan<- func(Session) error, requireUp bool) (mic <-chan []byte, wrapUp, limit Timer, wrapUpC, limitC <-chan time.Time, err error) {
+	// トークンを待っているあいだに置かれた受話器は、出来事より先に接点を見る。置かれていればマイクを開けない。
+	if requireUp && d.Phone.Hook != nil && !d.Phone.Hook.Lifted() {
+		return nil, nil, nil, nil, nil, errHandsetDown
+	}
 	lines.pickedUp = d.Clock.Now()
 	// 送れなくても、電話そのものは続ける。最後の状態は、終わるときに改めて送る。
 	d.sendState(link, callID, protocol.StateTalking)

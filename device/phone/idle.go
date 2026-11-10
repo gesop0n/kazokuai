@@ -21,6 +21,9 @@ const (
 	starKey = "*"
 )
 
+// starRequestTimeout は、「＊」の頼みを待つ上限である。止まっても、このあと「＊」をやり直せる。
+const starRequestTimeout = 10 * time.Second
+
 const (
 	lineOffline   = "インターネットにつながっていません。Wi-Fi を確かめてください。"
 	lineFailed    = "うまくいきませんでした。しばらくしてから、もう一度シャープを押してください。"
@@ -39,10 +42,9 @@ type speech struct {
 // idleUntilCall は、電話が来るまでフックとキーパッドを見る。
 // 受話器を上げただけでは何も流さない。上がっているときの「＃」で認証コードを頼み、置くと音声を止める。
 // 上がっていて電話の最中でなく、認証コードを話していないときの「＊」で、電話を始める。
-// fromHandset は、その電話を電話機が始めたとき真である。
-func (d *Device) idleUntilCall(ctx context.Context, commands *callQueue) (string, bool, bool) {
-	if id, own, ok := d.takeCall(ctx, commands); ok || ctx.Err() != nil {
-		return id, own, ok
+func (d *Device) idleUntilCall(ctx context.Context, commands *callQueue) (queuedCall, bool) {
+	if call, ok := d.takeCall(ctx, commands); ok || ctx.Err() != nil {
+		return call, ok
 	}
 	var events <-chan HookEvent
 	if d.Phone.Hook != nil {
@@ -53,12 +55,12 @@ func (d *Device) idleUntilCall(ctx context.Context, commands *callQueue) (string
 	}
 	keys := d.keys()
 	for {
-		if id, own, ok := d.takeCall(ctx, commands); ok || ctx.Err() != nil {
-			return id, own, ok
+		if call, ok := d.takeCall(ctx, commands); ok || ctx.Err() != nil {
+			return call, ok
 		}
 		select {
 		case <-ctx.Done():
-			return "", false, false
+			return queuedCall{}, false
 		case <-commands.wake:
 		case ev, ok := <-events:
 			if !ok {
@@ -78,9 +80,9 @@ func (d *Device) idleUntilCall(ctx context.Context, commands *callQueue) (string
 	}
 }
 
-func (d *Device) takeCall(ctx context.Context, commands *callQueue) (string, bool, bool) {
+func (d *Device) takeCall(ctx context.Context, commands *callQueue) (queuedCall, bool) {
 	if ctx.Err() != nil {
-		return "", false, false
+		return queuedCall{}, false
 	}
 	return commands.try()
 }
@@ -311,17 +313,11 @@ func (d *Device) setCalling(v bool) {
 	d.mu.Unlock()
 }
 
-func (d *Device) handsetIsUp() bool {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.handsetUp
-}
-
 func (d *Device) fetchCode(ctx context.Context, gen int) {
-	pcm, line := d.askCode(ctx)
+	pcm, line, code := d.askCode(ctx)
 	select {
 	case <-ctx.Done():
-	case d.speeches <- speech{gen: gen, pcm: pcm, line: line, code: strings.HasPrefix(line, "認証コードは、")}:
+	case d.speeches <- speech{gen: gen, pcm: pcm, line: line, code: code}:
 	}
 }
 
@@ -350,6 +346,20 @@ func (d *Device) fetchOwnCall(ctx context.Context, commands *callQueue, gen int)
 // askOwnCall は、バックエンドに見守る方からの電話を頼む。
 // 届かなければインターネットの文、断られたら失敗の文を返す。始まったときは、電話の ID を返す。
 func (d *Device) askOwnCall(ctx context.Context) (string, []byte, string) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	timer := d.Clock.NewTimer(starRequestTimeout)
+	defer timer.Stop()
+	done := make(chan struct{})
+	defer close(done)
+	go func() {
+		select {
+		case <-timer.Chan():
+			cancel()
+		case <-ctx.Done():
+		case <-done:
+		}
+	}()
 	resp, err := d.postBackend(ctx, protocol.PhoneCallPath, nil)
 	if err != nil {
 		log.Printf("電話を始められなかった: %v", err)
@@ -371,34 +381,35 @@ func (d *Device) askOwnCall(ctx context.Context) (string, []byte, string) {
 
 // askCode は、バックエンドに認証コードを頼む。
 // 届かなければインターネットの文、エラーなら失敗の文、同期の準備が無ければ何も返さない。
-func (d *Device) askCode(ctx context.Context) ([]byte, string) {
+// code は、返した音声が認証コードの読み上げであるとき真である。
+func (d *Device) askCode(ctx context.Context) (pcm []byte, line string, code bool) {
 	resp, err := d.postBackend(ctx, protocol.PhoneCodePath, nil)
 	if err != nil {
 		log.Printf("認証コードをもらえなかった: %v", err)
-		return spoken.Offline(), lineOffline
+		return spoken.Offline(), lineOffline, false
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode == http.StatusConflict && strings.Contains(string(raw), protocol.PhoneAnswerSyncClosed) {
-		return nil, ""
+		return nil, "", false
 	}
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("認証コードの答えが %s だった", resp.Status)
-		return spoken.Failed(), lineFailed
+		return spoken.Failed(), lineFailed, false
 	}
 	var payload struct {
 		Code string `json:"code"`
 	}
 	if json.Unmarshal(raw, &payload) != nil {
 		log.Printf("認証コードの答えを読めなかった")
-		return spoken.Failed(), lineFailed
+		return spoken.Failed(), lineFailed, false
 	}
-	pcm, err := spoken.Code(payload.Code)
+	pcm, err = spoken.Code(payload.Code)
 	if err != nil {
 		log.Printf("認証コードを読めなかった: %v", err)
-		return spoken.Failed(), lineFailed
+		return spoken.Failed(), lineFailed, false
 	}
-	return pcm, codeLine(payload.Code)
+	return pcm, codeLine(payload.Code), true
 }
 
 // codeLine は、認証コードを 2 回読む文である。数字のあいだは読点で、例は仕様書の 482751。

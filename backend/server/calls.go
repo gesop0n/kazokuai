@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/firestore"
 
@@ -153,9 +154,51 @@ func (s *server) startWatchedCall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "電話を作れなかった", http.StatusInternalServerError)
 		return
 	}
+	// 応答が届かなくても、呼び出しの上限まで通話中にならなければ、つながらなかったにする。
+	// 呼び出し中のまま残すと、次の「＊」も今すぐ通話も塞ぐ。
+	s.armWatchedRingLimit(identity.personID, ref.ID)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(protocol.StartedCall{ID: ref.ID})
+}
+
+// armWatchedRingLimit は、見守る方からの電話が呼び出し中のまま呼び出しの上限を過ぎたら、つながらなかったにする。
+// それまでに通話中になっていれば、変えない。
+func (s *server) armWatchedRingLimit(personID, callID string) {
+	limit := s.config.RingTimeout
+	if limit <= 0 {
+		return
+	}
+	timer := s.newTimer(limit)
+	go func() {
+		select {
+		case <-s.base.Done():
+			timer.Stop()
+		case <-timer.Chan():
+			s.failIfStillRinging(personID, callID)
+		}
+	}()
+}
+
+// failIfStillRinging は、まだ呼び出し中の電話だけをつながらなかったにする。
+func (s *server) failIfStillRinging(personID, callID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ref := s.callRef(personID, callID)
+	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(ref)
+		if err != nil {
+			return err
+		}
+		state, _ := doc.Data()["state"].(string)
+		if state != protocol.StateRinging {
+			return nil
+		}
+		return tx.Update(ref, []firestore.Update{{Path: "state", Value: protocol.StateFailed}})
+	})
+	if err != nil {
+		log.Printf("見守る方からの電話 %s を %s にできなかった: %v", callID, protocol.StateFailed, err)
+	}
 }
 
 // openingScript は、見守る方からの電話の始めの通話内容である。
