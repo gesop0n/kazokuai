@@ -5,6 +5,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"strings"
@@ -229,16 +230,9 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	personID := identity.personID
-	doc, err := s.callRef(personID, req.CallID).Get(r.Context())
-	if err != nil {
-		http.Error(w, "電話が見つからなかった", http.StatusNotFound)
+	script, fromWatched, err := s.permitToken(r.Context(), personID, req.CallID)
+	if !s.answerTokenGate(w, personID, req.CallID, err) {
 		return
-	}
-	var script string
-	var fromWatched bool
-	if data := doc.Data(); data != nil {
-		script, _ = data["script"].(string)
-		fromWatched, _ = data[protocol.CallStartedByWatchedPerson].(bool)
 	}
 	config := s.config
 	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, personID)
@@ -254,6 +248,10 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
 		return
 	}
+	// 作っているあいだに期限が来ることがある。出したあとに、終わった電話のトークンは返さない。
+	if _, _, err := s.permitToken(r.Context(), personID, req.CallID); !s.answerTokenGate(w, personID, req.CallID, err) {
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(protocol.TokenResponse{
 		Token: token.Name,
@@ -264,6 +262,25 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 			WrapUpBefore: config.WrapUpBefore,
 		},
 	})
+}
+
+// answerTokenGate は、トークンを出してよいとき真を返す。終わっているときは 409 を書いて偽を返す。
+func (s *server) answerTokenGate(w http.ResponseWriter, personID, callID string, err error) bool {
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, errCallNotFound) {
+		http.Error(w, "電話が見つからなかった", http.StatusNotFound)
+		return false
+	}
+	if errors.Is(err, errCallOver) {
+		s.logf("短命トークンを断りました。電話は終わっています。見守る方: %s、電話: %s", personID, callID)
+		http.Error(w, "この電話は終わっています", http.StatusConflict)
+		return false
+	}
+	log.Printf("電話 %s を読めなかった: %v", callID, err)
+	http.Error(w, "電話を読めなかった", http.StatusInternalServerError)
+	return false
 }
 
 // tokenConfig は、1 回の電話のための短命トークンの制約である。

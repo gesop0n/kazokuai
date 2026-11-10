@@ -187,6 +187,232 @@ func TestTalkingWatchedCallStaysPastTheRingLimit(t *testing.T) {
 	stayCallState(t, personID, started.ID, protocol.StateTalking, time.Second)
 }
 
+func TestRestartKeepsAnUnexpiredHandsetCallBlocking(t *testing.T) {
+	const key = "alpha-key"
+	start := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	personID, idToken, id, lostID := leaveLostHandsetCall(t, start, key)
+
+	srv, handler := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(start))
+	connectWatchedPhone(t, srv.URL, handler, personID, id, key)
+	assertCallInProgress(t, srv.URL, id, key, idToken)
+	if got := callState(t, personID, lostID); got != protocol.StateRinging {
+		t.Fatalf("状態 = %s, want %s", got, protocol.StateRinging)
+	}
+}
+
+func TestRestartExpiresAHandsetCallPastTheRingLimit(t *testing.T) {
+	const key = "alpha-key"
+	start := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	later := start.Add(10 * time.Minute)
+
+	t.Run("「＊」", func(t *testing.T) {
+		personID, idToken, id, lostID := leaveLostHandsetCall(t, start, key)
+		srv, handler := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(later))
+		resp := callPhone(t, srv.URL, http.MethodPost, protocol.PhoneCallPath, id, key, "")
+		if resp.status != http.StatusCreated {
+			t.Fatalf("「＊」 = %d, want 201: %s", resp.status, resp.body)
+		}
+		if got := callState(t, personID, lostID); got != protocol.StateFailed {
+			t.Fatalf("失った電話 = %s, want %s", got, protocol.StateFailed)
+		}
+		var started protocol.StartedCall
+		if err := json.Unmarshal(resp.body, &started); err != nil || started.ID == "" || started.ID == lostID {
+			t.Fatalf("新しい電話 = %s", resp.body)
+		}
+		if _, err := emulators.Firestore.Collection("watchedPersons").Doc(personID).Collection("calls").Doc(started.ID).Update(t.Context(), []firestore.Update{
+			{Path: "state", Value: protocol.StateEnded},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		connectWatchedPhone(t, srv.URL, handler, personID, id, key)
+		startNow(t, srv.URL, protocol.StartCallPath, idToken)
+	})
+
+	t.Run("今すぐ通話", func(t *testing.T) {
+		personID, idToken, id, lostID := leaveLostHandsetCall(t, start, key)
+		srv, handler := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(later))
+		connectWatchedPhone(t, srv.URL, handler, personID, id, key)
+		fresh := startNow(t, srv.URL, protocol.StartCallPath, idToken)
+		if fresh == lostID {
+			t.Fatal("失った電話を今すぐ通話として返した")
+		}
+		if got := callState(t, personID, lostID); got != protocol.StateFailed {
+			t.Fatalf("失った電話 = %s, want %s", got, protocol.StateFailed)
+		}
+	})
+}
+
+func TestRestartKeepsAFamilyRingingCallBlocking(t *testing.T) {
+	const key = "alpha-key"
+	start := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+	srv, handler := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(start))
+	personID, idToken := registerHanako(t, srv.URL)
+	id := testPhoneID(t)
+	if resp := registerPhone(t, srv.URL, protocol.DevPhoneSecret, id, key); resp.status != http.StatusCreated {
+		t.Fatalf("登録 = %d, want 201: %s", resp.status, resp.body)
+	}
+	if _, err := emulators.Firestore.Collection("phones").Doc(id).Update(t.Context(), []firestore.Update{
+		{Path: "watchedPersonId", Value: personID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	connectWatchedPhone(t, srv.URL, handler, personID, id, key)
+	callID := startNow(t, srv.URL, protocol.StartCallPath, idToken)
+	if got := callState(t, personID, callID); got != protocol.StateRinging {
+		t.Fatalf("状態 = %s, want %s", got, protocol.StateRinging)
+	}
+	handler.Stop()
+	srv.Close()
+
+	again, next := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(start.Add(10*time.Minute)))
+	connectWatchedPhone(t, again.URL, next, personID, id, key)
+	assertCallInProgress(t, again.URL, id, key, idToken)
+	if got := callState(t, personID, callID); got != protocol.StateRinging {
+		t.Fatalf("家族の呼び出し = %s, want %s", got, protocol.StateRinging)
+	}
+}
+
+func TestTokenRefusesAnOverHandsetCall(t *testing.T) {
+	const key = "alpha-key"
+	start := time.Date(2026, 11, 10, 9, 0, 0, 0, time.UTC)
+
+	t.Run("つながらなかった", func(t *testing.T) {
+		tokens := &recordTokens{}
+		srv, _ := newWatchedCallServerOn(t, tokens, clocktest.New(start))
+		personID, id := linkHanakoPhone(t, srv.URL, key)
+		resp := callPhone(t, srv.URL, http.MethodPost, protocol.PhoneCallPath, id, key, "")
+		if resp.status != http.StatusCreated {
+			t.Fatalf("「＊」 = %d, want 201: %s", resp.status, resp.body)
+		}
+		var started protocol.StartedCall
+		if err := json.Unmarshal(resp.body, &started); err != nil || started.ID == "" {
+			t.Fatalf("本文 = %s", resp.body)
+		}
+		if _, err := emulators.Firestore.Collection("watchedPersons").Doc(personID).Collection("calls").Doc(started.ID).Update(t.Context(), []firestore.Update{
+			{Path: "state", Value: protocol.StateFailed},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		token := askToken(t, srv.URL, id, key, started.ID)
+		if token.status != http.StatusConflict {
+			t.Fatalf("トークン = %d, want 409: %s", token.status, token.body)
+		}
+		if tokens.last() != nil {
+			t.Fatal("終わった電話のトークンを作った")
+		}
+		if got := callState(t, personID, started.ID); got != protocol.StateFailed {
+			t.Fatalf("状態 = %s, want %s", got, protocol.StateFailed)
+		}
+	})
+
+	t.Run("上限を過ぎて呼び出し中のまま再起動した", func(t *testing.T) {
+		personID, _, id, callID := leaveLostHandsetCall(t, start, key)
+		tokens := &recordTokens{}
+		srv, _ := newWatchedCallServerOn(t, tokens, clocktest.New(start.Add(10*time.Minute)))
+		token := askToken(t, srv.URL, id, key, callID)
+		if token.status != http.StatusConflict {
+			t.Fatalf("トークン = %d, want 409: %s", token.status, token.body)
+		}
+		if tokens.last() != nil {
+			t.Fatal("期限を過ぎた電話のトークンを作った")
+		}
+		if got := callState(t, personID, callID); got != protocol.StateFailed {
+			t.Fatalf("状態 = %s, want %s", got, protocol.StateFailed)
+		}
+	})
+
+	t.Run("上限の前に起動し直してもトークンを返す", func(t *testing.T) {
+		personID, _, id, callID := leaveLostHandsetCall(t, start, key)
+		tokens := &recordTokens{}
+		srv, _ := newWatchedCallServerOn(t, tokens, clocktest.New(start))
+		token := askToken(t, srv.URL, id, key, callID)
+		if token.status != http.StatusOK {
+			t.Fatalf("トークン = %d, want 200: %s", token.status, token.body)
+		}
+		if tokens.last() == nil {
+			t.Fatal("トークンを作らなかった")
+		}
+		if got := callState(t, personID, callID); got != protocol.StateRinging {
+			t.Fatalf("状態 = %s, want %s", got, protocol.StateRinging)
+		}
+	})
+
+	t.Run("作っているあいだに上限を過ぎたら返さない", func(t *testing.T) {
+		tokens := &gateTokens{
+			base:    &recordTokens{},
+			entered: make(chan struct{}),
+			release: make(chan struct{}),
+		}
+		clk := clocktest.New(start)
+		srv, _ := newWatchedCallServerOn(t, tokens, clk)
+		personID, id := linkHanakoPhone(t, srv.URL, key)
+		resp := callPhone(t, srv.URL, http.MethodPost, protocol.PhoneCallPath, id, key, "")
+		if resp.status != http.StatusCreated {
+			t.Fatalf("「＊」 = %d, want 201: %s", resp.status, resp.body)
+		}
+		var started protocol.StartedCall
+		if err := json.Unmarshal(resp.body, &started); err != nil || started.ID == "" {
+			t.Fatalf("本文 = %s", resp.body)
+		}
+		done := make(chan response, 1)
+		go func() {
+			done <- askToken(t, srv.URL, id, key, started.ID)
+		}()
+		select {
+		case <-tokens.entered:
+		case <-time.After(slowEmulatorBound):
+			t.Fatal("短命トークンを作り始めなかった")
+		}
+		clk.WaitForDeadline(start.Add(time.Minute))
+		clk.Advance(time.Minute)
+		close(tokens.release)
+		select {
+		case token := <-done:
+			if token.status != http.StatusConflict {
+				t.Fatalf("トークン = %d, want 409: %s", token.status, token.body)
+			}
+		case <-time.After(slowEmulatorBound):
+			t.Fatal("トークンの答えが来なかった")
+		}
+		waitUntilCallState(t, personID, started.ID, protocol.StateFailed)
+	})
+}
+
+func leaveLostHandsetCall(t *testing.T, start time.Time, key string) (personID, idToken, phoneID, callID string) {
+	t.Helper()
+	srv, handler := newWatchedCallServerOn(t, stubTokens{}, clocktest.New(start))
+	personID, idToken = registerHanako(t, srv.URL)
+	phoneID = testPhoneID(t)
+	if resp := registerPhone(t, srv.URL, protocol.DevPhoneSecret, phoneID, key); resp.status != http.StatusCreated {
+		t.Fatalf("登録 = %d, want 201: %s", resp.status, resp.body)
+	}
+	if _, err := emulators.Firestore.Collection("phones").Doc(phoneID).Update(t.Context(), []firestore.Update{
+		{Path: "watchedPersonId", Value: personID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	postLost(t, srv.URL, phoneID, key)
+	callID = onlyCallID(t, personID)
+	if got := callState(t, personID, callID); got != protocol.StateRinging {
+		t.Fatalf("失った直後の状態 = %s, want %s", got, protocol.StateRinging)
+	}
+	handler.Stop()
+	srv.Close()
+	return personID, idToken, phoneID, callID
+}
+
+func connectWatchedPhone(t *testing.T, backend string, handler *server.Handler, personID, phoneID, key string) {
+	t.Helper()
+	conn := dialPhoneKey(t, backend, phoneID, key)
+	readPhoneCalls(conn)
+	waitConnected(t, handler, personID, true)
+}
+
+func askToken(t *testing.T, backend, id, key, callID string) response {
+	t.Helper()
+	return callPhone(t, backend, http.MethodPost, protocol.TokenPath, id, key, `{"callId":"`+callID+`"}`)
+}
+
 func assertCallInProgress(t *testing.T, backend, id, key, idToken string) {
 	t.Helper()
 	again := callPhone(t, backend, http.MethodPost, protocol.PhoneCallPath, id, key, "")
@@ -355,6 +581,24 @@ func (r *recordTokens) last() *genai.CreateAuthTokenConfig {
 		return nil
 	}
 	return r.configs[len(r.configs)-1]
+}
+
+// gateTokens は、短命トークンを作り始めるところで止まり、テストが放すまで返さない。
+type gateTokens struct {
+	base    *recordTokens
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (g *gateTokens) Create(ctx context.Context, config *genai.CreateAuthTokenConfig) (*genai.AuthToken, error) {
+	g.once.Do(func() { close(g.entered) })
+	select {
+	case <-g.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return g.base.Create(ctx, config)
 }
 
 func instructionText(t *testing.T, token *genai.CreateAuthTokenConfig) string {

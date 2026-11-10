@@ -46,6 +46,8 @@ const (
 	starOffline = "star-offline"
 	// starHang は、最初の「＊」の応答を、その要求が取り消されるまで返さない。次の「＊」は始める。
 	starHang = "star-hang"
+	// starTokenRefuse は、電話は始めるが、短命トークンは断る。
+	starTokenRefuse = "star-token-refuse"
 )
 
 func TestHashUpPlaysTheCodeAndPlaysItAgain(t *testing.T) {
@@ -484,6 +486,8 @@ type codeBackend struct {
 	mu          sync.Mutex
 	n           int
 	starts      int
+	tokenN      int
+	stateN      int
 	tokenCall   string
 	conn        *websocket.Conn
 	accepted    chan struct{}
@@ -540,8 +544,15 @@ func (s *codeBackend) acceptPhone(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	s.onceAccept.Do(func() { close(s.accepted) })
 	for {
-		if _, _, err := conn.Read(r.Context()); err != nil {
+		_, data, err := conn.Read(r.Context())
+		if err != nil {
 			return
+		}
+		var msg protocol.PhoneMessage
+		if json.Unmarshal(data, &msg) == nil && msg.Type == protocol.PhoneTypeState {
+			s.mu.Lock()
+			s.stateN++
+			s.mu.Unlock()
 		}
 	}
 }
@@ -630,9 +641,14 @@ func (s *codeBackend) issueToken(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req)
 	s.mu.Lock()
 	s.tokenCall = req.CallID
+	s.tokenN++
 	hold := s.tokenHold
 	held := s.tokenHeld
 	s.mu.Unlock()
+	if s.kind == starTokenRefuse {
+		http.Error(w, "終わっている", http.StatusConflict)
+		return
+	}
 	if hold != nil {
 		s.onceToken.Do(func() {
 			if held != nil {
@@ -682,6 +698,18 @@ func (s *codeBackend) askedCall() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.tokenCall
+}
+
+func (s *codeBackend) tokenCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tokenN
+}
+
+func (s *codeBackend) stateCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stateN
 }
 
 func (s *codeBackend) waitEntered(t *testing.T) {

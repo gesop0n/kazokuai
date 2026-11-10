@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
@@ -53,6 +55,12 @@ var errNotFamily = errors.New("この家族には見守る方がいない")
 
 // errCallInProgress は、見守る方の電話のどれかが呼び出し中か通話中のときである。
 var errCallInProgress = errors.New("電話の最中")
+
+// errCallOver は、電話がつながらなかったか、見守る方からの呼び出しが上限を過ぎたときである。
+var errCallOver = errors.New("この電話は終わっている")
+
+// errCallNotFound は、トークンを頼んだ電話の文書が無いときである。
+var errCallNotFound = errors.New("電話が見つからない")
 
 // startCall は、ID トークンを確かめた家族の見守る方に、今すぐ電話をかける。
 // 電話機がつながっていないときと、電話の最中は、電話の文書を作らない。
@@ -256,23 +264,42 @@ func (s *server) beginCall(ctx context.Context, personID, message, script string
 
 // createCall は、見守る方の電話が呼び出し中でも通話中でもなければ、電話の文書を作ってその参照を返す。
 // 読み取りと作成は 1 つのトランザクションなので、同時に 2 回頼まれても 1 つしか作らない。
+// 見守る方からの電話が呼び出し中のまま上限を過ぎていれば、その場でつながらなかったにする。
+// メモリー上のタイマーは再起動で消えるので、塞いでいるかどうかは文書の時刻で決める。
 func (s *server) createCall(ctx context.Context, personID string, draft callDraft) (*firestore.DocumentRef, error) {
 	collection := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection)
 	ref := collection.NewDoc()
+	now := s.clock.Now()
+	limit := s.config.RingTimeout
+	blocked := false
 	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
-		busy, err := tx.Documents(collection.Where("state", "in", []string{protocol.StateRinging, protocol.StateTalking}).Limit(1)).GetAll()
+		blocked = false
+		busy, err := tx.Documents(collection.Where("state", "in", []string{protocol.StateRinging, protocol.StateTalking})).GetAll()
 		if err != nil {
 			return err
 		}
-		if len(busy) > 0 {
-			return errCallInProgress
+		var stale []*firestore.DocumentRef
+		for _, doc := range busy {
+			if watchedRingExpired(doc.Data(), now, limit) {
+				stale = append(stale, doc.Ref)
+				continue
+			}
+			blocked = true
+		}
+		for _, staleRef := range stale {
+			if err := tx.Update(staleRef, []firestore.Update{{Path: "state", Value: protocol.StateFailed}}); err != nil {
+				return err
+			}
+		}
+		if blocked {
+			return nil
 		}
 		// createdAt はかけた時刻。出なかった電話には始まりの時刻がないので、通話記録はこの時刻を出す。
 		fields := map[string]any{
 			"state":     draft.state,
 			"message":   draft.message,
 			"script":    draft.script,
-			"createdAt": s.clock.Now(),
+			"createdAt": now,
 		}
 		if draft.fromWatched {
 			fields[protocol.CallStartedByWatchedPerson] = true
@@ -282,7 +309,72 @@ func (s *server) createCall(ctx context.Context, personID string, draft callDraf
 	if err != nil {
 		return nil, err
 	}
+	if blocked {
+		return nil, errCallInProgress
+	}
 	return ref, nil
+}
+
+// permitToken は、トークンを出してよいかを、電話の状態と同じトランザクションで決める。
+// つながらなかった電話と、上限を過ぎた見守る方からの呼び出しには出さない。
+// 上限を過ぎてまだ呼び出し中なら、そのトランザクションでつながらなかったにする。
+func (s *server) permitToken(ctx context.Context, personID, callID string) (script string, fromWatched bool, err error) {
+	now := s.clock.Now()
+	limit := s.config.RingTimeout
+	ref := s.callRef(personID, callID)
+	over := false
+	err = s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		script = ""
+		fromWatched = false
+		over = false
+		doc, err := tx.Get(ref)
+		if status.Code(err) == codes.NotFound {
+			return errCallNotFound
+		}
+		if err != nil {
+			return err
+		}
+		data := doc.Data()
+		state, _ := data["state"].(string)
+		script, _ = data["script"].(string)
+		fromWatched, _ = data[protocol.CallStartedByWatchedPerson].(bool)
+		if state != protocol.StateFailed && !watchedRingExpired(data, now, limit) {
+			return nil
+		}
+		over = true
+		if state != protocol.StateRinging {
+			return nil
+		}
+		return tx.Update(ref, []firestore.Update{{Path: "state", Value: protocol.StateFailed}})
+	})
+	if err != nil {
+		return "", false, err
+	}
+	if over {
+		return "", false, errCallOver
+	}
+	return script, fromWatched, nil
+}
+
+// watchedRingExpired は、見守る方が始めた電話が呼び出し中のまま、呼び出しの上限を過ぎているとき真である。
+// 上限が無いときと、家族が始めた呼び出しは、ここでは終わらせない。
+func watchedRingExpired(data map[string]any, now time.Time, limit time.Duration) bool {
+	if limit <= 0 || data == nil {
+		return false
+	}
+	state, _ := data["state"].(string)
+	if state != protocol.StateRinging {
+		return false
+	}
+	fromWatched, _ := data[protocol.CallStartedByWatchedPerson].(bool)
+	if !fromWatched {
+		return false
+	}
+	created, ok := data["createdAt"].(time.Time)
+	if !ok {
+		return false
+	}
+	return !created.Add(limit).After(now)
 }
 
 func writeAPIError(w http.ResponseWriter, status int, code string) {

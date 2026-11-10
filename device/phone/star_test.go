@@ -178,6 +178,23 @@ func TestStarRequestTimeoutPlaysTheOfflineSentenceAndAllowsAnotherStar(t *testin
 	}
 }
 
+func TestRefusedTokenDoesNotOpenTheSession(t *testing.T) {
+	r := newCodeRig(t, starTokenRefuse)
+	r.lift()
+	r.press("*")
+	waitUntil(t, "短命トークンを頼まなかった", func() bool { return r.backend.tokenCount() >= 1 })
+	waitUntil(t, "断られたあとの状態を送らなかった", func() bool { return r.backend.stateCount() >= 1 })
+	if got := r.gemini.sessionCount(); got != 0 {
+		t.Fatalf("セッション = %d, want 0", got)
+	}
+	if got := r.phone.listenCount(); got != 0 {
+		t.Fatalf("マイクを開けた回数 = %d, want 0", got)
+	}
+	if r.phone.ringCount() != 0 {
+		t.Fatal("呼び出し音を鳴らした")
+	}
+}
+
 func sessionHas(s *fakeSession, want string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
