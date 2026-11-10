@@ -12,6 +12,7 @@ import 'package:kazokuai/data/tutorial_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/design/widgets/app_tab_bar.dart';
+import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/calls/call_detail_screen.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_screen.dart';
@@ -22,6 +23,8 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
+import 'package:kazokuai/features/settings/account_info_screen.dart';
+import 'package:kazokuai/features/settings/settings_screen.dart';
 import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
 import 'package:kazokuai/features/tutorial/tutorial_overlay.dart';
 import 'package:kazokuai/features/tutorial/tutorial_step.dart';
@@ -187,6 +190,68 @@ void _expectTipLooksLikeMock(WidgetTester tester) {
   );
 }
 
+// 戻るは白地に枠線で、スキップと次へのあいだ。次へ（T9 ははじめる）の左
+void _expectBackBeforeNext(WidgetTester tester, String nextLabel) {
+  expect(find.text('戻る'), findsOneWidget);
+  final back = tester.getRect(find.text('戻る'));
+  final next = tester.getRect(find.text(nextLabel));
+  final skip = find.text('スキップ');
+  if (skip.evaluate().isNotEmpty) {
+    expect(tester.getRect(skip).right, lessThan(back.left));
+  }
+  expect(back.right, lessThan(next.left));
+
+  final material = tester.widget<Material>(
+    find.ancestor(of: find.text('戻る'), matching: find.byType(Material)).first,
+  );
+  expect(material.color, AppColors.paperRaised);
+  final shape = material.shape! as RoundedRectangleBorder;
+  expect(shape.side.color, AppColors.lineStrong);
+  expect(shape.side.width, 1.5);
+}
+
+// T9 はスキップがなく、戻るとはじめるが説明の右端に並ぶ。間は 8
+void _expectFinishSitsOnTheRight(WidgetTester tester) {
+  final tip = tester.getRect(
+    find.byWidgetPredicate(
+      (widget) => widget is Semantics && widget.properties.label == '使い方 9/9',
+    ),
+  );
+  final back = tester.getRect(
+    find.ancestor(of: find.text('戻る'), matching: find.byType(AppPressable)),
+  );
+  final start = tester.getRect(
+    find.ancestor(of: find.text('はじめる'), matching: find.byType(AppPressable)),
+  );
+  expect(back.right, lessThan(start.left));
+  expect(start.left - back.right, closeTo(8, 2));
+  // カードの右端に付き、左にはスキップのあった空きが残る
+  expect(start.right, closeTo(tip.right - 16, 2));
+  expect(back.left, greaterThan(tip.left + 16));
+}
+
+void _expectStep(WidgetTester tester, int step, {required bool back}) {
+  expect(find.text('使い方 $step/9'), findsOneWidget);
+  expect(find.text('スキップ'), step == 9 ? findsNothing : findsOneWidget);
+  final next = step == 9 ? 'はじめる' : '次へ';
+  expect(find.text(next), findsOneWidget);
+  if (!back) {
+    expect(find.text('戻る'), findsNothing);
+    return;
+  }
+  _expectBackBeforeNext(tester, next);
+}
+
+Future<void> _tapNext(WidgetTester tester) async {
+  await tester.tap(find.text('次へ'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapBack(WidgetTester tester) async {
+  await tester.tap(find.text('戻る'));
+  await tester.pumpAndSettle();
+}
+
 void _expectHoleFits(WidgetTester tester, Finder target) {
   _expectHoleContains(tester, target);
   final hole = tester.getRect(find.byType(TutorialHole));
@@ -276,7 +341,7 @@ void main() {
       final step = steps[i];
       expect(find.text(step.progress), findsOneWidget);
       expect(find.text(step.body), findsOneWidget);
-      expect(find.text('スキップ'), findsOneWidget);
+      expect(find.text('スキップ'), i == 8 ? findsNothing : findsOneWidget);
       expect(find.text(step.next), findsOneWidget);
       if (step.tight) {
         _expectHoleFits(tester, targets[i]);
@@ -613,6 +678,120 @@ void main() {
     expect(dimmed.g, 0);
     expect(dimmed.b, 0);
     expect(dimmed.a, inInclusiveRange(157, 159));
+  });
+
+  testWidgets('T2 から T9 には戻るがあり、戻ると一つ前の段階と後ろの画面に戻る', (tester) async {
+    await _pump(tester, tutorial: FakeTutorialRepository());
+    _expectStep(tester, 1, back: false);
+
+    await _tapNext(tester);
+    _expectStep(tester, 2, back: true);
+    _expectHoleFits(tester, find.byType(AskCard));
+
+    await _tapBack(tester);
+    _expectStep(tester, 1, back: false);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    _expectHoleFits(tester, find.byType(RecentCallCard));
+
+    await _tapNext(tester);
+    await _tapNext(tester);
+    _expectStep(tester, 3, back: true);
+    final todayTop = tester.getRect(find.byType(TodayCard)).top;
+
+    await _tapNext(tester);
+    _expectStep(tester, 4, back: true);
+    expect(find.byType(CallsScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsNothing);
+
+    await _tapBack(tester);
+    _expectStep(tester, 3, back: true);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(CallsScreen), findsNothing);
+    expect(tester.getRect(find.byType(TodayCard)).top, closeTo(todayTop, 1));
+    _expectHoleFits(tester, find.byType(TodayCard));
+
+    await _tapNext(tester);
+    _expectStep(tester, 4, back: true);
+    await _tapNext(tester);
+    _expectStep(tester, 5, back: true);
+    await _tapNext(tester);
+    _expectStep(tester, 6, back: true);
+    expect(find.byType(CallDetailScreen), findsOneWidget);
+
+    await _tapNext(tester);
+    _expectStep(tester, 7, back: true);
+    expect(find.byType(BookingScreen), findsOneWidget);
+    expect(find.byType(CallDetailScreen), findsNothing);
+
+    await _tapBack(tester);
+    _expectStep(tester, 6, back: true);
+    expect(find.byType(CallDetailScreen), findsOneWidget);
+    expect(find.byType(BookingScreen), findsNothing);
+    _expectHoleContains(tester, find.text('通話時間'));
+
+    await _tapNext(tester);
+    _expectStep(tester, 7, back: true);
+    await _tapNext(tester);
+    _expectStep(tester, 8, back: true);
+    await _tapNext(tester);
+    _expectStep(tester, 9, back: true);
+    _expectFinishSitsOnTheRight(tester);
+  });
+
+  testWidgets('T9 にはスキップがなく、戻るとはじめるが右に並ぶ', (tester) async {
+    await _pump(tester, tutorial: FakeTutorialRepository());
+    for (var i = 0; i < 8; i++) {
+      await _tapNext(tester);
+    }
+
+    expect(find.text('使い方 9/9'), findsOneWidget);
+    expect(find.text('スキップ'), findsNothing);
+    expect(find.text('戻る'), findsOneWidget);
+    expect(find.text('はじめる'), findsOneWidget);
+    _expectFinishSitsOnTheRight(tester);
+  });
+
+  testWidgets('見たことのある家族も、08e から T1 でもう一度見られ、見た記録は残る', (tester) async {
+    final tutorial = FakeTutorialRepository(seen: true);
+    await _pump(tester, tutorial: tutorial);
+    expect(find.text('使い方 1/9'), findsNothing);
+    expect(tutorial.seen.value, isTrue);
+    expect(tutorial.markCount, 0);
+
+    await tester.tap(find.bySemanticsLabel('田中ハナさんの設定'));
+    await tester.pumpAndSettle();
+    final account = find.text('アカウント情報');
+    await tester.ensureVisible(account);
+    await tester.pumpAndSettle();
+    await tester.tap(account);
+    await tester.pumpAndSettle();
+    expect(find.byType(AccountInfoScreen), findsOneWidget);
+
+    final review = find.text('チュートリアル確認');
+    await tester.ensureVisible(review);
+    await tester.pumpAndSettle();
+    await tester.tap(review);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AccountInfoScreen), findsNothing);
+    expect(find.byType(SettingsScreen), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    _expectStep(tester, 1, back: false);
+    _expectHoleFits(tester, find.byType(RecentCallCard));
+    expect(tutorial.seen.value, isTrue);
+    expect(tutorial.markCount, 0);
+
+    await tester.tap(find.text('スキップ'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('使い方'), findsNothing);
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(tutorial.seen.value, isTrue);
+    expect(tutorial.markCount, 1);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pump(tester, tutorial: tutorial);
+    expect(find.text('使い方 1/9'), findsNothing);
+    expect(tutorial.seen.value, isTrue);
   });
 }
 

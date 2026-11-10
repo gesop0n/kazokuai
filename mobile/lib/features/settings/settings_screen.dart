@@ -78,7 +78,7 @@ List<List<_Entry>> _groups({
 }) => [
   [
     _Entry(
-      label: 'お名前',
+      label: '見守る方のお名前',
       value: person?.name ?? '',
       action: _Action.comingSoon,
       field: true,
