@@ -174,7 +174,8 @@ type pin interface {
 	Close() error
 }
 
-// Keypad は、行列を走査して押下を 1 回ずつ知らせる。電話の流れではまだ使わない。
+// Keypad は、行列を走査して押下を 1 回ずつ知らせる。
+// 電話機は、受話器が上がっていて電話の最中でないときの「＃」で認証コードを頼む。
 type Keypad struct {
 	rows      []pin
 	cols      []pin
