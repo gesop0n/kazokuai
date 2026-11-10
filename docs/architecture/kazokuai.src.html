@@ -176,7 +176,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <div class="kicker">ADR 0003 · ADR 0011 · ADR 0014 · 2026-11-10</div>
       <h1>かぞくAI の構成</h1>
     </div>
-    <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。公開は GitHub Actions から手で行う。</p>
+    <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。公開は GitHub Actions から手で行い、main のスナップショットを提出用リポジトリへ写す。</p>
   </header>
 
   <div class="scroller">
@@ -186,7 +186,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <div class="group gcp" style="left:550px; top:40px; width:660px; height:390px;">
       <div class="g-label"><img src="%%ICON_gcp%%" alt="">Google Cloud</div>
     </div>
-    <div class="group gb" style="left:24px; top:40px; width:180px; height:172px;">
+    <div class="group gb" style="left:24px; top:40px; width:426px; height:172px;">
       <div class="g-label"><img class="lt" src="%%ICON_github%%" alt=""><img class="dk" src="%%ICON_github_dark%%" alt="">GitHub</div>
     </div>
     <div class="group gb" style="left:30px; top:220px; width:480px; height:210px;">
@@ -231,6 +231,8 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <text class="el" x="1000" y="242" text-anchor="middle">保存</text>
 
       <!-- deploy from GitHub Actions. Dashed, and kept off the runtime labels. -->
+      <path class="n dash" d="M148 130 H326" marker-end="url(#ar)"/>
+      <text class="el" x="237" y="122" text-anchor="middle">スナップショット</text>
       <path class="n dash" d="M148 130 V32 H766 V126" marker-end="url(#ar)"/>
       <text class="el" x="450" y="24" text-anchor="middle">認証</text>
       <path class="n dash" d="M834 130 H926" marker-end="url(#ar)"/>
@@ -260,6 +262,10 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
     <div class="node" style="left:48px;top:100px">
       <div class="tile"><img src="%%ICON_github%%" alt=""></div>
       <div class="name"><span>GitHub Actions</span></div><div class="role"><span>main から手で</span></div>
+    </div>
+    <div class="node" style="left:294px;top:100px">
+      <div class="tile"><img src="%%ICON_github%%" alt=""></div>
+      <div class="name"><span>提出用リポジトリ</span></div><div class="role"><span>df-2026-t086</span></div>
     </div>
     <div class="node" style="left:574px;top:100px">
       <div class="tile"><img src="%%ICON_secret%%" alt=""></div>

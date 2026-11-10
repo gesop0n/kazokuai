@@ -1,0 +1,50 @@
+name: submit
+
+# 手で動かしたときだけ、main のスナップショットを提出先へ写す。
+# 提出先は公開リポジトリで、GitHub Actions は動かない。履歴は写さない。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: submit
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}
+    steps:
+      - name: main 以外は断る
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "main 以外の ref では写しません。" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v5
+
+      - name: 検査する
+        run: mise run check
+
+      - name: トークンがあるか確かめる
+        env:
+          SUBMISSION_TOKEN: ${{ secrets.SUBMISSION_TOKEN }}
+        run: bash scripts/submit_snapshot.sh check-token
+
+      - name: 提出先を取り出す
+        uses: actions/checkout@v7
+        with:
+          repository: Devfest-Hackathon-2026/df-2026-t086
+          ref: main
+          path: submission
+          token: ${{ secrets.SUBMISSION_TOKEN }}
+
+      - name: スナップショットを写す
+        run: bash scripts/submit_snapshot.sh
