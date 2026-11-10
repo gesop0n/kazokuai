@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/firestore"
@@ -153,9 +154,26 @@ func (s *server) phoneByKey(ctx context.Context, id, key string) (phoneIdentity,
 	return phoneIdentity{phoneID: id, personID: record.WatchedPersonID}, 0, "", nil
 }
 
+// phonePersonRead は、接続時の結び付きの読み取りを差し替える。nil なら Firestore を読む。
+// テストが、読めないときの接続を確かめる。
+var (
+	phonePersonMu   sync.Mutex
+	phonePersonRead func(context.Context, *firestore.DocumentRef) (*firestore.DocumentSnapshot, error)
+)
+
+func readPhonePerson(ctx context.Context, ref *firestore.DocumentRef) (*firestore.DocumentSnapshot, error) {
+	phonePersonMu.Lock()
+	fn := phonePersonRead
+	phonePersonMu.Unlock()
+	if fn != nil {
+		return fn(ctx, ref)
+	}
+	return ref.Get(ctx)
+}
+
 // phonePerson は、phones/{id} の今の見守る方を返す。文書が無いときは空で、エラーにしない。
 func (s *server) phonePerson(ctx context.Context, phoneID string) (string, error) {
-	doc, err := s.firebase.Firestore.Collection(phonesCollection).Doc(phoneID).Get(ctx)
+	doc, err := readPhonePerson(ctx, s.firebase.Firestore.Collection(phonesCollection).Doc(phoneID))
 	if status.Code(err) == codes.NotFound {
 		return "", nil
 	}

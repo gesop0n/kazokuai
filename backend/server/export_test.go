@@ -6,6 +6,14 @@ import (
 	"cloud.google.com/go/firestore"
 )
 
+// StubPhonePersonRead は、接続時の結び付きの読み取りを差し替える。
+// テストが一時的な失敗を再現する。nil で元に戻す。
+func StubPhonePersonRead(fn func(context.Context, *firestore.DocumentRef) (*firestore.DocumentSnapshot, error)) {
+	phonePersonMu.Lock()
+	phonePersonRead = fn
+	phonePersonMu.Unlock()
+}
+
 // StubBookingScheduleRead は、予定に入れるときの予約の読み直しを差し替える。
 // テストが一時的な失敗を再現する。nil で元に戻す。
 func StubBookingScheduleRead(fn func(context.Context, *firestore.DocumentRef) (*firestore.DocumentSnapshot, error)) {

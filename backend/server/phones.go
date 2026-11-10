@@ -151,6 +151,7 @@ func (b *phoneBook) detachPerson(phoneID string) {
 // phone は、ID と鍵で認証した電話機の WebSocket を受け、切れるまで状態を読む。
 // 接続を先に登録してから、今の結び付きを読む。そのあいだに同期が終わっても、知らせは失わない。
 // 同期していない電話機も、つながったままにする。電話は、結び付きを読んでから届く。
+// 結び付きを読めなかったときは、その接続を外して閉じる。未同期とは知らせない。つなぎ直したときに読み直す。
 func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	identity := phoneIdentityFrom(r.Context())
 	if identity.phoneID == "" {
@@ -183,6 +184,7 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	if old := s.phones.replacePhone(identity.phoneID, link); old != nil {
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
+	defer s.disconnectPhone(identity.phoneID, link)
 	// 登録したあと、結び付きを読む前に止まれる。テストが、そのあいだに同期を終える。
 	if s.afterPhoneRegistered != nil {
 		s.afterPhoneRegistered()
@@ -191,13 +193,14 @@ func (s *server) phone(w http.ResponseWriter, r *http.Request) {
 	personID, err := s.phonePerson(r.Context(), identity.phoneID)
 	if err != nil {
 		s.logf("電話機 %s の結び付きを読めなかった: %v", identity.phoneID, err)
-		personID = ""
+		s.disconnectPhone(identity.phoneID, link)
+		s.linkMu.Unlock()
+		return
 	}
 	s.phones.bindPerson(identity.phoneID, personID, link)
 	s.tellSyncState(identity.phoneID, personID != "")
 	s.linkMu.Unlock()
 	s.logf("電話機がつながりました。見守る方: %s", personID)
-	defer s.disconnectPhone(identity.phoneID, link)
 	go keepalive.Run(ctx, s.clock, conn)
 
 	for {

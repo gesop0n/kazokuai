@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -568,6 +569,56 @@ func TestPhoneHearsTheLinkThatExistsWhenItFinishesConnecting(t *testing.T) {
 			t.Fatalf("最後の状態 = %s, want %s", got, protocol.PhoneTypeNotSynced)
 		}
 	})
+}
+
+// 結び付きの読み取りが失敗したときは、未同期とは知らせずに接続を閉じる。
+// そのあと読み直せば、切れていた電話はつながらなかったにならない。
+func TestFailedLinkReadClosesAndTheNextConnectionKeepsTheCall(t *testing.T) {
+	clk := clocktest.New(time.Date(2026, 1, 2, 9, 0, 0, 0, time.UTC))
+	srv, handler := newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+	person, token := registerHanako(t, srv.URL)
+	conn := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+	readPhone(conn)
+	waitConnected(t, handler, person, true)
+	callID := startNow(t, srv.URL, protocol.StartCallPath, token)
+
+	conn.CloseNow()
+	waitConnected(t, handler, person, false)
+
+	server.StubPhonePersonRead(func(context.Context, *firestore.DocumentRef) (*firestore.DocumentSnapshot, error) {
+		return nil, errors.New("一時的に読めない")
+	})
+	t.Cleanup(func() { server.StubPhonePersonRead(nil) })
+
+	failed := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+	msgs := collectMessages(t, failed)
+	select {
+	case msg, ok := <-msgs:
+		if ok {
+			t.Fatalf("読めないあいだに %s が届いた", msg.Type)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("結び付きを読めなくても接続を閉じなかった")
+	}
+	waitConnected(t, handler, person, false)
+	if got := callState(t, person, callID); got != protocol.StateRinging {
+		t.Fatalf("読めないあいだの状態 = %s, want 呼び出し中", got)
+	}
+
+	server.StubPhonePersonRead(nil)
+	again := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+	readPhone(again)
+	waitConnected(t, handler, person, true)
+	clk.Advance(protocol.ReconnectGrace)
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if got := callState(t, person, callID); got != protocol.StateRinging {
+			t.Fatalf("読み直せたのに状態 = %s", got)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	sendPhoneState(t, again, callID, protocol.StateTalking)
+	waitCallState(t, person, callID, protocol.StateTalking)
 }
 
 // phonePause は、最初の電話機の接続を登録したあと、結び付きを読む前に止める。
