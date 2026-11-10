@@ -1,0 +1,5 @@
+#!/bin/sh
+if pgrep -u "$(id -u)" -f kazokuai-phone.py >/dev/null 2>&1; then
+	exit 0
+fi
+exec python3 /usr/local/share/kazokuai-pisim/kazokuai-phone.py "$@"

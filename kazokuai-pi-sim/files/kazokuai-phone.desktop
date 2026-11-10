@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=かぞくAI 電話機
+Comment=電話機の受話器・キーパッド・本体スピーカー
+Exec=/usr/local/bin/kazokuai-phone
+Icon=phone
+Terminal=false
+Categories=Utility;

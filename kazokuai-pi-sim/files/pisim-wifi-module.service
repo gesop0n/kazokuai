@@ -1,0 +1,13 @@
+[Unit]
+Description=かぞくAI 電話機の無線(mac80211_hwsim)を用意する
+Before=pisim-net.service
+ConditionPathExists=/proc/config.gz
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=infinity
+ExecStart=/usr/local/share/kazokuai-pisim/build-wifi-module.sh
+
+[Install]
+WantedBy=multi-user.target

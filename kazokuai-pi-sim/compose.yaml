@@ -1,0 +1,30 @@
+name: kazokuai-pi
+
+services:
+  pi:
+    build: .
+    image: kazokuai-pi-sim:latest
+    container_name: kazokuai-pi
+    privileged: true
+    network_mode: host
+    cgroup: host
+    tmpfs:
+      - /run
+      - /run/lock
+    stop_signal: SIGRTMIN+3
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - ${WSLG_DIR:-/run/desktop/mnt/host/wslg}:/mnt/wslg
+      - pi-home:/home/tana
+      - ./share:/home/tana/share
+      - ./secret:/etc/kazokuai/secret:ro
+      - pi-state:/var/lib/kazokuai
+      - pi-cache:/var/cache/pisim
+      - pi-modules:/usr/local/lib/pisim/modules
+    restart: unless-stopped
+
+volumes:
+  pi-home:
+  pi-state:
+  pi-cache:
+  pi-modules:

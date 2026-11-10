@@ -1,0 +1,16 @@
+[Unit]
+Description=かぞくAI 電話機の画面
+After=pisim.service
+ConditionPathExists=/mnt/wslg
+
+[Service]
+User=tana
+Environment=LANG=ja_JP.UTF-8
+Environment=DISPLAY=:0 WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/mnt/wslg/runtime-dir PULSE_SERVER=unix:/mnt/wslg/PulseServer
+BindReadOnlyPaths=-/mnt/wslg/.X11-unix:/tmp/.X11-unix
+ExecStart=/usr/bin/python3 /usr/local/share/kazokuai-pisim/kazokuai-phone.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
