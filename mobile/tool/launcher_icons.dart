@@ -14,6 +14,10 @@ const _safeDiameter = 66 / 108;
 
 const _foregroundSizes = [108, 162, 216, 324, 432];
 
+// flutter_launcher_icons は favicon を 16×16 で書く。タブは 16 論理画素を
+// 高 DPI では 2 倍以上で描くので、元画像から 48×48 を作り直す。
+const _faviconSize = 48;
+
 void main() {
   final source = img.decodePng(
     File('assets/app_icon/icon_1024.png').readAsBytesSync(),
@@ -69,6 +73,7 @@ void main() {
   );
 
   _restoreWebManifest(manifestFile, manifestText);
+  _writeFavicon(source);
   _fitMaskableIcons();
 }
 
@@ -87,6 +92,20 @@ void _restoreWebManifest(File manifestFile, String originalText) {
   }
   manifestFile.writeAsStringSync(
     '${const JsonEncoder.withIndent('    ').convert(rewritten)}\n',
+  );
+}
+
+// 生成が書いた 16×16 を、元の 1024×1024 から縮小した画像で置き換える。
+void _writeFavicon(img.Image source) {
+  File('web/favicon.png').writeAsBytesSync(
+    img.encodePng(
+      img.copyResize(
+        source,
+        width: _faviconSize,
+        height: _faviconSize,
+        interpolation: img.Interpolation.average,
+      ),
+    ),
   );
 }
 
@@ -165,11 +184,22 @@ bool _jsonEquals(Object? a, Object? b) {
 }
 
 int _drawingOutsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(
+    icon,
+    (pixel) => pixel.a >= 16 && !_isNearCream(pixel),
+  );
+}
+
+int _outsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(icon, (pixel) => pixel.a >= 16);
+}
+
+int _outsideSafeCircleWhere(img.Image icon, bool Function(img.Pixel) counts) {
   final radius = _safeDiameter * icon.width / 2;
   final limit = radius * radius;
   var outside = 0;
   for (final pixel in icon) {
-    if (pixel.a < 16 || _isNearCream(pixel)) {
+    if (!counts(pixel)) {
       continue;
     }
     final dx = (pixel.x + 0.5) - icon.width / 2;
@@ -272,21 +302,4 @@ img.Image _place(img.Image keyed, (double, double) center, double scale) {
     dstY: (_canvas / 2 - center.$2 * actual).round(),
   );
   return out;
-}
-
-int _outsideSafeCircle(img.Image icon) {
-  final radius = _safeDiameter * icon.width / 2;
-  final limit = radius * radius;
-  var outside = 0;
-  for (final pixel in icon) {
-    if (pixel.a < 16) {
-      continue;
-    }
-    final dx = (pixel.x + 0.5) - icon.width / 2;
-    final dy = (pixel.y + 0.5) - icon.height / 2;
-    if (dx * dx + dy * dy > limit) {
-      outside++;
-    }
-  }
-  return outside;
 }

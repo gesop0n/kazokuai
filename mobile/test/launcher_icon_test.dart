@@ -131,7 +131,7 @@ void main() {
       File('assets/app_icon/icon_1024.png').readAsBytesSync(),
     )!;
     const regular = {
-      'web/favicon.png': 16,
+      'web/favicon.png': 48,
       'web/icons/Icon-192.png': 192,
       'web/icons/Icon-512.png': 512,
     };
