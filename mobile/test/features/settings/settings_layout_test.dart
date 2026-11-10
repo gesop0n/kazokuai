@@ -18,6 +18,7 @@ void main() {
     );
 
     expect(find.text('田中ハナさんの設定'), findsOneWidget);
+    expect(find.text('チュートリアル確認'), findsOneWidget);
     expect(find.text('アカウント情報'), findsOneWidget);
   });
 

@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// 08e の「チュートリアル確認」。
+// 08 の「チュートリアル確認」。
 // 見たという記録は変えず、ホームで T1 からもう一度出す。
 class TutorialReplay extends ChangeNotifier {
   var _generation = 0;

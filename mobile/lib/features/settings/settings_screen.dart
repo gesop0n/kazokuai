@@ -10,12 +10,13 @@ import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/settings/settings_rows.dart';
+import 'package:kazokuai/features/tutorial/tutorial_replay.dart';
 
 // モックの見本。好きな話題と AI の声は、まだ保存していない。
 const _sampleTopics = '家族・孫、庭・花、料理';
 const _sampleVoice = 'やさしい女性の声';
 
-enum _Action { comingSoon, account, phone, retry }
+enum _Action { comingSoon, account, phone, retry, tutorial }
 
 class _Entry {
   const _Entry({
@@ -36,6 +37,7 @@ class _Entry {
 // 08。ホームの歯車から開く、見守る方の設定。
 // 名前と呼び方は出すが、まだ書き換えられない。
 // 同期している電話機は同期の画面を、かけなおしのルールは 07 を開く。
+// チュートリアル確認は、ホームで T1 からもう一度出す。
 // ほかの行は「準備中です」。アカウント情報は 08e を開く。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -108,10 +110,17 @@ List<List<_Entry>> _groups({
     ),
     _Entry(label: 'かけなおしのルール', value: retrySummary, action: _Action.retry),
   ],
-  [_Entry(label: 'アカウント情報', value: email, action: _Action.account)],
+  [
+    const _Entry(
+      label: 'チュートリアル確認',
+      value: '使い方をもう一度見る',
+      action: _Action.tutorial,
+    ),
+    _Entry(label: 'アカウント情報', value: email, action: _Action.account),
+  ],
 ];
 
-void _open(BuildContext context, _Action action) {
+void _open(BuildContext context, WidgetRef ref, _Action action) {
   switch (action) {
     case _Action.account:
       context.pushNamed(AppRoutes.accountInfo);
@@ -119,19 +128,23 @@ void _open(BuildContext context, _Action action) {
       context.pushNamed(AppRoutes.settingsSync);
     case _Action.retry:
       context.pushNamed(AppRoutes.retryRule);
+    case _Action.tutorial:
+      // 見たという記録は変えず、ホームで T1 からもう一度出す
+      ref.read(tutorialReplayProvider).request();
+      context.goNamed(AppRoutes.home);
     case _Action.comingSoon:
       showComingSoon(context);
   }
 }
 
-class _SettingsBody extends StatelessWidget {
+class _SettingsBody extends ConsumerWidget {
   const _SettingsBody({required this.title, required this.groups});
 
   final String title;
   final List<List<_Entry>> groups;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -155,7 +168,8 @@ class _SettingsBody extends StatelessWidget {
                             entry.field
                                 ? SettingsLabeledField(
                                     label: entry.label,
-                                    onTap: () => _open(context, entry.action),
+                                    onTap: () =>
+                                        _open(context, ref, entry.action),
                                     semanticsLabel: entry.value.isEmpty
                                         ? entry.label
                                         : '${entry.label}、${entry.value}',
@@ -166,7 +180,8 @@ class _SettingsBody extends StatelessWidget {
                                 : SettingsLinkRow(
                                     label: entry.label,
                                     value: entry.value,
-                                    onTap: () => _open(context, entry.action),
+                                    onTap: () =>
+                                        _open(context, ref, entry.action),
                                   ),
                         ],
                       ),

@@ -23,7 +23,6 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/home/recent_call_card.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 import 'package:kazokuai/features/home/today_card.dart';
-import 'package:kazokuai/features/settings/account_info_screen.dart';
 import 'package:kazokuai/features/settings/settings_screen.dart';
 import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
 import 'package:kazokuai/features/tutorial/tutorial_overlay.dart';
@@ -751,7 +750,7 @@ void main() {
     _expectFinishSitsOnTheRight(tester);
   });
 
-  testWidgets('見たことのある家族も、08e から T1 でもう一度見られ、見た記録は残る', (tester) async {
+  testWidgets('見たことのある家族も、08 から T1 でもう一度見られ、見た記録は残る', (tester) async {
     final tutorial = FakeTutorialRepository(seen: true);
     await _pump(tester, tutorial: tutorial);
     expect(find.text('使い方 1/9'), findsNothing);
@@ -760,12 +759,7 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('田中ハナさんの設定'));
     await tester.pumpAndSettle();
-    final account = find.text('アカウント情報');
-    await tester.ensureVisible(account);
-    await tester.pumpAndSettle();
-    await tester.tap(account);
-    await tester.pumpAndSettle();
-    expect(find.byType(AccountInfoScreen), findsOneWidget);
+    expect(find.byType(SettingsScreen), findsOneWidget);
 
     final review = find.text('チュートリアル確認');
     await tester.ensureVisible(review);
@@ -773,7 +767,6 @@ void main() {
     await tester.tap(review);
     await tester.pumpAndSettle();
 
-    expect(find.byType(AccountInfoScreen), findsNothing);
     expect(find.byType(SettingsScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
     _expectStep(tester, 1, back: false);
