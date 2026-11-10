@@ -4,6 +4,11 @@ name: submit
 # 提出先は公開リポジトリで、GitHub Actions は動かない。履歴は写さない。
 on:
   workflow_dispatch:
+    inputs:
+      message:
+        description: 提出先のコミットメッセージ
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -47,4 +52,6 @@ jobs:
           token: ${{ secrets.SUBMISSION_TOKEN }}
 
       - name: スナップショットを写す
+        env:
+          SUBMISSION_MESSAGE: ${{ inputs.message }}
         run: bash scripts/submit_snapshot.sh

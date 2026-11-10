@@ -20,13 +20,9 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-if [[ ! "${GITHUB_SHA:-}" =~ ^[0-9a-fA-F]{40}$ ]]; then
-  echo "GITHUB_SHA は 40 桁のコミット ID です。" >&2
-  exit 1
-fi
-
-if [[ -z "${GITHUB_REPOSITORY:-}" ]]; then
-  echo "GITHUB_REPOSITORY がありません。" >&2
+# コミットメッセージは、写すたびに人が決める。
+if [[ -z "${SUBMISSION_MESSAGE:-}" ]]; then
+  echo "SUBMISSION_MESSAGE にコミットメッセージを入れてください。" >&2
   exit 1
 fi
 
@@ -77,11 +73,10 @@ if git -C "$dest" diff --cached --quiet; then
   exit 0
 fi
 
-short=${GITHUB_SHA:0:7}
 export GIT_TERMINAL_PROMPT=0
 git -C "$dest" \
   -c user.name='github-actions[bot]' \
   -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
   -c commit.gpgsign=false \
-  commit -m "${GITHUB_REPOSITORY} の ${short} を写す"
+  commit -m "$SUBMISSION_MESSAGE"
 git -C "$dest" push origin HEAD:main

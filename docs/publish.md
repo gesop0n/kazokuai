@@ -253,7 +253,9 @@ GitHub の Actions で、ワークフロー `deploy` を `main` から手で 1 �
 
 ハッカソンの審査は、公開のリポジトリ `Devfest-Hackathon-2026/df-2026-t086` の中身で行う。そこでは GitHub Actions は動かない。このリポジトリのワークフロー `submit` が、`main` のスナップショットを提出先の `main` へ写す。履歴は写さない。動かすのは手だけである。
 
-きっかけは `workflow_dispatch` だけである。`main` 以外の ref では断る。先に `mise run check` が動き、通ったときだけ写す。写すのは、ワークフローを動かしたコミットで git が追跡しているファイルである。コマンドは `git archive HEAD` である。`.github/workflows/` は写さない。提出先では GitHub Actions が動かない。このフォルダを入れると push に Workflows の権限が要るが、トークンは Contents の読み書きだけである。提出先にすでにこのフォルダがあっても残さない。提出先の `.git` と `LICENSE` は残す。`github-actions[bot]` が、このリポジトリの名前と短い SHA をメッセージにしてコミットし、提出先の `main` に push する。変更がなければコミットしない。
+きっかけは `workflow_dispatch` だけである。`main` 以外の ref では断る。先に `mise run check` が動き、通ったときだけ写す。写すのは、ワークフローを動かしたコミットで git が追跡しているファイルである。コマンドは `git archive HEAD` である。`.github/workflows/` は写さない。提出先では GitHub Actions が動かない。このフォルダを入れると push に Workflows の権限が要るが、トークンは Contents の読み書きだけである。提出先にすでにこのフォルダがあっても残さない。提出先の `.git` と `LICENSE` は残す。`github-actions[bot]` がコミットし、提出先の `main` に push する。変更がなければコミットしない。
+
+コミットメッセージは、写すたびに人が決める。ワークフローでは入力 `message` に書き、スクリプトには環境変数 `SUBMISSION_MESSAGE` で渡す。中身がどう変わったかを短く書く（例: 「README と構成図を更新」）。「写す」という言葉と、元のコミット ID は入れない。メッセージがないと、スクリプトは写さずに止まる。
 
 push の前に、スナップショットに秘密の形をした文字列（Google の API キー、秘密鍵の見出し、GitHub のトークン）がないかを調べる。見つかったら push せずに失敗する。出すのはファイルの名前だけで、値は出さない。
 
@@ -264,6 +266,20 @@ gh secret set SUBMISSION_TOKEN --repo gesop0n/kazokuai
 ```
 
 締切の前に、GitHub の Actions でワークフロー `submit` を `main` から手で動かす。締切のあと、提出先は読み取り専用になる。
+
+gesop0n は提出先の組織のメンバーではないので、組織を対象にした fine-grained のトークンを作れない。そのあいだは、`main` のチェックアウトで `mise run check` を通してから、手元で写す。push には gesop0n の gh のログインを、このコマンドの中だけで使う。作者は gesop0n の GitHub の noreply のアドレスにする。手元の git の設定のメールアドレスは使わない。
+
+```bash
+git clone https://github.com/Devfest-Hackathon-2026/df-2026-t086.git /tmp/df-2026-t086
+uid=$(GH_TOKEN="$(gh auth token --user gesop0n)" gh api user --jq .id)
+GH_TOKEN="$(gh auth token --user gesop0n)" \
+  GIT_CONFIG_COUNT=2 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0= \
+  GIT_CONFIG_KEY_1=credential.helper GIT_CONFIG_VALUE_1='!gh auth git-credential' \
+  GIT_AUTHOR_NAME=gesop0n GIT_AUTHOR_EMAIL="${uid}+gesop0n@users.noreply.github.com" \
+  GIT_COMMITTER_NAME=gesop0n GIT_COMMITTER_EMAIL="${uid}+gesop0n@users.noreply.github.com" \
+  SUBMISSION_DIR=/tmp/df-2026-t086 SUBMISSION_MESSAGE='README と構成図を更新' \
+  bash scripts/submit_snapshot.sh
+```
 
 ## Cloud Run が tainted で残っているとき
 
