@@ -9,3 +9,9 @@ flutter_launcher_icons:
   adaptive_icon_foreground: assets/app_icon/android_foreground.png
   # 前景の画像自体に、絵を安全な範囲へ収めた余白がある。ここを足すと二重に小さくなる。
   adaptive_icon_foreground_inset: 0
+  web:
+    generate: true
+    image_path: assets/app_icon/icon_1024.png
+    # アイコンの背景色。flutter_launcher_icons はこれを manifest の
+    # background_color にも書くので、tool/launcher_icons.dart がページの色に戻す。
+    background_color: "#FFF5D3"

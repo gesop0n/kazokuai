@@ -14,6 +14,10 @@ const _safeDiameter = 66 / 108;
 
 const _foregroundSizes = [108, 162, 216, 324, 432];
 
+// flutter_launcher_icons は favicon を 16×16 で書く。タブは 16 論理画素を
+// 高 DPI では 2 倍以上で描くので、元画像から 48×48 を作り直す。
+const _faviconSize = 48;
+
 void main() {
   final source = img.decodePng(
     File('assets/app_icon/icon_1024.png').readAsBytesSync(),
@@ -35,6 +39,8 @@ void main() {
     'ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json',
   );
   final contents = contentsFile.readAsStringSync();
+  final manifestFile = File('web/manifest.json');
+  final manifestText = manifestFile.readAsStringSync();
   final listed = (jsonDecode(contents)['images'] as List<dynamic>)
       .map((image) => (image as Map<String, dynamic>)['filename'] as String)
       .toSet();
@@ -65,6 +71,150 @@ void main() {
       'ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;',
     ),
   );
+
+  _restoreWebManifest(manifestFile, manifestText);
+  _writeFavicon(source);
+  _fitMaskableIcons();
+}
+
+// manifest の名前と色は、アイコンを作り直しても変えない。
+void _restoreWebManifest(File manifestFile, String originalText) {
+  final original = jsonDecode(originalText) as Map<String, dynamic>;
+  final rewritten =
+      jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+  rewritten['name'] = original['name'];
+  rewritten['short_name'] = original['short_name'];
+  rewritten['background_color'] = original['background_color'];
+  rewritten['theme_color'] = original['theme_color'];
+  if (_jsonEquals(rewritten, original)) {
+    manifestFile.writeAsStringSync(originalText);
+    return;
+  }
+  manifestFile.writeAsStringSync(
+    '${const JsonEncoder.withIndent('    ').convert(rewritten)}\n',
+  );
+}
+
+// 生成が書いた 16×16 を、元の 1024×1024 から縮小した画像で置き換える。
+void _writeFavicon(img.Image source) {
+  File('web/favicon.png').writeAsBytesSync(
+    img.encodePng(
+      img.copyResize(
+        source,
+        width: _faviconSize,
+        height: _faviconSize,
+        interpolation: img.Interpolation.average,
+      ),
+    ),
+  );
+}
+
+// 丸や角丸に切り抜いても絵が欠けないようにする。収まらないときは、Android の
+// アダプティブアイコンと同じ余白のある前景を、クリーム色の上に置く。
+void _fitMaskableIcons() {
+  const files = {
+    'web/icons/Icon-maskable-192.png': 192,
+    'web/icons/Icon-maskable-512.png': 512,
+  };
+  final needsMargin = files.keys.any((path) {
+    final icon = img.decodePng(File(path).readAsBytesSync());
+    return icon == null || _drawingOutsideSafeCircle(icon) != 0;
+  });
+  if (!needsMargin) {
+    return;
+  }
+
+  final foreground = img.decodePng(
+    File('assets/app_icon/android_foreground.png').readAsBytesSync(),
+  );
+  if (foreground == null) {
+    stderr.writeln('assets/app_icon/android_foreground.png を読めません');
+    exit(1);
+  }
+  for (final entry in files.entries) {
+    final canvas = img.Image(
+      width: entry.value,
+      height: entry.value,
+      numChannels: 4,
+    );
+    img.fill(canvas, color: img.ColorRgba8(_creamR, _creamG, _creamB, 255));
+    img.compositeImage(
+      canvas,
+      img.copyResize(
+        foreground,
+        width: entry.value,
+        height: entry.value,
+        interpolation: img.Interpolation.average,
+      ),
+    );
+    final file = File(entry.key);
+    file.writeAsBytesSync(img.encodePng(canvas));
+    final written = img.decodePng(file.readAsBytesSync());
+    if (written == null || _drawingOutsideSafeCircle(written) != 0) {
+      stderr.writeln('${entry.key} の絵が安全な範囲に収まりません');
+      exit(1);
+    }
+  }
+}
+
+bool _jsonEquals(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (final key in a.keys) {
+      if (!b.containsKey(key) || !_jsonEquals(a[key], b[key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (var i = 0; i < a.length; i++) {
+      if (!_jsonEquals(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return a == b;
+}
+
+int _drawingOutsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(
+    icon,
+    (pixel) => pixel.a >= 16 && !_isNearCream(pixel),
+  );
+}
+
+int _outsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(icon, (pixel) => pixel.a >= 16);
+}
+
+int _outsideSafeCircleWhere(img.Image icon, bool Function(img.Pixel) counts) {
+  final radius = _safeDiameter * icon.width / 2;
+  final limit = radius * radius;
+  var outside = 0;
+  for (final pixel in icon) {
+    if (!counts(pixel)) {
+      continue;
+    }
+    final dx = (pixel.x + 0.5) - icon.width / 2;
+    final dy = (pixel.y + 0.5) - icon.height / 2;
+    if (dx * dx + dy * dy > limit) {
+      outside++;
+    }
+  }
+  return outside;
+}
+
+bool _isNearCream(img.Pixel pixel) {
+  return (pixel.r.toInt() - _creamR).abs() <= 1 &&
+      (pixel.g.toInt() - _creamG).abs() <= 1 &&
+      (pixel.b.toInt() - _creamB).abs() <= 1;
 }
 
 img.Image _foregroundInSafeCircle(img.Image source) {
@@ -152,21 +302,4 @@ img.Image _place(img.Image keyed, (double, double) center, double scale) {
     dstY: (_canvas / 2 - center.$2 * actual).round(),
   );
   return out;
-}
-
-int _outsideSafeCircle(img.Image icon) {
-  final radius = _safeDiameter * icon.width / 2;
-  final limit = radius * radius;
-  var outside = 0;
-  for (final pixel in icon) {
-    if (pixel.a < 16) {
-      continue;
-    }
-    final dx = (pixel.x + 0.5) - icon.width / 2;
-    final dy = (pixel.y + 0.5) - icon.height / 2;
-    if (dx * dx + dy * dy > limit) {
-      outside++;
-    }
-  }
-  return outside;
 }
