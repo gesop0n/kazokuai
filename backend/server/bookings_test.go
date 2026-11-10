@@ -559,7 +559,7 @@ func TestEditedBookingIsScheduledAfterTheReadFails(t *testing.T) {
 	}()
 	select {
 	case <-scheduled:
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("読み直しの失敗のあと、予約を予定に入れなかった")
 	}
 	<-errc
@@ -623,7 +623,7 @@ func TestUnsentBookingIsReleasedWhenTheSendContextEnds(t *testing.T) {
 	go func() {
 		_, _ = postJSONBody(ctx, srv.URL+protocol.BookingTaskPath, "Bearer "+taskToken, string(raw))
 	}()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(slowEmulatorBound)
 	for {
 		if releases.Load() >= 2 && bookingData(t, person, id)["called"] == false && callCount(t, person) == 0 {
 			break
@@ -694,7 +694,7 @@ func TestBookingTimer(t *testing.T) {
 		}
 		clk.Advance(time.Minute)
 
-		deadline := time.Now().Add(2 * time.Second)
+		deadline := time.Now().Add(slowEmulatorBound)
 		var call map[string]any
 		for {
 			if bookingData(t, person, id)["called"] == true && callCount(t, person) == 1 {
@@ -933,7 +933,7 @@ func receiveCall(t *testing.T, calls <-chan protocol.PhoneMessage, want string) 
 			t.Fatalf("届いた電話 = %s, want %s", got.CallID, want)
 		}
 		return got.CallID, got
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatal("電話機に電話が来なかった")
 	}
 	return "", protocol.PhoneMessage{}
@@ -948,7 +948,7 @@ func waitTimers(t *testing.T, clk *clocktest.Clock, n int) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(2 * time.Second):
+	case <-time.After(slowEmulatorBound):
 		t.Fatalf("タイマーが %d 個にならなかった", n)
 	}
 }
