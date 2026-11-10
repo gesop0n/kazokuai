@@ -212,15 +212,14 @@ class DeviceInstallTest(unittest.TestCase):
         log = self.loginctl_log.read_text(encoding="utf-8")
         self.assertEqual(log, f"enable-linger\n{user}\n---\n")
 
-    def test_given_binary_skips_build_and_does_not_start_without_person(self):
+    def test_given_binary_skips_build_and_starts_without_person(self):
         binary = Path(self.tmp.name) / "kazokuai-device"
         binary.write_bytes(ARM64_ELF)
 
         result = self.run_install(str(binary))
 
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(self.go_log.exists())
-        self.assertFalse(self.systemctl_log.exists())
         self.assertFalse(self.sudo_log.exists())
         installed = self.dest / "usr" / "local" / "bin" / "kazokuai-device"
         self.assertEqual(installed.read_bytes(), ARM64_ELF)
@@ -229,6 +228,12 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertEqual(unit, expected_unit())
         self.assertNotIn("\nUser=", UNIT.read_text(encoding="utf-8"))
         self.assertIn("EnvironmentFile=/etc/kazokuai/device.env", unit)
+        self.assertIn("StateDirectory=kazokuai", unit)
+        self.assertIn(
+            "ExecStart=/usr/local/bin/kazokuai-device --backend ${KAZOKUAI_BACKEND}",
+            unit,
+        )
+        self.assertNotIn("--watched-person", unit)
         self.assertIn("Restart=on-failure", unit)
         self.assertIn("WantedBy=multi-user.target", unit)
         self.assertIn("/usr/local/bin/kazokuai-device", unit)
@@ -237,12 +242,15 @@ class DeviceInstallTest(unittest.TestCase):
         self.assert_lingers()
         env_text = (self.dest / "etc" / "kazokuai" / "device.env").read_text(encoding="utf-8")
         self.assertEqual(env_text, ENV_EXAMPLE.read_text(encoding="utf-8"))
-        self.assertIn("見守る方の ID", result.stderr)
+        self.assertEqual(
+            self.systemctl_log.read_text(encoding="utf-8"),
+            "daemon-reload\n---\nenable\nkazokuai-device.service\n---\nrestart\nkazokuai-device.service\n---\n",
+        )
 
     def test_build_uses_cgo_when_no_binary_is_given(self):
         result = self.run_install()
 
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         log = self.go_log.read_text(encoding="utf-8")
         self.assertIn("CGO_ENABLED=1\n", log)
         self.assertIn("\nbuild\n", "\n" + log)
@@ -250,7 +258,7 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertIn("GOARCH=arm64", log)
         installed = self.dest / "usr" / "local" / "bin" / "kazokuai-device"
         self.assertEqual(installed.read_bytes()[:4], b"\x7fELF")
-        self.assertFalse(self.systemctl_log.exists())
+        self.assertIn("restart\nkazokuai-device.service", self.systemctl_log.read_text(encoding="utf-8"))
 
     def test_starts_service_when_watched_person_is_set_and_keeps_env(self):
         env_file, binary = self.write_ready()
@@ -356,7 +364,7 @@ class DeviceInstallTest(unittest.TestCase):
         finally:
             os.umask(old)
 
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(stat.S_IMODE(env_dir.stat().st_mode), 0o755)
         self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o640)
 
@@ -373,12 +381,47 @@ class DeviceInstallTest(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(env_file.stat().st_mode), 0o640)
         self.assertIn("kept-value", env_file.read_text(encoding="utf-8"))
 
+    def test_refuses_to_start_when_the_backend_is_empty(self):
+        binary = Path(self.tmp.name) / "kazokuai-device"
+        binary.write_bytes(ARM64_ELF)
+        env_dir = self.dest / "etc" / "kazokuai"
+        env_dir.mkdir(parents=True)
+        (env_dir / "device.env").write_text(
+            "KAZOKUAI_BACKEND=\nKAZOKUAI_WATCHED_PERSON=\nPHONE_SECRET=\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_install(str(binary))
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("バックエンドの URL", result.stderr)
+        self.assertFalse(self.systemctl_log.exists())
+
+    def test_refuses_to_start_when_the_person_id_contains_whitespace(self):
+        binary = Path(self.tmp.name) / "kazokuai-device"
+        binary.write_bytes(ARM64_ELF)
+        env_dir = self.dest / "etc" / "kazokuai"
+        env_dir.mkdir(parents=True)
+        (env_dir / "device.env").write_text(
+            "KAZOKUAI_BACKEND=http://10.0.0.8:8080\n"
+            "KAZOKUAI_WATCHED_PERSON=bad id\n"
+            "PHONE_SECRET=\n",
+            encoding="utf-8",
+        )
+
+        result = self.run_install(str(binary))
+
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn("空白", result.stderr)
+        self.assertFalse(self.systemctl_log.exists())
+
     def test_example_env_has_defaults_and_no_secret_or_id(self):
         text = ENV_EXAMPLE.read_text(encoding="utf-8")
         values = assignments(text)
         self.assertEqual(values["KAZOKUAI_BACKEND"], "http://localhost:8080")
         self.assertEqual(values["KAZOKUAI_WATCHED_PERSON"], "")
         self.assertEqual(values["PHONE_SECRET"], "")
+        self.assertEqual(values["KAZOKUAI_PHONE_FILE"], "")
         self.assertEqual(
             {key: values[key] for key in (
                 "KAZOKUAI_AUDIO_DEVICE",

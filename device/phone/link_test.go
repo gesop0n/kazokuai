@@ -31,6 +31,10 @@ func TestPhoneWebSocketURL(t *testing.T) {
 	if _, err := phoneWebSocketURL("ftp://kazokuai.example", "hanako"); err == nil {
 		t.Fatal("ftp を受け入れた")
 	}
+	got, err = phoneWebSocketURL("http://localhost:8080", "")
+	if err != nil || got != "ws://localhost:8080/phone" {
+		t.Fatalf("見守る方なし = %q, %v", got, err)
+	}
 }
 
 func TestDeviceUsesWSSForAnHTTPSBackend(t *testing.T) {

@@ -64,6 +64,11 @@ type system struct {
 
 func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	t.Helper()
+	return newPreparedSystem(t, config, now, nil)
+}
+
+func newPreparedSystem(t *testing.T, config server.Config, now time.Time, prepare func(*phone.Device)) *system {
+	t.Helper()
 	gemini := &fakeGemini{}
 	clock := &fakeClock{now: now}
 	if config.PhoneSecret == "" {
@@ -72,7 +77,6 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 	s := &system{
 		config:  config,
 		results: make(chan error, 1),
-		runDone: make(chan struct{}),
 	}
 	s.api = server.New(config, emulators, gemini, gemini, clock)
 	s.swap = &swapHandler{handler: s.api, hold: &s.reportHold}
@@ -97,21 +101,35 @@ func newSystem(t *testing.T, config server.Config, now time.Time) *system {
 			s.results <- err
 		},
 	}
-	runCtx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-	go func() {
-		defer close(s.runDone)
-		_ = s.device.Run(runCtx)
-	}()
+	if prepare != nil {
+		prepare(s.device)
+	}
+	s.runDevice()
 	t.Cleanup(func() {
-		cancel()
+		if s.cancel != nil {
+			s.cancel()
+		}
+		done := s.runDone
 		select {
-		case <-s.runDone:
+		case <-done:
 		case <-time.After(waitTimeout):
 			t.Error("テストの終わりに電話機が終わらなかった")
 		}
 	})
 	return s
+}
+
+// runDevice は、今の device で電話機を動かし始める。前の実行は、呼び出し側が止めておく。
+func (s *system) runDevice() {
+	runCtx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	done := make(chan struct{})
+	s.runDone = done
+	device := s.device
+	go func() {
+		defer close(done)
+		_ = device.Run(runCtx)
+	}()
 }
 
 // stopPhone は、電話機の接続を切る。バックエンドは動いたままである。
@@ -178,9 +196,23 @@ type swapHandler struct {
 	mu      sync.RWMutex
 	handler http.Handler
 	hold    *reportHold
+
+	regMu     sync.Mutex
+	registers int
+	regID     string
+	regKey    string
+	regSecret string
 }
 
 func (s *swapHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost && r.URL.Path == protocol.PhoneRegisterPath {
+		s.regMu.Lock()
+		s.registers++
+		s.regID = r.Header.Get(protocol.PhoneIDHeader)
+		s.regKey = r.Header.Get(protocol.PhoneKeyHeader)
+		s.regSecret = r.Header.Get(protocol.PhoneSecretHeader)
+		s.regMu.Unlock()
+	}
 	s.hold.wait(r.URL.Path)
 	s.mu.RLock()
 	h := s.handler
@@ -196,6 +228,12 @@ func (s *swapHandler) set(h http.Handler) {
 	s.mu.Lock()
 	s.handler = h
 	s.mu.Unlock()
+}
+
+func (s *swapHandler) registration() (n int, id, key, secret string) {
+	s.regMu.Lock()
+	defer s.regMu.Unlock()
+	return s.registers, s.regID, s.regKey, s.regSecret
 }
 
 // holdReport は、このあとの電話の報告に、releaseReport まで応答しないようにする。

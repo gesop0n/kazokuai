@@ -63,15 +63,16 @@ sudo apt install -y libasound2
 
 ## 設定
 
-見本は `device/pi/device.env` です。本物は Pi の `/etc/kazokuai/device.env` だけに置きます。合言葉と見守る方の ID は、人がそのファイルに書きます。見本のその 2 つは空です。値をリポジトリに写しません。
+見本は `device/pi/device.env` です。本物は Pi の `/etc/kazokuai/device.env` だけに置きます。合言葉は、人がそのファイルに書きます。見本の合言葉と見守る方の ID は空です。値をリポジトリに写しません。
 
 人が入れる項目です。
 
 | 変数 | 見本 | 意味 |
 |---|---|---|
 | `KAZOKUAI_BACKEND` | `http://localhost:8080` | バックエンドの URL。https は wss でつなぐ。Pi では、届くアドレスに書き換える。localhost は Pi 自身 |
-| `KAZOKUAI_WATCHED_PERSON` | 空 | 見守る方の ID。登録したときのバックエンドのログに、`--watched-person` に続けて出る |
-| `PHONE_SECRET` | 空 | 合言葉。Cloud Run ではバックエンドと同じものを、このファイルにだけ書く。空なら手元の開発用の合言葉 |
+| `KAZOKUAI_WATCHED_PERSON` | 空 | 空なら、電話機が作った ID と鍵でつなぐ。ID を書くと、今までどおりその見守る方へ合言葉だけでつなぐ。空白は入れない |
+| `PHONE_SECRET` | 空 | 合言葉。ID と鍵でつなぐときは登録だけに使い、見守る方を指定したときは今までどおり毎回付ける。Cloud Run ではバックエンドと同じものを、このファイルにだけ書く。空なら手元の開発用の合言葉 |
+| `KAZOKUAI_PHONE_FILE` | 空 | ID と鍵のファイル。空なら `/var/lib/kazokuai/phone.json` |
 | `KAZOKUAI_AUDIO_DEVICE` | 空 | USB アダプターの名前の一部。音声を開くときは要る。番号は再起動や接続の順で変わるので、名前で選ぶ |
 
 Linux の実行ファイルが読む、受話器、フック、呼び出し音の既定です。空の項目は、この既定のまま動きます。音声の名前だけは、空だと開けません。
@@ -86,6 +87,10 @@ Linux の実行ファイルが読む、受話器、フック、呼び出し音�
 | `KAZOKUAI_RINGER_GPIO` | `18` | 呼び出し音の BCM 番号 |
 | `KAZOKUAI_LIFTED_WHEN_CLOSED` | `false` | 上げると接点が閉じるなら true、開くなら false。この電話機は開く |
 | `KAZOKUAI_HOOK_DEBOUNCE` | `50ms` | フックが安定したとみなす時間 |
+
+見守る方の ID を空にして起動すると、電話機は最初の起動で ID と鍵を作り、`/var/lib/kazokuai/phone.json` に残します。権限は 0600 で、電話機を動かすユーザーだけが読めます。合言葉で登録したあと、WebSocket、トークン、電話の報告には、この ID と鍵を付けます。結び付くまでは待って、つながったままにします。アプリで同期すると、その見守る方の電話を受けます。バックエンドがこの ID を知らないときは、同じ ID と鍵でもう一度登録します。このファイルを消すと別の ID を作るので、残します。
+
+Mac で見守る方を渡さずに起動したときは、ユーザーの設定ディレクトリの `kazokuai/phone.json` です。
 
 ## 部品の確認
 
@@ -212,18 +217,16 @@ mise run --skip-tools device:install -- ~/kazokuai-device
 
 2 回目以降は、clone の代わりに `git fetch origin` と、同じ `git switch --detach` を使います。
 
-最初の 1 回は、見本を `/etc/kazokuai/device.env` に置き（権限 0640）、見守る方の ID が空なので終了コード 1 で終わります。実行ファイルは入ります。サービスはまだ有効にしません。すでにファイルがあるときは上書きしません。合言葉は、そのファイルの中にだけ書きます。
+最初の 1 回は、見本を `/etc/kazokuai/device.env` に置き（権限 0640）、実行ファイルを入れ、サービスを有効にして起動します。すでにファイルがあるときは上書きしません。見守る方の ID は空のままにします。電話機が ID と鍵を作り、合言葉で登録してから、その ID と鍵でつなぎます。ファイルの場所と権限は、上の「設定」に書きました。
 
-機器の名前を見てから、設定を書きます。
+`KAZOKUAI_AUDIO_DEVICE` が空のままだと、サービスは音声を開けずに動き直します。機器の名前を見てから、設定を書きます。
 
 ```bash
 /usr/local/bin/kazokuai-device check devices
 sudoedit /etc/kazokuai/device.env
 ```
 
-書くものは、バックエンドの URL、見守る方の ID、合言葉、音声の機器名です。受話器、フック、呼び出し音の残りの項目は、既定のまま残します。ID は、家族がアプリで見守る方を登録したとき、バックエンドのログに `--watched-person` に続けて出ます。見本やこの README には書きません。
-
-`KAZOKUAI_AUDIO_DEVICE` が空のままだと、サービスは音声を開けずに動き直します。スピーカー、マイク、フックは、サービスを有効にする前に、上の確認コマンドで見ておけます。
+書くものは、バックエンドの URL、合言葉、音声の機器名です。見守る方の ID は空のままにします。受話器、フック、呼び出し音の残りの項目は、既定のまま残します。今までどおり見守る方を指定して起動するときは、`KAZOKUAI_WATCHED_PERSON` にその ID を書きます。ID に空白は入れません。ID は、家族がアプリで見守る方を登録したとき、バックエンドのログに出ます。見本やこの README には書きません。
 
 保存したら、同じコマンドをもう一度動かします。
 
@@ -231,7 +234,7 @@ sudoedit /etc/kazokuai/device.env
 mise run --skip-tools device:install -- ~/kazokuai-device
 ```
 
-ユニットを入れ、サービスを有効にし、起動します。環境ファイルの `PHONE_SECRET` はプロセスの環境に入り、コマンドラインには出ません。
+サービスを動かし直します。環境ファイルの `PHONE_SECRET` はプロセスの環境に入り、コマンドラインには出ません。
 
 再起動して、ひとりでに戻ることを確認します。
 
@@ -293,7 +296,8 @@ docker run --rm --platform linux/arm64 \
 
 ユニットは `device/pi/kazokuai-device.service` です。`EnvironmentFile` で `/etc/kazokuai/device.env` を読みます。
 
-- 実行ファイルは `/usr/local/bin/kazokuai-device`
+- 実行ファイルは `/usr/local/bin/kazokuai-device`。引数は `--backend` だけです。見守る方の ID は環境ファイルから読みます
+- `StateDirectory=kazokuai` で `/var/lib/kazokuai` を、入れた人のユーザーの所有で作ります。ID と鍵のファイルはそこです
 - `Restart=on-failure`、`RestartSec=5`、起動回数の上限は切りません
 - ネットワークが来てから起動し、多ユーザー起動で有効になります
 - 入れた人のユーザーで動きます。インストールが `User=` と、そのユーザーの `XDG_RUNTIME_DIR` を書きます。root では、その人の PipeWire が見えず、音声を開けません
@@ -302,7 +306,7 @@ docker run --rm --platform linux/arm64 \
 - GPIO の線には `gpio` グループが要ります。入っていなければ、インストールが `sudo usermod -aG gpio <ユーザー>` を出します。動かしてから入り直してください
 - 停止信号は SIGINT です。プロセスが扱うのがこちらのためです
 
-ファイルの項目は、すべてプロセスの環境に入ります。`KAZOKUAI_WATCHED_PERSON` か `KAZOKUAI_BACKEND` が空、または空白を含むときは、ファイルは置いたままサービスを起動しません。設定ディレクトリ `/etc/kazokuai` は 0755 で、入れた人が通過できます。設定ファイルは、そのユーザーのグループが読める 0640 です。合言葉は、他のユーザーからは読めません。
+ファイルの項目は、すべてプロセスの環境に入ります。`KAZOKUAI_BACKEND` が空、または空白を含むときと、`KAZOKUAI_WATCHED_PERSON` が空白を含むときは、ファイルは置いたままサービスを起動しません。見守る方の ID が空のときは、電話機が作った ID と鍵で起動します。設定ディレクトリ `/etc/kazokuai` は 0755 で、入れた人が通過できます。設定ファイルは、そのユーザーのグループが読める 0640 です。合言葉は、他のユーザーからは読めません。ID と鍵のファイルは 0600 で、サービスを動かすユーザーだけが読めます。
 
 ## tel-base
 
