@@ -78,6 +78,51 @@ func TestCloudTasksSchedule(t *testing.T) {
 		}
 	})
 
+	t.Run("タスクを作れないままサーバーが止まると、起動し直したあと、その予約だけを登録する", func(t *testing.T) {
+		forgetPendingBookingTasks(t)
+		failing := &fakeCloudTasks{err: errTaskRejected}
+		first, firstHandler := openCloudTasksServer(t, clocktest.New(bookingNow), failing)
+		person, token := registerHanako(t, first.URL)
+		forgetBookings(t, person)
+		id := createdBooking(t, postBooking(t, first.URL, protocol.BookingPath, token, at, bookingMsg, bookingWords))
+		if len(failing.requests()) != 3 {
+			t.Fatalf("止める前のタスク = %d 件, want 3 件頼んで失敗する", len(failing.requests()))
+		}
+		// demo:seed の見本と同じく、タスクを作らずに予約を置く。登録待ちの印は無い。
+		sample, _, err := emulators.Firestore.Collection("watchedPersons").Doc(person).Collection("bookings").Add(t.Context(), map[string]any{
+			"at":      later,
+			"message": "見本",
+			"script":  "見本の通話です。",
+			"number":  int64(1),
+			"called":  false,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		firstHandler.Stop()
+		first.Close()
+
+		ready := &fakeCloudTasks{}
+		second, secondHandler := openCloudTasksServer(t, clocktest.New(bookingNow), ready)
+		for _, got := range ready.requests() {
+			if got.GetTask().GetName() == taskQueue+"/tasks/"+sample.ID+"-1" {
+				t.Fatal("見本の予約を登録した")
+			}
+		}
+		req := onlyTask(t, ready)
+		assertBookingTask(t, req, taskQueue+"/tasks/"+id+"-1", at, person, id, 1)
+
+		secondHandler.Stop()
+		second.Close()
+
+		again := &fakeCloudTasks{}
+		openCloudTasksServer(t, clocktest.New(bookingNow), again)
+		if len(again.requests()) != 0 {
+			t.Fatalf("登録済みの予約と見本を、もう一度登録した: %d 件", len(again.requests()))
+		}
+	})
+
 	t.Run("同じ名前のタスクが既にあれば、入れ直しはしない", func(t *testing.T) {
 		fake := &fakeCloudTasks{err: status.Error(codes.AlreadyExists, "既にある")}
 		srv := newCloudTasksServer(t, clocktest.New(bookingNow), fake)
@@ -95,6 +140,14 @@ func TestCloudTasksSchedule(t *testing.T) {
 
 func newCloudTasksServer(t *testing.T, clk *clocktest.Clock, tasks server.CloudTasksClient) *httptest.Server {
 	t.Helper()
+	// 前のテストが残した登録待ちを、このサーバーの起動で入れ直さない。
+	forgetPendingBookingTasks(t)
+	srv, _ := openCloudTasksServer(t, clk, tasks)
+	return srv
+}
+
+func openCloudTasksServer(t *testing.T, clk *clocktest.Clock, tasks server.CloudTasksClient) (*httptest.Server, *server.Handler) {
+	t.Helper()
 	handler := server.New(server.Config{
 		ProjectID:     "kazokuai-prod",
 		PhoneSecret:   protocol.DevPhoneSecret,
@@ -108,7 +161,22 @@ func newCloudTasksServer(t *testing.T, clk *clocktest.Clock, tasks server.CloudT
 		handler.Stop()
 		srv.Close()
 	})
-	return srv
+	return srv, handler
+}
+
+// forgetPendingBookingTasks は、登録待ちの印が残った予約を消す。
+// 前のテストの予約を、次のサーバーの起動で入れ直さないためである。
+func forgetPendingBookingTasks(t *testing.T) {
+	t.Helper()
+	docs, err := emulators.Firestore.CollectionGroup("bookings").Where("taskPending", "==", true).Documents(t.Context()).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, doc := range docs {
+		if _, err := doc.Ref.Delete(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func assertBookingTask(t *testing.T, req *taskspb.CreateTaskRequest, name string, at time.Time, person, id string, number int64) {

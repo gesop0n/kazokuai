@@ -54,6 +54,9 @@ type booking struct {
 	CallID  string    `firestore:"callId"`
 	// Sent は、電話機に届け終えたかである。かけていても、届く前に失敗したときは false のままである。
 	Sent bool `firestore:"sent"`
+	// TaskPending は、この番号のタスクがまだ Cloud Tasks に無いとき true である。
+	// 保存と直しで立て、タスクを作れたら下ろす。見本の予約は持たないので、起動し直しても登録しない。
+	TaskPending bool `firestore:"taskPending"`
 }
 
 // savedBooking は、保存した予約の ID を返すレスポンスである。
@@ -201,6 +204,33 @@ func (s *server) loadUncalledBookings() {
 		}
 		var saved booking
 		if err := doc.DataTo(&saved); err != nil || saved.Called {
+			continue
+		}
+		s.scheduleBooking(person.ID, doc.Ref.ID, saved.Number)
+	}
+}
+
+// loadPendingBookingTasks は、タスクがまだ入っていない予約を読み、登録をやり直す。
+// プロセスが止まる前にタスクを作れなかった予約を、起動し直したあとに入れるためである。
+// 見本の予約は印が無いので、ここには出てこない。
+func (s *server) loadPendingBookingTasks() {
+	if s.firebase.Firestore == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(s.base, 30*time.Second)
+	defer cancel()
+	docs, err := s.firebase.Firestore.CollectionGroup(bookingsCollection).Where("taskPending", "==", true).Documents(ctx).GetAll()
+	if err != nil {
+		log.Printf("登録待ちの予約を読めなかった: %v", err)
+		return
+	}
+	for _, doc := range docs {
+		person := doc.Ref.Parent.Parent
+		if person == nil {
+			continue
+		}
+		var saved booking
+		if err := doc.DataTo(&saved); err != nil || !saved.TaskPending {
 			continue
 		}
 		s.scheduleBooking(person.ID, doc.Ref.ID, saved.Number)
@@ -372,20 +402,28 @@ func (s *server) saveBooking(ctx context.Context, personID, bookingID string, bo
 			return err
 		}
 		if bookingID == "" {
-			return tx.Create(ref, map[string]any{
+			data := map[string]any{
 				"at":      body.At,
 				"message": body.Message,
 				"script":  body.Script,
 				"number":  number,
 				"called":  false,
-			})
+			}
+			if s.wantsBookingTask() {
+				data["taskPending"] = true
+			}
+			return tx.Create(ref, data)
 		}
-		return tx.Update(ref, []firestore.Update{
+		updates := []firestore.Update{
 			{Path: "at", Value: body.At},
 			{Path: "message", Value: body.Message},
 			{Path: "script", Value: body.Script},
 			{Path: "number", Value: number},
-		})
+		}
+		if s.wantsBookingTask() {
+			updates = append(updates, firestore.Update{Path: "taskPending", Value: true})
+		}
+		return tx.Update(ref, updates)
 	})
 	if err != nil {
 		return "", err
@@ -393,8 +431,39 @@ func (s *server) saveBooking(ctx context.Context, personID, bookingID string, bo
 	// 予約はもう保存してある。予定へ入れるのに失敗しても、ここではエラーにしない。
 	// エラーにすると、アプリが保存し直して、近い予約を 2 件作ってしまう。
 	// 入れ直しは scheduleBooking が、リクエストとは別の context で続ける。
+	// 本物のプロジェクトでは登録待ちの印が残るので、起動し直しても、その予約だけを入れ直す。
 	s.scheduleBooking(personID, ref.ID, number)
 	return ref.ID, nil
+}
+
+// clearTaskPending は、この番号のタスクが Cloud Tasks に入ったので、登録待ちの印を下ろす。
+// 番号が変わっていたら下ろさない。直したあとの番号は、まだタスクが要る。
+func (s *server) clearTaskPending(ctx context.Context, personID, bookingID string, number int64) error {
+	ref := s.bookingRef(personID, bookingID)
+	return s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(ref)
+		if status.Code(err) == codes.NotFound {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		var saved booking
+		if err := doc.DataTo(&saved); err != nil {
+			return err
+		}
+		if saved.Number != number || !saved.TaskPending {
+			return nil
+		}
+		return tx.Update(ref, []firestore.Update{{Path: "taskPending", Value: false}})
+	})
+}
+
+// wantsBookingTask は、このサーバーが Cloud Tasks に予約のタスクを作るかを返す。
+// デモのタイマーと、タスクを作らない見本の予約は、登録待ちの印を持たない。
+func (s *server) wantsBookingTask() bool {
+	_, ok := s.schedule.(*cloudTasksSchedule)
+	return ok
 }
 
 // checkBookingTime は、時刻が今から 1 分より先、30 日先までであることを確かめる。

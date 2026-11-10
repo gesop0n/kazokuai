@@ -46,8 +46,12 @@ func (c *cloudTasksSchedule) Schedule(ctx context.Context, personID, bookingID s
 	if err := snap.DataTo(&saved); err != nil {
 		return err
 	}
-	if saved.Called || saved.Number != number {
+	if saved.Number != number {
 		return nil
+	}
+	// かけたあとは、もうタスクは要らない。印が残っていれば下ろして、起動のたびに入れ直さない。
+	if saved.Called {
+		return c.s.clearTaskPending(ctx, personID, bookingID, number)
 	}
 	body, err := json.Marshal(protocol.BookingTask{
 		WatchedPersonID: personID,
@@ -79,8 +83,9 @@ func (c *cloudTasksSchedule) Schedule(ctx context.Context, personID, bookingID s
 		},
 	})
 	// 入れ直しが同じ名前をもう一度作ると、既にある。タスクは入っているので、ここでは成功にする。
-	if status.Code(err) == codes.AlreadyExists {
-		return nil
+	if err != nil && status.Code(err) != codes.AlreadyExists {
+		return err
 	}
-	return err
+	// タスクは入った。番号が変わっていなければ印を下ろす。失敗したら、入れ直しがもう一度下ろす。
+	return c.s.clearTaskPending(ctx, personID, bookingID, number)
 }

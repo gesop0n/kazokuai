@@ -96,6 +96,7 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 // 電話機の道（登録、認証コード、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
 // demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約を読み直す。
 // それ以外で Tasks があるときは、保存と直しのたびに Cloud Tasks のタスクを 1 つ作る。
+// タスクがまだ入っていない予約は、起動時に登録をやり直す。見本の予約は印が無いので入れない。
 // clk が nil のとき、タイマーは実時間で進む。
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
@@ -124,6 +125,7 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 			audience: strings.TrimSpace(config.TasksAudience),
 			account:  strings.TrimSpace(config.TasksAccount),
 		}
+		s.loadPendingBookingTasks()
 	default:
 		s.schedule = noopSchedule{}
 	}
