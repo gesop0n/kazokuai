@@ -21,6 +21,21 @@ func StubBeforeBookedSend(fn func(context.Context)) {
 	bookingHookMu.Unlock()
 }
 
+// StubAfterBookedSend は、予約の電話を届けたあと、届けた印を書く前に呼ぶ。nil で元に戻す。
+func StubAfterBookedSend(fn func(context.Context)) {
+	bookingHookMu.Lock()
+	afterBookedSend = fn
+	bookingHookMu.Unlock()
+}
+
+// StubUncalledBookingsRead は、起動のときにまだかけていない予約を読む処理を差し替える。
+// nil で元に戻す。
+func StubUncalledBookingsRead(fn func(context.Context) ([]*firestore.DocumentSnapshot, error)) {
+	bookingHookMu.Lock()
+	uncalledBookingsRead = fn
+	bookingHookMu.Unlock()
+}
+
 // StubBeforeBookingRelease は、予約の印を外す直前に呼ぶ。エラーを返すとその回は外さない。nil で元に戻す。
 func StubBeforeBookingRelease(fn func(context.Context) error) {
 	bookingHookMu.Lock()

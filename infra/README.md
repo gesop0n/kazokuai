@@ -27,7 +27,7 @@ mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXX
 
 `--project` が無いと、環境変数に別のプロジェクトがあっても、terraform は起動しない。apply は確認を求める。`-auto-approve` は付けない。
 
-`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM と、予約の Cloud Tasks のキューは作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、登録待ちの予約を読むインデックス、Firebase の Web アプリ、Hosting（既定のサイトと `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM と、予約の Cloud Tasks のキューは作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
 
 `IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。Cloud Run を作る apply は、push したあとに実行する。サービスができたあとのイメージは、`gcloud run deploy` が載せる。Terraform は `template[0].containers[0].image` と `client` と `client_version` の変更を無視する。あとの apply は、ワークフローが載せたイメージを戻さない。`--bootstrap` は、GitHub Actions の Workload Identity と、デプロイ用のサービスアカウントも作らない。それらは、`--bootstrap` を付けない apply が作る。
 

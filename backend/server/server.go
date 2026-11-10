@@ -94,7 +94,7 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 // protocol.BookingPath で予約を保存し直し、protocol.BookingTaskPath で予約の時刻に電話を始める Handler を返す。
 // アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
 // 電話機の道（登録、認証コード、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
-// demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約を読み直す。
+// demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約と、印を付けたあと送る前に止まった予約を読み直す。一覧の読み込みが失敗したときはやり直す。
 // それ以外で Tasks があるときは、保存と直しのたびに Cloud Tasks のタスクを 1 つ作る。
 // タスクがまだ入っていない予約は、起動時に登録をやり直す。見本の予約は印が無いので入れない。
 // clk が nil のとき、タイマーは実時間で進む。
@@ -188,7 +188,7 @@ type server struct {
 	// 届けた印を付ける前に、もう一方が印の無い予約を戻さないためである。
 	deliverMu sync.Mutex
 	// delivered は、電話機には届いたが、届けた印を書けなかった電話の ID である。
-	// プロセスが終わると消える。印を書けたあとは見ない。
+	// プロセスが終わると消える。プロセスをまたぐときは、予約の unknownCallId を見る。
 	delivered map[string]struct{}
 	// work は、保存した予約を予定へ入れ続ける goroutine を待つ。
 	work sync.WaitGroup

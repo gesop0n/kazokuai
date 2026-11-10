@@ -252,6 +252,7 @@ type PhoneMessage struct {
 // フィールドは at（時刻）、message（伝えたいこと）、script（通話内容）、
 // number（直すたびに 1 つ増える番号）、called（かけたかどうか）、callId（かけた電話）、
 // sent（電話機に届け終えたか。家族の本文には無く、バックエンドだけが書く）、
+// unknownCallId（送ったかどうかが分からない電話の ID。家族の本文には無く、バックエンドだけが書く）、
 // taskPending（タスクがまだ Cloud Tasks に入っていないか。家族の本文には無く、バックエンドだけが書く。見本の予約は持たない）である。
 type BookingBody struct {
 	// At は、電話をかける時刻である。

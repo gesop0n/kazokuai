@@ -32,6 +32,31 @@ resource "google_firebaserules_release" "firestore" {
   depends_on = [google_firestore_database.default]
 }
 
+# bookings.taskPending の単一フィールドを、コレクショングループでも引けるようにする。
+# このインデックスは自動では作られない。index_config を書くと自動のインデックスを置き換えるので、
+# コレクションの昇順と降順も残す。起動時に、タスクがまだ入っていない予約を読み直すときに使う。
+resource "google_firestore_field" "booking_task_pending" {
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = "bookings"
+  field      = "taskPending"
+
+  index_config {
+    indexes {
+      order       = "ASCENDING"
+      query_scope = "COLLECTION"
+    }
+    indexes {
+      order       = "DESCENDING"
+      query_scope = "COLLECTION"
+    }
+    indexes {
+      order       = "ASCENDING"
+      query_scope = "COLLECTION_GROUP"
+    }
+  }
+}
+
 resource "google_firebase_web_app" "web" {
   provider     = google-beta
   project      = var.project_id
