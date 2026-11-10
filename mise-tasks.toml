@@ -114,6 +114,6 @@ description = "英語の Markdown を plamo-translate で日本語に訳す。�
 run = "python3 -I {{config_root}}/scripts/plamo_translate.py"
 
 [launcher-icons]
-description = "元の画像から iOS と Android のホーム画面のアイコンを作り直す"
+description = "元の画像から iOS、Android、Web のホーム画面のアイコンを作り直す"
 dir = "{{config_root}}/mobile"
 run = "dart run tool/launcher_icons.dart"

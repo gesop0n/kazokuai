@@ -107,6 +107,59 @@ void main() {
       _expectNearCream(icon.getPixel(0, 0));
     }
   });
+
+  test('Web のファビコンとアイコンは Flutter の最初のものではなく、元の画像から作ってある', () {
+    final html = File('web/index.html').readAsStringSync();
+    expect(html, contains('<title>かぞくAI</title>'));
+
+    final manifest = jsonDecode(
+      File('web/manifest.json').readAsStringSync(),
+    ) as Map<String, dynamic>;
+    expect(manifest['name'], 'かぞくAI');
+    expect(manifest['short_name'], 'かぞくAI');
+    expect(manifest['background_color'], '#F5F5F5');
+    expect(manifest['theme_color'], '#F5F5F5');
+    final sources = (manifest['icons'] as List<dynamic>)
+        .map((icon) => (icon as Map<String, dynamic>)['src'])
+        .toList();
+    expect(sources, contains('icons/Icon-192.png'));
+    expect(sources, contains('icons/Icon-512.png'));
+    expect(sources, contains('icons/Icon-maskable-192.png'));
+    expect(sources, contains('icons/Icon-maskable-512.png'));
+
+    final source = img.decodePng(
+      File('assets/app_icon/icon_1024.png').readAsBytesSync(),
+    )!;
+    const regular = {
+      'web/favicon.png': 16,
+      'web/icons/Icon-192.png': 192,
+      'web/icons/Icon-512.png': 512,
+    };
+    for (final entry in regular.entries) {
+      final icon = img.decodePng(File(entry.key).readAsBytesSync())!;
+      expect(icon.width, entry.value, reason: entry.key);
+      expect(icon.height, entry.value, reason: entry.key);
+      final made = img.copyResize(
+        source,
+        width: entry.value,
+        height: entry.value,
+        interpolation: img.Interpolation.average,
+      );
+      expect(_differentRgb(icon, made), 0, reason: entry.key);
+    }
+
+    // maskable は Android が丸や角丸に切り抜く。円の外のクリーム色は欠けてよく、
+    // 絵だけが安全な円の中に残る。
+    for (final path in [
+      'web/icons/Icon-maskable-192.png',
+      'web/icons/Icon-maskable-512.png',
+    ]) {
+      final icon = img.decodePng(File(path).readAsBytesSync())!;
+      _expectNearCream(icon.getPixel(0, 0));
+      expect(_hasDrawing(icon), isTrue, reason: path);
+      expect(_drawingOutsideSafeCircle(icon), 0, reason: path);
+    }
+  });
 }
 
 int _pixelSize(String size, String scale) {
@@ -117,11 +170,25 @@ int _pixelSize(String size, String scale) {
 
 /// 108 dp の層の真ん中、直径 66 dp の円の外にある絵の画素の数。
 int _outsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(icon, (pixel) => pixel.a >= 16);
+}
+
+/// 背景のクリーム色を除いた、絵の画素だけを数える。
+int _drawingOutsideSafeCircle(img.Image icon) {
+  return _outsideSafeCircleWhere(icon, (pixel) {
+    if (pixel.a < 16) {
+      return false;
+    }
+    return !_isNearCream(pixel);
+  });
+}
+
+int _outsideSafeCircleWhere(img.Image icon, bool Function(img.Pixel) counts) {
   final radius = 33 / 108 * icon.width;
   final limit = radius * radius;
   var outside = 0;
   for (final pixel in icon) {
-    if (pixel.a < 16) {
+    if (!counts(pixel)) {
       continue;
     }
     final dx = (pixel.x + 0.5) - icon.width / 2;
@@ -131,6 +198,17 @@ int _outsideSafeCircle(img.Image icon) {
     }
   }
   return outside;
+}
+
+int _differentRgb(img.Image actual, img.Image expected) {
+  var different = 0;
+  for (final pixel in actual) {
+    final other = expected.getPixel(pixel.x, pixel.y);
+    if (pixel.r != other.r || pixel.g != other.g || pixel.b != other.b) {
+      different++;
+    }
+  }
+  return different;
 }
 
 bool _hasDrawing(img.Image icon) {
@@ -150,10 +228,14 @@ void _expectCream(img.Pixel pixel) {
   expect(pixel.b.toInt(), 211);
 }
 
+bool _isNearCream(img.Pixel pixel) {
+  return (pixel.r.toInt() - 255).abs() <= 1 &&
+      (pixel.g.toInt() - 245).abs() <= 1 &&
+      (pixel.b.toInt() - 211).abs() <= 1;
+}
+
 void _expectNearCream(img.Pixel pixel) {
-  expect((pixel.r.toInt() - 255).abs(), lessThanOrEqualTo(1));
-  expect((pixel.g.toInt() - 245).abs(), lessThanOrEqualTo(1));
-  expect((pixel.b.toInt() - 211).abs(), lessThanOrEqualTo(1));
+  expect(_isNearCream(pixel), isTrue);
 }
 
 int _pngColorType(List<int> bytes) {
