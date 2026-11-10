@@ -1,5 +1,6 @@
-// demo/seed は、審査員用アカウントと見本の電話を作る。見本の 1 週間は、実行した日の朝で終わる。
-// もう一度実行すると、そのアカウントの電話をその日の見本に戻し、チュートリアルを見た記録を消す。
+// demo/seed は、審査員用アカウントと見本の電話と見本の予約を作る。見本の 1 週間は、実行した日の朝で終わる。
+// 見本の予約は、実行した日の翌日以降に 3 件ある。タスクは作らない。
+// もう一度実行すると、そのアカウントの電話と見本の予約をその日の見本に戻し、チュートリアルを見た記録を消す。
 // プロジェクトは --project で渡す。環境変数のプロジェクトや gcloud の既定は使わない。
 // メールアドレスは JUDGE_EMAIL、パスワードは JUDGE_PASSWORD。パスワードはリポジトリに置かない。
 // demo- のプロジェクトは Firebase のエミュレーターが要る。それ以外は、エミュレーターの変数があると実行しない。
@@ -61,7 +62,8 @@ func run(ctx context.Context, args []string) error {
 	fmt.Printf("審査員の名前: %s\n", judgeDisplayName)
 	fmt.Printf("見守る方の ID: %s\n", result.WatchedPersonID)
 	fmt.Printf("電話を %d 件に戻しました。出なかった電話は %d 件です。\n", result.Calls, result.Missed)
-	fmt.Println("もう一度実行すると、このアカウントの電話を見本に戻します。")
+	fmt.Printf("予約を %d 件に戻しました。\n", result.Bookings)
+	fmt.Println("もう一度実行すると、このアカウントの電話と見本の予約を見本に戻します。")
 	return nil
 }
 
