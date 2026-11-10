@@ -64,11 +64,10 @@ func TestDownHandsetAfterMissedCallDoesNotRequestCode(t *testing.T) {
 	handset := &recordingHandset{ring: make(chan struct{}, 1)}
 	finished := make(chan struct{}, 1)
 	d := &phone.Device{
-		Backend: srv.URL,
-		ID:      "phone-1",
-		Key:     "key-1",
-		Secret:  "secret-test",
-		Gemini:  silentGemini{},
+		Backend:  srv.URL,
+		Identity: phone.Identity{ID: "phone-1", Key: "key-1"},
+		Secret:   "secret-test",
+		Gemini:   silentGemini{},
 		Phone: phone.Phone{
 			Handset: handset,
 			Hook:    hook,

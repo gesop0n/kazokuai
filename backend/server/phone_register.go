@@ -33,10 +33,9 @@ type phoneRecord struct {
 	SyncedAt time.Time `firestore:"syncedAt,omitempty"`
 }
 
-// phoneIdentity は、リクエストを認証した電話機である。
-// legacy のときは、合言葉だけで認証した古い道で、見守る方はリクエストが名乗る。
+// phoneIdentity は、ID と鍵で認証した電話機である。
+// personID は、認証したときの結び付きである。空なら、まだ同期していない。
 type phoneIdentity struct {
-	legacy   bool
 	phoneID  string
 	personID string
 }
@@ -154,13 +153,29 @@ func (s *server) phoneByKey(ctx context.Context, id, key string) (phoneIdentity,
 	return phoneIdentity{phoneID: id, personID: record.WatchedPersonID}, 0, "", nil
 }
 
+// phonePerson は、phones/{id} の今の見守る方を返す。文書が無いときは空で、エラーにしない。
+func (s *server) phonePerson(ctx context.Context, phoneID string) (string, error) {
+	doc, err := s.firebase.Firestore.Collection(phonesCollection).Doc(phoneID).Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	var record phoneRecord
+	if err := doc.DataTo(&record); err != nil {
+		return "", err
+	}
+	return record.WatchedPersonID, nil
+}
+
 func phoneIdentityFrom(ctx context.Context) phoneIdentity {
 	identity, _ := ctx.Value(phoneIdentityKey).(phoneIdentity)
 	return identity
 }
 
 // linkedPhoneID は、personID に結び付いている電話機の ID を返す。
-// 結び付きが無いときは ok が false で、古い道の接続を使う。
+// 結び付きが無いときは ok が false である。
 func (s *server) linkedPhoneID(ctx context.Context, personID string) (phoneID string, ok bool, err error) {
 	if s.firebase.Firestore == nil || personID == "" {
 		return "", false, nil
@@ -179,24 +194,23 @@ func (s *server) linkedPhoneID(ctx context.Context, personID string) (phoneID st
 	return docs[0].Ref.ID, true, nil
 }
 
-// personConnected は、見守る方の電話機が今つながっているかを返す。
-// 結び付きがあるときは、その電話機だけを見る。無いときは、古い道の接続を見る。
+// personConnected は、見守る方に結び付いた電話機が、今電話を届けられるかを返す。
 func (s *server) personConnected(ctx context.Context, personID string) bool {
 	phoneID, linked, err := s.linkedPhoneID(ctx, personID)
 	if err != nil {
 		log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
 		return false
 	}
-	if linked {
-		return s.phones.hasPhone(phoneID)
+	if !linked {
+		return false
 	}
-	return s.phones.connected(personID)
+	return s.phones.hasPhone(phoneID)
 }
 
-// refuseOtherPerson は、ID と鍵で認証した電話機が、結び付きと違う見守る方を名乗ったときに true を返す。
-// 古い道と、見守る方を名乗らないリクエストは、ここでは断らない。
+// refuseOtherPerson は、電話機が結び付きと違う見守る方を名乗ったときに true を返す。
+// 見守る方を名乗らないリクエストは、ここでは断らない。
 func refuseOtherPerson(w http.ResponseWriter, identity phoneIdentity, named string) bool {
-	if identity.phoneID == "" || named == "" || named == identity.personID {
+	if named == "" || named == identity.personID {
 		return false
 	}
 	http.Error(w, protocol.PhoneAnswerOtherPerson, http.StatusForbidden)

@@ -97,7 +97,7 @@ gcloud secrets versions add phone-shared-secret --project=PROJECT_ID --data-file
 リポジトリのルートの `.env` に、値を書く。名前は [.env.example](../.env.example) にある。
 
 - `GEMINI_API_KEY` は、手元でバックエンドを動かすときのもの。本番の Cloud Run が読むのは、上で入れた `gemini-api-key` である。
-- `PHONE_SECRET` は、`phone-shared-secret` に入れた合言葉と同じにする。電話機がこれを付ける。
+- `PHONE_SECRET` は、`phone-shared-secret` に入れた合言葉と同じにする。電話機は、登録するときだけこれを付ける。
 - `JUDGE_EMAIL` と `JUDGE_PASSWORD` は、審査員用アカウントである。パスワードは 6 文字以上にする。
 
 ## 7. バックエンドを公開する
@@ -178,12 +178,12 @@ mise run demo:seed -- --project=PROJECT_ID
 `.env` の `PHONE_SECRET` を、手順 6 の合言葉と同じにしておく。mise が電話機に渡す。未設定のときは開発用の合言葉になるので、本番にはつながない。
 
 ```bash
-mise run device -- --backend CLOUD_RUN_URI --watched-person tanaka-hana
+mise run device -- --backend CLOUD_RUN_URI
 ```
 
-`CLOUD_RUN_URI` は、手順 7 が表示した URL である。`https` は `wss` になる。
+`CLOUD_RUN_URI` は、手順 7 が表示した URL である。`https` は `wss` になる。電話機は自分の ID と鍵でつながる。家族がアプリからこの電話機を同期すると、その見守る方の電話を受ける。
 
-Web 版に審査員としてログインし、今すぐ通話を押すと、この電話機が鳴る。
+Web 版に審査員としてログインし、電話機を同期してから今すぐ通話を押すと、この電話機が鳴る。
 
 ## 12. GitHub Actions から公開する
 

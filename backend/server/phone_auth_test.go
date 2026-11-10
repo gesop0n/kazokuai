@@ -171,7 +171,7 @@ func TestLinkedPhoneGetsTheCallWithItsKey(t *testing.T) {
 		t.Fatalf("登録 = %d, want 201: %s", resp.status, resp.body)
 	}
 
-	conn := dialPhoneKey(t, srv.URL, id, key, "")
+	conn := dialPhoneKey(t, srv.URL, id, key)
 	calls := readPhoneCalls(conn)
 	if _, err := emulators.Firestore.Collection("phones").Doc(id).Update(t.Context(), []firestore.Update{
 		{Path: "watchedPersonId", Value: personID},
@@ -190,7 +190,7 @@ func TestLinkedPhoneGetsTheCallWithItsKey(t *testing.T) {
 		t.Fatal("結び付いた電話機に今すぐ通話が来なかった")
 	}
 
-	tokenBody, err := json.Marshal(protocol.TokenRequest{CallID: callID, WatchedPersonID: personID})
+	tokenBody, err := json.Marshal(protocol.TokenRequest{CallID: callID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,10 +206,9 @@ func TestLinkedPhoneGetsTheCallWithItsKey(t *testing.T) {
 	}
 
 	reportBody, err := json.Marshal(protocol.CallReport{
-		CallID:          callID,
-		WatchedPersonID: personID,
-		StartedAt:       time.Date(2026, 11, 10, 1, 0, 0, 0, time.UTC),
-		DurationMs:      1200,
+		CallID:     callID,
+		StartedAt:  time.Date(2026, 11, 10, 1, 0, 0, 0, time.UTC),
+		DurationMs: 1200,
 		Utterances: []protocol.Utterance{{
 			Speaker:  protocol.SpeakerAI,
 			OffsetMs: 100,
@@ -238,7 +237,7 @@ func TestUnlinkedPhoneStaysConnectedAndGetsNoCall(t *testing.T) {
 		t.Fatalf("登録 = %d, want 201: %s", resp.status, resp.body)
 	}
 
-	conn := dialPhoneKey(t, srv.URL, id, key, "")
+	conn := dialPhoneKey(t, srv.URL, id, key)
 	calls, closed := watchPhone(conn)
 
 	resp := postJSON(t, srv.URL, protocol.StartCallPath, "Bearer "+familyToken, `{"message": "金曜の通院", "script": "ハナさん、美咲さんからです。"}`)
@@ -254,6 +253,20 @@ func TestUnlinkedPhoneStaysConnectedAndGetsNoCall(t *testing.T) {
 	case <-closed:
 		t.Fatal("同期していない電話機の接続が切れた")
 	case <-time.After(200 * time.Millisecond):
+	}
+
+	for _, path := range []string{protocol.TokenPath, protocol.CallReportPath} {
+		body := `{"callId":"call-1"}`
+		if path == protocol.CallReportPath {
+			body = `{"callId":"call-1","utterances":[]}`
+		}
+		resp = callPhone(t, srv.URL, http.MethodPost, path, id, key, body)
+		if resp.status != http.StatusConflict || !strings.Contains(string(resp.body), "この電話機は同期していません") {
+			t.Errorf("%s = %d %s, want 409 同期していない", path, resp.status, resp.body)
+		}
+		if strings.Contains(string(resp.body), "見守る方の ID") {
+			t.Errorf("%s が、見守る方の ID をリクエストに入れるよう求めた: %s", path, resp.body)
+		}
 	}
 }
 
@@ -271,22 +284,27 @@ func TestPhoneThatNamesAnotherPersonIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("結び付きの見守る方を名乗るなら、つながる", func(t *testing.T) {
-		conn := dialPhoneKey(t, srv.URL, id, key, personID)
+	t.Run("クエリで見守る方を名乗ると、結び付きと同じでも断る", func(t *testing.T) {
+		for _, named := range []string{personID, personID + "-other"} {
+			resp := callPhone(t, srv.URL, http.MethodGet, protocol.PhonePath+"?watchedPerson="+url.QueryEscape(named), id, key, "")
+			if resp.status != http.StatusBadRequest || !strings.Contains(string(resp.body), "見守る方は結び付きから決まります") {
+				t.Errorf("クエリ %s = %d %s, want 400", named, resp.status, resp.body)
+			}
+		}
+		conn := dialPhoneKey(t, srv.URL, id, key)
 		conn.CloseNow()
 	})
 
-	t.Run("別の見守る方を名乗ると、WebSocket もトークンも報告も断る", func(t *testing.T) {
+	t.Run("本文で別の見守る方を名乗ると、トークンも報告も断る", func(t *testing.T) {
 		other := personID + "-other"
-		targets := []struct{ method, path, body string }{
-			{http.MethodGet, protocol.PhonePath + "?watchedPerson=" + url.QueryEscape(other), ""},
-			{http.MethodPost, protocol.TokenPath, `{"callId":"call-1","watchedPersonId":"` + other + `"}`},
-			{http.MethodPost, protocol.CallReportPath, `{"callId":"call-1","watchedPersonId":"` + other + `","utterances":[]}`},
+		targets := []struct{ path, body string }{
+			{protocol.TokenPath, `{"callId":"call-1","watchedPersonId":"` + other + `"}`},
+			{protocol.CallReportPath, `{"callId":"call-1","watchedPersonId":"` + other + `","utterances":[]}`},
 		}
 		for _, target := range targets {
-			resp := callPhone(t, srv.URL, target.method, target.path, id, key, target.body)
+			resp := callPhone(t, srv.URL, http.MethodPost, target.path, id, key, target.body)
 			if resp.status != http.StatusForbidden || !strings.Contains(string(resp.body), protocol.PhoneAnswerOtherPerson) {
-				t.Errorf("%s %s = %d %s, want 403 %s", target.method, target.path, resp.status, resp.body, protocol.PhoneAnswerOtherPerson)
+				t.Errorf("POST %s = %d %s, want 403 %s", target.path, resp.status, resp.body, protocol.PhoneAnswerOtherPerson)
 			}
 		}
 	})
@@ -309,7 +327,7 @@ func TestPhoneKeyConnectionLogsTheLinkedPerson(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	conn := dialPhoneKey(t, srv.URL, id, key, "")
+	conn := dialPhoneKey(t, srv.URL, id, key)
 	readPhone(conn)
 	waitConnected(t, handler, person, true)
 	waitForLog(t, &logs, "電話機がつながりました。見守る方: "+person)
@@ -434,7 +452,7 @@ func assertKeyHidden(t *testing.T, data map[string]any, key string) {
 	}
 }
 
-func dialPhoneKey(t *testing.T, backend, id, key, person string) *websocket.Conn {
+func dialPhoneKey(t *testing.T, backend, id, key string) *websocket.Conn {
 	t.Helper()
 	u, err := url.Parse(backend)
 	if err != nil {
@@ -442,9 +460,6 @@ func dialPhoneKey(t *testing.T, backend, id, key, person string) *websocket.Conn
 	}
 	u.Scheme = "ws"
 	u.Path = protocol.PhonePath
-	if person != "" {
-		u.RawQuery = url.Values{"watchedPerson": {person}}.Encode()
-	}
 	header := http.Header{}
 	header.Set(protocol.PhoneIDHeader, id)
 	header.Set(protocol.PhoneKeyHeader, key)
@@ -512,6 +527,139 @@ func newAuthServerOnly(t *testing.T, clk clock.Clock) *httptest.Server {
 	t.Helper()
 	srv, _ := newAuthServer(t, clk)
 	return srv
+}
+
+func TestPhoneHearsTheLinkThatExistsWhenItFinishesConnecting(t *testing.T) {
+	t.Run("つないでいるあいだに同期が終わると、最後に同期したと知らせる", func(t *testing.T) {
+		srv, logs, release := newPausedPhoneServer(t)
+		family := signUp(t)
+		id := testPhoneID(t)
+		registerKeyedPhone(t, srv.URL, id)
+
+		conn := dialPhoneKey(t, srv.URL, id, syncPhoneKey)
+		waitUntilEntered(t, release.entered)
+		msgs := collectMessages(t, conn)
+		linkPhoneWithCode(t, srv.URL, family.IDToken, id)
+		release.letGo()
+		waitForLog(t, logs, "電話機がつながりました")
+
+		if got := lastSyncNotice(t, msgs); got != protocol.PhoneTypeSynced {
+			t.Fatalf("最後の状態 = %s, want %s", got, protocol.PhoneTypeSynced)
+		}
+	})
+
+	t.Run("つないでいるあいだに別の電話機へ替わると、最後に同期していないと知らせる", func(t *testing.T) {
+		srv, logs, release := newPausedPhoneServer(t)
+		family := signUp(t)
+		firstID := testPhoneID(t) + "-a"
+		secondID := testPhoneID(t) + "-b"
+		registerKeyedPhone(t, srv.URL, firstID)
+		linkPhoneWithCode(t, srv.URL, family.IDToken, firstID)
+
+		conn := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey)
+		waitUntilEntered(t, release.entered)
+		msgs := collectMessages(t, conn)
+		registerKeyedPhone(t, srv.URL, secondID)
+		linkPhoneWithCode(t, srv.URL, family.IDToken, secondID)
+		release.letGo()
+		waitForLog(t, logs, "電話機がつながりました")
+
+		if got := lastSyncNotice(t, msgs); got != protocol.PhoneTypeNotSynced {
+			t.Fatalf("最後の状態 = %s, want %s", got, protocol.PhoneTypeNotSynced)
+		}
+	})
+}
+
+// phonePause は、最初の電話機の接続を登録したあと、結び付きを読む前に止める。
+type phonePause struct {
+	entered chan struct{}
+	letGo   func()
+}
+
+func newPausedPhoneServer(t *testing.T) (*httptest.Server, *lockedBuffer, phonePause) {
+	t.Helper()
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	var releaseOnce sync.Once
+	pause := phonePause{
+		entered: entered,
+		letGo: func() {
+			releaseOnce.Do(func() { close(release) })
+		},
+	}
+	t.Cleanup(pause.letGo)
+	var logs lockedBuffer
+	handler := server.New(server.Config{
+		ProjectID:   "demo-kazokuai",
+		PhoneSecret: protocol.DevPhoneSecret,
+		Logger:      log.New(&logs, "", 0),
+		AfterPhoneRegistered: func() {
+			once.Do(func() {
+				close(entered)
+				<-release
+			})
+		},
+	}, emulators, nil, nil, clock.Real{})
+	srv := httptest.NewServer(handler)
+	t.Cleanup(func() {
+		handler.Stop()
+		srv.Close()
+	})
+	return srv, &logs, pause
+}
+
+func waitUntilEntered(t *testing.T, entered <-chan struct{}) {
+	t.Helper()
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("接続を登録する前に止まった")
+	}
+}
+
+func lastSyncNotice(t *testing.T, msgs <-chan protocol.PhoneMessage) string {
+	t.Helper()
+	var last string
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	var idle *time.Timer
+	defer func() {
+		if idle != nil {
+			idle.Stop()
+		}
+	}()
+	for {
+		var idleC <-chan time.Time
+		if idle != nil {
+			idleC = idle.C
+		}
+		select {
+		case msg, ok := <-msgs:
+			if !ok {
+				t.Fatal("接続が切れた")
+			}
+			if msg.Type != protocol.PhoneTypeSynced && msg.Type != protocol.PhoneTypeNotSynced {
+				continue
+			}
+			last = msg.Type
+			if idle == nil {
+				idle = time.NewTimer(200 * time.Millisecond)
+				continue
+			}
+			if !idle.Stop() {
+				select {
+				case <-idle.C:
+				default:
+				}
+			}
+			idle.Reset(200 * time.Millisecond)
+		case <-idleC:
+			return last
+		case <-deadline.C:
+			t.Fatalf("同期の状態が届かなかった。最後 = %q", last)
+		}
+	}
 }
 
 func utteranceText(t *testing.T, personID, callID string) string {

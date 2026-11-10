@@ -5,10 +5,9 @@
 // Linux では、電話機の受話器とフックとキーパッドと呼び出し音を使い、ランプはログだけを書く。
 // 部品の確認は、電話機の上で `device check devices|speaker|mic|hook|ringer|keypad` である。
 //
-// 見守る方を渡さずに起動した電話機は、自分の ID と鍵を作り、合言葉で登録してからそれでつなぐ。
-// 結び付きができるまでは待ち、結び付いた見守る方の電話を受ける。
-// --watched-person を付けた電話機は、今までどおり共通の合言葉で、その見守る方につながる。
-// Pi では、環境変数 KAZOKUAI_WATCHED_PERSON が空のときが、ID と鍵のつなぎ方である。
+// 起動した電話機は、自分の ID と鍵を作り、合言葉で登録してからそれでつなぐ。
+// 結び付きができるまでは待ち、結び付いた見守る方の電話を受ける。同期はアプリから行う。
+// --watched-person では起動しない。
 // ID と鍵のファイルは --phone-file か KAZOKUAI_PHONE_FILE で変える。
 // 空なら、Pi は /var/lib/kazokuai/phone.json、Mac はユーザーの設定ディレクトリである。
 // バックエンドの URL は --backend で渡す。既定は http://localhost:8080 で、https は wss でつなぐ。
@@ -17,8 +16,7 @@
 // device check は /etc/kazokuai/device.env があれば読み、空の環境変数も含めて上書きする。
 //
 //	mise run device
-//	mise run device -- --watched-person <見守る方の ID>
-//	mise run device -- --watched-person <見守る方の ID> --backend https://kazokuai-….run.app
+//	mise run device -- --backend https://kazokuai-….run.app
 package main
 
 import (
@@ -57,19 +55,16 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	var identity phone.Identity
-	if opts.person == "" {
-		path := opts.phoneFile
-		if path == "" {
-			path, err = phone.DefaultIdentityPath()
-			if err != nil {
-				return err
-			}
-		}
-		identity, err = phone.LoadOrCreateIdentity(path)
+	path := opts.phoneFile
+	if path == "" {
+		path, err = phone.DefaultIdentityPath()
 		if err != nil {
 			return err
 		}
+	}
+	identity, err := phone.LoadOrCreateIdentity(path)
+	if err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -81,19 +76,14 @@ func run(args []string) error {
 	defer cleanup()
 
 	device := &phone.Device{
-		Backend: opts.backend,
-		Secret:  phoneSecret(os.Getenv("PHONE_SECRET")),
-		Gemini:  liveAPI{},
-		Phone:   opened,
-		Out:     os.Stdout,
-		Clock:   realClock{},
-		Echo:    echoesSpeech(),
-	}
-	if opts.person == "" {
-		device.ID = identity.ID
-		device.Key = identity.Key
-	} else {
-		device.WatchedPerson = opts.person
+		Identity: identity,
+		Backend:  opts.backend,
+		Secret:   phoneSecret(os.Getenv("PHONE_SECRET")),
+		Gemini:   liveAPI{},
+		Phone:    opened,
+		Out:      os.Stdout,
+		Clock:    realClock{},
+		Echo:     echoesSpeech(),
 	}
 	if err := device.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("電話機が終わりました: %w", err)
@@ -103,13 +93,12 @@ func run(args []string) error {
 
 // runOptions は、起動の引数と環境変数から決めた電話機のつなぎ方である。
 type runOptions struct {
-	person    string
 	backend   string
 	phoneFile string
 }
 
-// parseArgs は、--watched-person、--backend、--phone-file を読む。
-// 見守る方のフラグが空なら、環境変数 KAZOKUAI_WATCHED_PERSON を使う。それも空なら、ID と鍵でつなぐ。
+// parseArgs は、--backend と --phone-file を読む。
+// --watched-person は受け取らない。見守る方は、アプリからの同期で決まる。
 // ファイルのフラグが空なら、KAZOKUAI_PHONE_FILE を使う。それも空なら、呼び出し側が既定の場所を使う。
 func parseArgs(args []string, getenv func(string) string) (runOptions, error) {
 	if getenv == nil {
@@ -117,7 +106,9 @@ func parseArgs(args []string, getenv func(string) string) (runOptions, error) {
 	}
 	fs := flag.NewFlagSet("device", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	id := fs.String("watched-person", "", "見守る方の ID。空なら、電話機の ID と鍵でつなぐ")
+	fs.Func("watched-person", "使いません。アプリから同期します", func(string) error {
+		return errors.New("アプリから同期してください。--watched-person では起動しません")
+	})
 	backendURL := fs.String("backend", "http://localhost:8080", "バックエンドの URL。https は wss でつなぐ")
 	file := fs.String("phone-file", "", "ID と鍵のファイル。空なら、Pi は /var/lib/kazokuai/phone.json、Mac は設定ディレクトリ")
 	if err := fs.Parse(args); err != nil {
@@ -126,15 +117,11 @@ func parseArgs(args []string, getenv func(string) string) (runOptions, error) {
 	if strings.TrimSpace(*backendURL) == "" {
 		return runOptions{}, errors.New("バックエンドの URL が要ります。--backend で渡してください")
 	}
-	person := strings.TrimSpace(*id)
-	if person == "" {
-		person = strings.TrimSpace(getenv("KAZOKUAI_WATCHED_PERSON"))
-	}
 	phoneFile := strings.TrimSpace(*file)
 	if phoneFile == "" {
 		phoneFile = strings.TrimSpace(getenv(phone.PhoneFileEnv))
 	}
-	return runOptions{person: person, backend: *backendURL, phoneFile: phoneFile}, nil
+	return runOptions{backend: *backendURL, phoneFile: phoneFile}, nil
 }
 
 // parseCheck は、`device check` の部品名を読む。機器を開く前に、名前が違えば戻る。

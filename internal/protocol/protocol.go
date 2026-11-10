@@ -7,15 +7,13 @@ import (
 )
 
 // TokenPath は、電話を始めるときにデバイスが短命トークンをもらう、バックエンドのパスである。
-// デバイスは TokenRequest を JSON で入れて POST する。
-// 電話機ごとの認証では PhoneIDHeader と PhoneKeyHeader を付ける。
-// 古い道では PhoneSecretHeader に合言葉を付ける。
+// デバイスは TokenRequest を JSON で入れて POST し、PhoneIDHeader と PhoneKeyHeader を付ける。
+// 見守る方は結び付きから決まる。
 const TokenPath = "/token"
 
 // PhonePath は、電話機がつなぎ続ける WebSocket のパスである。
-// 電話機ごとの認証では PhoneIDHeader と PhoneKeyHeader を付ける。見守る方は結び付きから決まる。
-// クエリ watchedPerson を付けるときは、その結び付きと同じ ID でなければならない。
-// 古い道では、クエリ watchedPerson に見守る方の ID を付け、PhoneSecretHeader に合言葉を付ける。
+// 電話機は PhoneIDHeader と PhoneKeyHeader を付ける。見守る方は結び付きから決まる。
+// クエリ watchedPerson は受け付けない。
 const PhonePath = "/phone"
 
 // PhoneRegisterPath は、電話機が自分の ID と鍵を登録するパスである。/api の下には置かない。
@@ -26,7 +24,7 @@ const PhoneRegisterPath = "/phones"
 // 電話機は PhoneIDHeader と PhoneKeyHeader に ID と鍵を付ける。
 const PhoneCodePath = "/phones/code"
 
-// PhoneSecretHeader は、登録するときの合言葉と、古い道の /token、/calls、WebSocket の合言葉のヘッダーである。
+// PhoneSecretHeader は、電話機を登録するときの合言葉のヘッダーである。
 const PhoneSecretHeader = "Kazokuai-Secret"
 
 // PhoneIDHeader は、電話機が自分の ID を付けるヘッダーである。
@@ -195,6 +193,7 @@ type CallReport struct {
 	// CallID は、この電話の ID である。
 	CallID string `json:"callId"`
 	// WatchedPersonID は、この電話の見守る方の ID である。
+	// 電話機は入れない。バックエンドが結び付きから決める。結び付きと違う ID は断る。
 	WatchedPersonID string `json:"watchedPersonId"`
 	// StartedAt は、受話器を上げた時刻である。
 	StartedAt time.Time `json:"startedAt"`
@@ -209,6 +208,7 @@ type TokenRequest struct {
 	// CallID は、トークンをもらう電話の ID である。
 	CallID string `json:"callId"`
 	// WatchedPersonID は、その電話の見守る方の ID である。
+	// 電話機は入れない。バックエンドが結び付きから決める。結び付きと違う ID は断る。
 	WatchedPersonID string `json:"watchedPersonId"`
 }
 

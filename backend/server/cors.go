@@ -10,24 +10,21 @@ import (
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
-// requirePhone は、電話機を認証してから next に進む。
-// PhoneIDHeader があるときは、その ID と鍵で認証する。無いときは、合言葉の古い道である。
+// requirePhone は、電話機の ID と鍵を確かめてから next に進む。
+// 合言葉だけでは進めない。合言葉は、登録のときだけ使う。
 func (s *server) requirePhone(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if id := strings.TrimSpace(r.Header.Get(protocol.PhoneIDHeader)); id != "" {
-			identity, code, answer, err := s.phoneByKey(r.Context(), id, r.Header.Get(protocol.PhoneKeyHeader))
-			if err != nil {
-				http.Error(w, answer, code)
-				return
-			}
-			next(w, r.WithContext(context.WithValue(r.Context(), phoneIdentityKey, identity)))
+		id := strings.TrimSpace(r.Header.Get(protocol.PhoneIDHeader))
+		if id == "" {
+			http.Error(w, "電話機の ID と鍵を入れてください", http.StatusUnauthorized)
 			return
 		}
-		if !phoneSecretOK(r.Header.Get(protocol.PhoneSecretHeader), s.config.PhoneSecret) {
-			http.Error(w, protocol.PhoneAnswerBadSecret, http.StatusUnauthorized)
+		identity, code, answer, err := s.phoneByKey(r.Context(), id, r.Header.Get(protocol.PhoneKeyHeader))
+		if err != nil {
+			http.Error(w, answer, code)
 			return
 		}
-		next(w, r.WithContext(context.WithValue(r.Context(), phoneIdentityKey, phoneIdentity{legacy: true})))
+		next(w, r.WithContext(context.WithValue(r.Context(), phoneIdentityKey, identity)))
 	}
 }
 

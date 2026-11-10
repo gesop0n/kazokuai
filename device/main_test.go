@@ -15,45 +15,44 @@ func TestMissingWatchedPersonUsesThePhoneIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.person != "" || opts.backend != "http://localhost:8080" || opts.phoneFile != "" {
-		t.Fatalf("起動 = %+v, want 見守る方とファイルは空、バックエンドは手元", opts)
+	if opts.backend != "http://localhost:8080" || opts.phoneFile != "" {
+		t.Fatalf("起動 = %+v, want ファイルは空、バックエンドは手元", opts)
 	}
 }
 
 func TestBackendFlag(t *testing.T) {
-	opts, err := parseArgs([]string{"--watched-person", "hanako"}, func(string) string { return "" })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if opts.person != "hanako" || opts.backend != "http://localhost:8080" {
-		t.Fatalf("既定 = %s %s, want hanako と http://localhost:8080", opts.person, opts.backend)
+	opts, err := parseArgs(nil, func(string) string { return "" })
+	if err != nil || opts.backend != "http://localhost:8080" {
+		t.Fatalf("既定 = %s, %v", opts.backend, err)
 	}
 
-	opts, err = parseArgs([]string{"--watched-person", "hanako", "--backend", "https://kazokuai.example.run.app"}, func(string) string { return "" })
+	opts, err = parseArgs([]string{"--backend", "https://kazokuai.example.run.app"}, func(string) string { return "" })
 	if err != nil || opts.backend != "https://kazokuai.example.run.app" {
 		t.Fatalf("--backend = %s, %v", opts.backend, err)
 	}
 
-	_, err = parseArgs([]string{"--watched-person", "hanako", "--backend="}, func(string) string { return "" })
+	_, err = parseArgs([]string{"--backend="}, func(string) string { return "" })
 	if err == nil || !strings.Contains(err.Error(), "--backend") {
 		t.Fatalf("空の URL = %v", err)
 	}
 }
 
-func TestWatchedPersonComesFromTheFlagOrTheEnvironment(t *testing.T) {
-	env := func(key string) string {
+func TestWatchedPersonFlagDoesNotStart(t *testing.T) {
+	_, err := parseArgs([]string{"--watched-person", "hanako"}, func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "同期") {
+		t.Fatalf("フラグ = %v, want アプリから同期するよう断る", err)
+	}
+}
+
+func TestWatchedPersonEnvironmentIsIgnored(t *testing.T) {
+	opts, err := parseArgs(nil, func(key string) string {
 		if key == "KAZOKUAI_WATCHED_PERSON" {
 			return " from-env "
 		}
 		return ""
-	}
-	opts, err := parseArgs(nil, env)
-	if err != nil || opts.person != "from-env" {
+	})
+	if err != nil || opts.backend != "http://localhost:8080" || opts.phoneFile != "" {
 		t.Fatalf("環境変数 = %+v, %v", opts, err)
-	}
-	opts, err = parseArgs([]string{"--watched-person", "from-flag"}, env)
-	if err != nil || opts.person != "from-flag" {
-		t.Fatalf("フラグ = %+v, %v", opts, err)
 	}
 }
 

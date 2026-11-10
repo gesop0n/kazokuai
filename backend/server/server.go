@@ -1,5 +1,5 @@
 // Package server は、デバイスに短命トークンを渡し、アプリから見守る方の登録と今すぐ通話と通話内容の案を受け、電話の報告からまとめを作るバックエンドの HTTP サーバーである。
-// 古い道の電話機は見守る方の ID ごとに、ID と鍵で認証した電話機は電話機の ID ごとに、メモリーで持つ。
+// つながっている電話機は、電話機の ID ごとにメモリーで持つ。
 package server
 
 import (
@@ -39,10 +39,13 @@ type Config struct {
 	SummaryRetryWait time.Duration
 	// ProjectID は、Firebase のプロジェクトである。demo- で始まるときだけ、localhost からの CORS を許す。
 	ProjectID string
-	// PhoneSecret は、電話機の合言葉である。登録するときの合言葉で、古い道の /token、/calls、WebSocket も、これが無いと断る。
+	// PhoneSecret は、電話機を登録するときの合言葉である。
 	PhoneSecret string
 	// Logger は、電話機のつながりと、電話機がいない今すぐ通話を書く。nil なら標準のログである。
 	Logger *log.Logger
+	// AfterPhoneRegistered は、電話機の接続を登録したあと、結び付きを読む前に呼ぶ。
+	// テストが、そのあいだに同期を終えるために使う。本番は nil である。
+	AfterPhoneRegistered func()
 }
 
 // DefaultSummaryModel は、まとめに使うモデルの既定値である。
@@ -68,8 +71,7 @@ type Handler struct {
 // Stop は、つながっている電話機との WebSocket を閉じる。
 func (h *Handler) Stop() { h.stop() }
 
-// Connected は、personID の電話機が今つながっているかを返す。
-// 結び付きがあるときはその電話機を、無いときは古い道の接続を見る。
+// Connected は、personID に結び付いた電話機が今つながっているかを返す。
 func (h *Handler) Connected(personID string) bool { return h.connected(personID) }
 
 // New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
@@ -83,14 +85,15 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
 	s := &server{
-		config:     config,
-		firebase:   firebase,
-		tokens:     tokens,
-		summarizer: summarizer,
-		clock:      clk,
-		phones:     newPhoneBook(),
-		syncs:      newSyncBook(),
-		base:       ctx,
+		config:               config,
+		firebase:             firebase,
+		tokens:               tokens,
+		summarizer:           summarizer,
+		clock:                clk,
+		phones:               newPhoneBook(),
+		syncs:                newSyncBook(),
+		base:                 ctx,
+		afterPhoneRegistered: config.AfterPhoneRegistered,
 	}
 	router := chi.NewRouter()
 	router.Post(protocol.PhoneRegisterPath, s.registerPhone)
@@ -142,6 +145,8 @@ type server struct {
 	clock clock.Clock
 	// base は、このサーバーが止まるまで生きている context である。電話機の接続はこれに従う。
 	base context.Context
+	// afterPhoneRegistered は、接続を登録したあと、結び付きを読む前に呼ぶ。nil なら呼ばない。
+	afterPhoneRegistered func()
 }
 
 // token は、頼まれた電話の見守る方と、伝言があればその通話内容を Firestore から読み、システム指示に書いたトークンを作る。
@@ -155,14 +160,16 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 	if refuseOtherPerson(w, identity, req.WatchedPersonID) {
 		return
 	}
-	if identity.phoneID != "" && req.WatchedPersonID == "" {
-		req.WatchedPersonID = identity.personID
-	}
-	if req.CallID == "" || req.WatchedPersonID == "" {
-		http.Error(w, "電話の ID と見守る方の ID を入れてください", http.StatusBadRequest)
+	if identity.personID == "" {
+		http.Error(w, "この電話機は同期していません", http.StatusConflict)
 		return
 	}
-	doc, err := s.callRef(req.WatchedPersonID, req.CallID).Get(r.Context())
+	if req.CallID == "" {
+		http.Error(w, "電話の ID を入れてください", http.StatusBadRequest)
+		return
+	}
+	personID := identity.personID
+	doc, err := s.callRef(personID, req.CallID).Get(r.Context())
 	if err != nil {
 		http.Error(w, "電話が見つからなかった", http.StatusNotFound)
 		return
@@ -172,9 +179,9 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		script, _ = data["script"].(string)
 	}
 	config := s.config
-	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, req.WatchedPersonID)
+	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, personID)
 	if err != nil {
-		log.Printf("見守る方 %s を読めなかった: %v", req.WatchedPersonID, err)
+		log.Printf("見守る方 %s を読めなかった: %v", personID, err)
 		http.Error(w, "見守る方を読めなかった", http.StatusInternalServerError)
 		return
 	}
