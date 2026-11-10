@@ -173,7 +173,7 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
 
   <header class="head">
     <div>
-      <div class="kicker">ADR 0003 · ADR 0011 · 2026-11-10</div>
+      <div class="kicker">ADR 0003 · ADR 0011 · ADR 0014 · 2026-11-10</div>
       <h1>かぞくAI の構成</h1>
     </div>
     <p class="lede">いま作ってあるものだけを描く。電話機の Raspberry Pi は、今は Mac で代わりに試している。Cloud Run は ADR 0011 のとおり 1 つのインスタンスで動かし、アプリの Web 版は Firebase Hosting から開いて /api/** で Cloud Run を呼ぶ。公開は GitHub Actions から手で行う。</p>
@@ -238,16 +238,18 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <text class="el" x="1040" y="122" text-anchor="middle">イメージ</text>
       <path class="n dash" d="M960 204 V230 H660 V276" marker-end="url(#ar)"/>
       <text class="el" x="710" y="222" text-anchor="middle">リビジョン</text>
-      <path class="n dash" d="M880 230 V276" marker-end="url(#ar)"/>
-      <text class="el" x="920" y="222" text-anchor="middle">Web 版</text>
+      <path class="n dash" d="M960 230 V276" marker-end="url(#ar)"/>
+      <text class="el" x="1000" y="222" text-anchor="middle">Web 版</text>
 
       <!-- the 家族's app -->
       <path class="n" d="M994 570 H916" marker-end="url(#ar)"/>
       <text class="el" x="955" y="562" text-anchor="middle">使う</text>
-      <path class="n" d="M880 534 V386" marker-end="url(#ar)"/>
-      <text class="el" x="870" y="420" text-anchor="end">Web 版・操作</text>
-      <path class="n" d="M844 310 H676" marker-end="url(#ar)"/>
-      <text class="el" x="760" y="302" text-anchor="middle">/api/**</text>
+      <path class="n" d="M880 534 V520 H960 V386" marker-end="url(#ar)"/>
+      <text class="el" x="970" y="470">Web 版・操作</text>
+      <path class="n" d="M766 310 H674" marker-end="url(#ar)"/>
+      <text class="el" x="720" y="302" text-anchor="middle">予約の時刻</text>
+      <path class="n" d="M960 386 V412 H700 V386" marker-end="url(#ar)"/>
+      <text class="el" x="830" y="404" text-anchor="middle">/api/**</text>
       <path class="n" d="M856 534 V465 H676 V386" marker-end="url(#ar)"/>
       <text class="el" x="766" y="457" text-anchor="middle">操作 · iOS</text>
       <path class="n" d="M904 534 V450 H1120 V386" marker-end="url(#ar)"/>
@@ -291,7 +293,11 @@ path.aws { stroke: var(--color-ink); stroke-width:1.6; fill:none; }
       <div class="tile"><img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0ic3RhbmRhcmRfcHJvZHVjdF9pY29uIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDUxMiA1MTIiPgogIDwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAyOS4xLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiAyLjEuMCBCdWlsZCAxNDIpICAtLT4KICA8ZGVmcz4KICAgIDxzdHlsZT4KICAgICAgLnN0MCB7CiAgICAgICAgZmlsbDogbm9uZTsKICAgICAgfQoKICAgICAgLnN0MSB7CiAgICAgICAgZmlsbDogIzQyODVmNDsKICAgICAgfQoKICAgICAgLnN0MiB7CiAgICAgICAgZmlsbDogIzM0YTg1MzsKICAgICAgfQoKICAgICAgLnN0MyB7CiAgICAgICAgZmlsbDogI2ZiYmMwNDsKICAgICAgfQoKICAgICAgLnN0NCB7CiAgICAgICAgZmlsbDogI2VhNDMzNTsKICAgICAgfQogICAgPC9zdHlsZT4KICA8L2RlZnM+CiAgPGcgaWQ9ImJvdW5kaW5nX2JveCI+CiAgICA8cmVjdCBjbGFzcz0ic3QwIiB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIvPgogIDwvZz4KICA8ZyBpZD0iYXJ0Ij4KICAgIDxwYXRoIGNsYXNzPSJzdDMiIGQ9Ik0xNDQuNCwyNzJjLTYuNCwwLTEyLjQtMy44LTE0LjktMTAuMUw1NS40LDc1LjljLTMuMy04LjIuNy0xNy41LDguOS0yMC44LDguMi0zLjMsMTcuNS43LDIwLjgsOC45bDc0LjIsMTg2YzMuMyw4LjItLjcsMTcuNS04LjksMjAuOC0xLjkuOC0zLjksMS4xLTUuOSwxLjFoLS4xWiIvPgogICAgPGcgaWQ9ImIiPgogICAgICA8cGF0aCBjbGFzcz0ic3Q0IiBkPSJNMjU2LDI3MmMtNi40LDAtMTIuNC0zLjgtMTQuOS0xMC4xbC03NC4xLTE4NmMtMi42LTYuNi0uNi0xNC4xLDUtMTguNXMxMy40LTQuNSwxOS4yLS40bDI2MC4xLDE4NmM3LjIsNS4xLDguOSwxNS4xLDMuNywyMi4zcy0xNS4xLDguOS0yMi4zLDMuN0wyMTYuOSwxMTQuN2w1NCwxMzUuM2MzLjMsOC4yLS43LDE3LjUtOC45LDIwLjgtMS45LjgtNCwxLjEtNS45LDEuMWgtLjFaIi8+CiAgICA8L2c+CiAgICA8cGF0aCBjbGFzcz0ic3QyIiBkPSJNMTI3LjIsMjU2bC03MiwxODBjLTMuMyw4LjIuNywxNy41LDguOSwyMC44LDMuMSwxLjIsNCwxLjEsNS45LDEuMSw2LjMsMCwxMi40LTMuOCwxNC45LTEwLjFsNzQuNC0xODZjLjgtMiwxLjEtNCwxLjEtNS45aC0zMy4yWiIvPgogICAgPHBhdGggY2xhc3M9InN0MSIgZD0iTTQxNC41LDI1NmwtMTk3LjcsMTQxLjIsNTQuMS0xMzUuM2MuOC0yLDEuMS00LDEuMS01LjloLTMzLjJsLTcyLDE4MGMtMi42LDYuNi0uNiwxNC4xLDUsMTguNSwyLjksMi4zLDYuNCwzLjQsOS45LDMuNHM2LjUtMSw5LjMtM2wyNjAuNC0xODZjNC40LTMuMSw2LjctOCw2LjctMTNoLTQzLjZaIi8+CiAgPC9nPgo8L3N2Zz4=" alt=""></div>
       <div class="name"><span>Cloud Run</span></div><div class="role"><span>最大 1 インスタンス</span></div>
     </div>
-    <div class="node" style="left:814px;top:280px">
+    <div class="node" style="left:734px;top:280px">
+      <div class="tile"><img src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0ic3RhbmRhcmRfcHJvZHVjdF9pY29uIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgdmlld0JveD0iMCAwIDUxMiA1MTIiPgogIDwhLS0gR2VuZXJhdG9yOiBBZG9iZSBJbGx1c3RyYXRvciAyOS4xLjAsIFNWRyBFeHBvcnQgUGx1Zy1JbiAuIFNWRyBWZXJzaW9uOiAyLjEuMCBCdWlsZCAxNDIpICAtLT4KICA8ZyBpZD0iYm91bmRpbmdfYm94Ij4KICAgIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSJub25lIi8+CiAgPC9nPgogIDxnIGlkPSJhcnQiPgogICAgPHBhdGggZD0iTTE4MC42MywzNDcuNDFjLTQuMDksMC04LjE5LTEuNTYtMTEuMzEtNC42OC02LjI1LTYuMjUtNi4yNS0xNi4zOCwwLTIyLjYzbDEzOC42NS0xMzguNjhjNi4yNS02LjI1LDE2LjM4LTYuMjUsMjIuNjMsMHM2LjI1LDE2LjM4LDAsMjIuNjNsLTEzOC42NSwxMzguNjhjLTMuMTIsMy4xMi03LjIyLDQuNjktMTEuMzIsNC42OXYtLjAxWiIgZmlsbD0iIzlhYTBhNiIvPgogICAgPHBhdGggZD0iTTEzNC42NSw0NTguMzVjLTQ0LjY2LDAtODEtMzYuMzQtODEtODFzMzYuMzQtODEsODEtODEsODEsMzYuMzQsODEsODEtMzYuMzQsODEtODEsODFaTTEzNC42NSwzMjguMzVjLTI3LjAyLDAtNDksMjEuOTgtNDksNDlzMjEuOTgsNDksNDksNDksNDktMjEuOTgsNDktNDktMjEuOTgtNDktNDktNDlaIiBmaWxsPSIjNDI4NWY0Ii8+CiAgICA8cGF0aCBkPSJNMzgwLjgxLDIzNC4yMmMtMjcuNTIsMC01My4zOS0xMC43Mi03Mi44NS0zMC4xOHMtMzAuMTgtNDUuMzMtMzAuMTgtNzIuODUsMTAuNzItNTMuMzksMzAuMTgtNzIuODVjNi4yNS02LjI1LDE2LjM4LTYuMjUsMjIuNjMsMHM2LjI1LDE2LjM4LDAsMjIuNjNjLTI3LjY5LDI3LjctMjcuNjksNzIuNzYsMCwxMDAuNDUsMjcuNywyNy43LDcyLjc2LDI3LjY5LDEwMC40NSwwLDYuMjUtNi4yNSwxNi4zOC02LjI1LDIyLjYzLDBzNi4yNSwxNi4zOCwwLDIyLjYzYy0xOS40NiwxOS40Ni00NS4zMywzMC4xOC03Mi44NSwzMC4xOGwtLjAxLS4wMVoiIGZpbGw9IiM0Mjg1ZjQiLz4KICAgIDxwYXRoIGQ9Ik0xMDYuOTIsMjM0LjczYy00LjEsMC04LjE5LTEuNTYtMTEuMzEtNC42OS02LjI1LTYuMjUtNi4yNS0xNi4zOCwwLTIyLjYzbDYzLjIzLTYzLjIzLTYzLjIzLTYzLjIzYy02LjI1LTYuMjUtNi4yNS0xNi4zOCwwLTIyLjYzczE2LjM4LTYuMjUsMjIuNjMsMGw3NC41NCw3NC41NGMzLDMsNC42OSw3LjA3LDQuNjksMTEuMzFzLTEuNjksOC4zMS00LjY5LDExLjMxbC03NC41NCw3NC41NGMtMy4xMiwzLjEyLTcuMjIsNC42OS0xMS4zMSw0LjY5bC0uMDEuMDJaIiBmaWxsPSIjOWFhMGE2Ii8+CiAgICA8cGF0aCBkPSJNNDA1LjA4LDQ1OC4zNWMtNC4xLDAtOC4xOS0xLjU2LTExLjMxLTQuNjlsLTc0LjU0LTc0LjU0Yy0zLTMtNC42OS03LjA3LTQuNjktMTEuMzFzMS42OS04LjMxLDQuNjktMTEuMzFsNzQuNTQtNzQuNTRjNi4yNS02LjI1LDE2LjM4LTYuMjUsMjIuNjMsMHM2LjI1LDE2LjM4LDAsMjIuNjNsLTYzLjIzLDYzLjIzLDYzLjIzLDYzLjIzYzYuMjUsNi4yNSw2LjI1LDE2LjM4LDAsMjIuNjMtMy4xMiwzLjEyLTcuMjIsNC42OS0xMS4zMSw0LjY5bC0uMDEtLjAyWiIgZmlsbD0iIzlhYTBhNiIvPgogICAgPHBhdGggZD0iTTE5Mi43NywxMzIuODhsLTExLjMxLTExLjMxLTg1Ljg1LDg1Ljg1Yy02LjI1LDYuMjUtNi4yNSwxNi4zOCwwLDIyLjYzLDMuMTIsMy4xMiw3LjIyLDQuNjksMTEuMzEsNC42OXM4LjE5LTEuNTYsMTEuMzEtNC42OWw3NC41NC03NC41NGM2LjI1LTYuMjUsNi4yNS0xNi4zOCwwLTIyLjYzWiIgZmlsbD0iIzQyODVmNCIvPgogICAgPHBhdGggZD0iTTMxOS4yMywzNzkuMTJsMTEuMzEsMTEuMzEsODUuODUtODUuODVjNi4yNS02LjI1LDYuMjUtMTYuMzgsMC0yMi42My0zLjEyLTMuMTItNy4yMi00LjY5LTExLjMxLTQuNjlzLTguMTksMS41Ni0xMS4zMSw0LjY5bC03NC41NCw3NC41NGMtNi4yNSw2LjI1LTYuMjUsMTYuMzgsMCwyMi42M1oiIGZpbGw9IiM0Mjg1ZjQiLz4KICA8L2c+Cjwvc3ZnPg==" alt=""></div>
+      <div class="name"><span>Cloud Tasks</span></div><div class="role"><span>予約の時刻</span></div>
+    </div>
+    <div class="node" style="left:894px;top:280px">
       <div class="tile"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MDAiIGhlaWdodD0iNjAwIiBmaWxsPSJub25lIiB2aWV3Qm94PSIwIDAgNjAwIDYwMCI+PHBhdGggZmlsbD0iI0ZGOTEwMCIgZD0iTTIxMy45MTggNTYwLjQ5OWMyMy4yNDggOS4zNTcgNDguNDY5IDE0LjkwOSA3NC45NTIgMTUuODM0IDM1Ljg0IDEuMjUyIDY5LjkyMi02LjE1OCAxMDAuMzkxLTIwLjIzNC0zNi41MzctMTQuMzU1LTY5LjYyNy0zNS4zNDgtOTcuODY5LTYxLjQ0OC0xOC4zMDYgMjkuMzEtNDUuMzgyIDUyLjQ2Mi03Ny40NzQgNjUuODQ4WiIvPjxwYXRoIGZpbGw9IiNGRkM0MDAiIGQ9Ik0yOTEuMzg5IDQ5NC42NmMtNjQuNDY2LTU5LjYyMi0xMDMuNTc0LTE0NS45MTctMTAwLjI2OS0yNDAuNTY4LjEwOC0zLjA3My4yNy02LjE0NS40Ni05LjIxNmExNjYuOTkzIDE2Ni45OTMgMCAwIDAtMzYuMDA0LTUuMjQxIDE2Ny4wMDEgMTY3LjAwMSAwIDAgMC01MS4xODMgNi4xNTNjLTE3LjIxIDMwLjE0NS0yNy41OTQgNjQuNzMzLTI4Ljg4OCAxMDEuNzgxLTMuMzM5IDk1LjYxMSA1NC41MjIgMTc5LjE1NCAxMzguNDA5IDIxMi45MzkgMzIuMDkzLTEzLjM4NyA1OS4xNjgtMzYuNTEgNzcuNDc1LTY1Ljg0OFoiLz48cGF0aCBmaWxsPSIjRkY5MTAwIiBkPSJNMjkxLjM5IDQ5NC42NTdjMTQuOTg4LTIzLjk4NiAyNC4wNzUtNTIuMTA2IDI1LjEzMy04Mi40MDMgMi43ODMtNzkuNjk1LTUwLjc5Mi0xNDguMjUxLTEyNC45NDItMTY3LjM4MS0uMTkgMy4wNzEtLjM1MiA2LjE0My0uNDYgOS4yMTYtMy4zMDUgOTQuNjUxIDM1LjgwMyAxODAuOTQ2IDEwMC4yNjkgMjQwLjU2OFoiLz48cGF0aCBmaWxsPSIjREQyQzAwIiBkPSJNMzA4LjIzMSAyMC44NThDMjY2IDU0LjY5MSAyMzIuNjUyIDk5LjMwMiAyMTIuNDc1IDE1MC42OTNjLTExLjU1MSAyOS40MzYtMTguODEgNjEuMDU1LTIwLjkyOSA5NC4yIDc0LjE1IDE5LjEzIDEyNy43MjYgODcuNjg2IDEyNC45NDMgMTY3LjM4LTEuMDU4IDMwLjI5Ny0xMC4xNzIgNTguMzktMjUuMTM0IDgyLjQwNCAyOC4yNCAyNi4xMjcgNjEuMzMxIDQ3LjA5MyA5Ny44NjggNjEuNDQ3IDczLjMzNy0zMy45IDEyNS4zNy0xMDYuODQ2IDEyOC4zODMtMTkzLjEyNyAxLjk1Mi01NS45MDEtMTkuNTI2LTEwNS43MjQtNDkuODc1LTE0Ny43NzgtMzIuMDUxLTQ0LjQ3Ny0xNTkuNS0xOTQuMzYtMTU5LjUtMTk0LjM2WiIvPjwvc3ZnPg==" alt=""></div>
       <div class="name"><span>Firebase Hosting</span></div><div class="role"><span>Web 版・/api/**</span></div>
     </div>
