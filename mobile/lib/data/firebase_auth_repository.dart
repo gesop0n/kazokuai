@@ -40,6 +40,18 @@ class FirebaseAuthRepository implements AuthRepository {
   ValueListenable<FamilyAccount?> get account => _account;
 
   @override
+  Future<void> signInWithGoogle() async {
+    // 閉じたポップアップは、画面に何も出さない。
+    // 新しいアカウントかどうかは、ここでは分けない。見守る方がいなければ L3 になる。
+    try {
+      await _auth.signInWithPopup(GoogleAuthProvider());
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'popup-closed-by-user') return;
+      throw const SignInException(SignInError.other);
+    }
+  }
+
+  @override
   Future<void> signIn({required String email, required String password}) async {
     try {
       await _auth.signInWithEmailAndPassword(email: email, password: password);

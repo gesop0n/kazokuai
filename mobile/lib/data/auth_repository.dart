@@ -56,6 +56,14 @@ abstract interface class AuthRepository {
   // ログインできなかったときは SignInException を投げる
   Future<void> signIn({required String email, required String password});
 
+  // Web の Google のポップアップでログインする。
+  // ポップアップを閉じたときは、ログインせずに戻る。
+  // それ以外で失敗したときは SignInException(SignInError.other) を投げる。
+  // ログインできると、メールアドレスのログインと同じく signedIn が true になる。
+  // 新しいアカウントも、すでにあるアカウントも、ここはログインするだけ。
+  // 見守る方がいなければルーターが L3 を、いればメールアドレスのログインのあとと同じ画面を開く。
+  Future<void> signInWithGoogle();
+
   // アカウントを作る。作れるとログインした状態になる。
   // 作れなかったときは CreateAccountException を投げる
   Future<void> createAccount({required String email, required String password});
@@ -111,6 +119,10 @@ class PasswordResetException implements Exception {
   @override
   String toString() => 'PasswordResetException';
 }
+
+// Web だけ Google のポップアップを使う。iOS と Android は「準備中です」のまま。
+// テストは true に差し替えて、Web の流れを確かめる。
+final googleSignInOnWebProvider = Provider<bool>((ref) => kIsWeb);
 
 // テストでは偽物に差し替える
 final authRepositoryProvider = Provider<AuthRepository>((ref) {

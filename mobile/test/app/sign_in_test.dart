@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
 import 'package:kazokuai/data/auth_repository.dart';
+import 'package:kazokuai/data/watched_person_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
+import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_bookings_repository.dart';
@@ -14,12 +18,21 @@ import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
 
-Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
+Future<void> pumpApp(
+  WidgetTester tester,
+  FakeAuthRepository auth, {
+  bool googleOnWeb = false,
+  WatchedPersonStatus watchedPerson = WatchedPersonStatus.registered,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(auth),
-        registeredWatchedPerson(),
+        // このファイルのテストは、Web 以外を既定にする。Web の流れだけ true にする
+        googleSignInOnWebProvider.overrideWithValue(googleOnWeb),
+        watchedPersonRepositoryProvider.overrideWithValue(
+          FakeWatchedPersonRepository(status: watchedPerson),
+        ),
         sampleHome(),
         sampleCalls(),
         emptyBookings(),
@@ -173,7 +186,7 @@ void main() {
     expect(find.byType(WelcomeScreen), findsNothing);
   });
 
-  testWidgets('L2 の「Googleでログイン」は「準備中です」と出る', (tester) async {
+  testWidgets('Web 以外では、L2 の「Googleでログイン」は「準備中です」と出る', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
     await openLogin(tester);
 
@@ -181,5 +194,90 @@ void main() {
 
     expect(find.text('準備中です'), findsOneWidget);
     expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
+  // あるアカウントには見守る方がいる。メールアドレスでログインしたときと同じくホームへ進む。
+  // 新しいアカウントには見守る方がいない。新規登録のあと同じく L3 へ進む。
+  testWidgets('Web では、あるアカウントの「Googleでログイン」でホームが開く', (tester) async {
+    await pumpApp(tester, FakeAuthRepository(), googleOnWeb: true);
+    await openLogin(tester);
+
+    await tapText(tester, 'Googleでログイン');
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
+    expect(find.text('準備中です'), findsNothing);
+  });
+
+  testWidgets('Web では、新しいアカウントの「Googleでログイン」で L3 が開く', (tester) async {
+    await pumpApp(
+      tester,
+      FakeAuthRepository(),
+      googleOnWeb: true,
+      watchedPerson: WatchedPersonStatus.none,
+    );
+    await openLogin(tester);
+
+    await tapText(tester, 'Googleでログイン');
+
+    expect(find.byType(SyncScreen), findsOneWidget);
+    expect(find.text('電話機との同期を始めます。'), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
+    expect(find.text('準備中です'), findsNothing);
+  });
+
+  testWidgets('Web で Google のポップアップを閉じても、L2 は変わらない', (tester) async {
+    final auth = FakeAuthRepository()..googlePopupClosed = true;
+    await pumpApp(tester, auth, googleOnWeb: true);
+    await openLogin(tester);
+
+    await tapText(tester, 'Googleでログイン');
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(HomeScreen), findsNothing);
+    expect(find.text('ログインできませんでした。時間をおいて、もう一度お試しください'), findsNothing);
+    expect(find.text('準備中です'), findsNothing);
+  });
+
+  testWidgets('Web で Google のログインに失敗すると、L2 にメッセージが出る', (tester) async {
+    await pumpApp(
+      tester,
+      FakeAuthRepository(unreachable: true),
+      googleOnWeb: true,
+    );
+    await openLogin(tester);
+
+    await tapText(tester, 'Googleでログイン');
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.text('ログインできませんでした。時間をおいて、もう一度お試しください'), findsOneWidget);
+    expect(find.byType(HomeScreen), findsNothing);
+  });
+
+  testWidgets('Web では、Google のポップアップが開いているあいだ「Googleでログイン」を押せない', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    final auth = FakeAuthRepository()..pendingGoogleSignIn = gate;
+    await pumpApp(tester, auth, googleOnWeb: true);
+    await openLogin(tester);
+
+    await tester.tap(find.widgetWithText(AppButton, 'Googleでログイン'));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<AppButton>(find.widgetWithText(AppButton, 'Googleでログイン'))
+          .onTap,
+      isNull,
+    );
+
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeScreen), findsOneWidget);
   });
 }

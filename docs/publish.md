@@ -131,8 +131,9 @@ push が、Artifact Registry のリポジトリが無いと言って失敗した
 1. Firebase コンソールで、この `PROJECT_ID` の Authentication を開く。
 2. ログイン方法の「メール / パスワード」を有効にする。
 3. メールリンクは無効のままにする。
-4. 承認済みドメインに、`localhost`、`PROJECT_ID.firebaseapp.com`、`PROJECT_ID.web.app` があることを確かめる。
-5. 承認済みドメインに `kazokuai.web.app` と `kazokuai.firebaseapp.com` を足す。Firebase が自動で足すのは、既定のサイトのドメイン（`PROJECT_ID.web.app` と `PROJECT_ID.firebaseapp.com`）だけである。`kazokuai` のサイトのドメインは、コンソールで足す。サイト ID を変えたときは、その ID の `web.app` と `firebaseapp.com` を足す。
+4. ログイン方法の「Google」を有効にする。サポート用のメールアドレスを聞かれたら、このプロジェクトのメンバーのものを選ぶ。
+5. 設定の承認済みドメインに、`localhost`、`PROJECT_ID.firebaseapp.com`、`PROJECT_ID.web.app` があることを確かめる。
+6. 承認済みドメインに `kazokuai.web.app` と `kazokuai.firebaseapp.com` を足す。Firebase が自動で足すのは、既定のサイトのドメイン（`PROJECT_ID.web.app` と `PROJECT_ID.firebaseapp.com`）だけである。`kazokuai` のサイトのドメインは、コンソールで足す。サイト ID を変えたときは、その ID の `web.app` と `firebaseapp.com` を足す。`kazokuai.web.app` が無いと、本番のサイトで Google のログインのポップアップが失敗する。
 
 組織のポリシー `iam.allowedPolicyMemberDomains` が `allUsers` を拒むと、Cloud Run を公開する IAM が失敗する。そのときは、このプロジェクトで `allUsers` を許す。説明は [infra/README.md](../infra/README.md) の「公開の呼び出し」にある。
 
