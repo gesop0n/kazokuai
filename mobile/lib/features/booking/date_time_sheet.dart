@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 
 import 'package:kazokuai/design/app_colors.dart';
@@ -8,14 +8,24 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_pressable.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
-import 'package:kazokuai/features/booking/usual_answer_times.dart';
-import 'package:kazokuai/features/calls/calls_data.dart';
 import 'package:kazokuai/features/calls/calls_format.dart';
 
 // モックの行は 36。押せる領域は 44 以上にする
 const _itemExtent = 44.0;
 const _wheelHeight = 180.0;
 const _columnWidth = 88.0;
+
+// モックのマスは 40、行間は 2。44 を重ねると次の週が下端を取るので、行を 44 にする。
+const _dayRowHeight = 44.0;
+
+// 回転式は 5 分ごとなので、開いた時刻を近い 5 分に寄せる。9:02 は 9:00。
+(int, int) _snapToFiveMinutes(int hour, int minute) {
+  const step = 5;
+  final total = hour * 60 + minute;
+  final snapped = ((total + step ~/ 2) ~/ step) * step;
+  final inDay = snapped % (24 * 60);
+  return (inDay ~/ 60, inDay % 60);
+}
 
 const _wheelIdle = TextStyle(
   fontFamily: 'BIZUDPGothic',
@@ -53,7 +63,6 @@ const _fade = LinearGradient(
 Future<DateTime?> showDateTimeSheet(
   BuildContext context, {
   required DateTime initial,
-  required ValueListenable<CallLog?> answeredLog,
 }) {
   return showModalBottomSheet<DateTime>(
     context: context,
@@ -64,23 +73,15 @@ Future<DateTime?> showDateTimeSheet(
     backgroundColor: Colors.transparent,
     elevation: 0,
     barrierColor: AppColors.scrim,
-    builder: (context) =>
-        DateTimeSheet(initial: initial, answeredLog: answeredLog),
+    builder: (context) => DateTimeSheet(initial: initial),
   );
 }
 
 // 01b。日付はカレンダー、時刻は 5 分ごとの回転式。
 class DateTimeSheet extends StatefulWidget {
-  const DateTimeSheet({
-    super.key,
-    required this.initial,
-    required this.answeredLog,
-  });
+  const DateTimeSheet({super.key, required this.initial});
 
   final DateTime initial;
-
-  // 開いたあとに届く通話記録も、よく出る時刻に反映する
-  final ValueListenable<CallLog?> answeredLog;
 
   @override
   State<DateTimeSheet> createState() => _DateTimeSheetState();
@@ -96,10 +97,12 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
   late final FixedExtentScrollController _hourController;
   late final FixedExtentScrollController _minuteController;
 
-  // 候補や数字への移動中は、途中の位置で選んだ時刻を上書きしない
-  int _spinSerial = 0;
-  int? _heldSpin;
-  int _heldPending = 0;
+  // 数字を押した回転の途中は、通り過ぎる位置で選んだ時刻を上書きしない。
+  // 指が触れたら外して、止まった位置を選ぶ。
+  int _hourSpin = 0;
+  int? _heldHour;
+  int _minuteSpin = 0;
+  int? _heldMinute;
 
   @override
   void initState() {
@@ -108,32 +111,18 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
       DateTime(widget.initial.year, widget.initial.month, widget.initial.day),
     );
     _month = DateTime(_selectedDay.year, _selectedDay.month);
-    final time = snapToFiveMinutes(widget.initial.hour, widget.initial.minute);
-    _hour = time.hour;
-    _minute = time.minute;
+    final time = _snapToFiveMinutes(widget.initial.hour, widget.initial.minute);
+    _hour = time.$1;
+    _minute = time.$2;
     _hourController = FixedExtentScrollController(initialItem: _hour);
     _minuteController = FixedExtentScrollController(initialItem: _minute ~/ 5);
-    widget.answeredLog.addListener(_onAnsweredLog);
-  }
-
-  @override
-  void didUpdateWidget(DateTimeSheet oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.answeredLog == widget.answeredLog) return;
-    oldWidget.answeredLog.removeListener(_onAnsweredLog);
-    widget.answeredLog.addListener(_onAnsweredLog);
   }
 
   @override
   void dispose() {
-    widget.answeredLog.removeListener(_onAnsweredLog);
     _hourController.dispose();
     _minuteController.dispose();
     super.dispose();
-  }
-
-  void _onAnsweredLog() {
-    if (mounted) setState(() {});
   }
 
   DateTime _clampDay(DateTime day) {
@@ -160,37 +149,93 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     setState(() => _month = DateTime(_month.year, _month.month + delta));
   }
 
-  // 押した時点で値を決め、回転はあとから追いつく。
+  // 押した数字をすぐ選び、回転はあとから追いつく。
   // 回転の途中で決めても、通り過ぎた時刻にはならない。
-  void _spinTo(TimeOfDay time) {
-    final generation = ++_spinSerial;
-    _heldSpin = generation;
-    _heldPending = 2;
-    setState(() {
-      _hour = time.hour;
-      _minute = time.minute;
+  void _tapHour(int index) {
+    final generation = ++_hourSpin;
+    _heldHour = generation;
+    if (_hour != index) setState(() => _hour = index);
+    _spin(_hourController, index, () => _heldHour == generation, () {
+      _heldHour = null;
     });
-    _animate(_hourController, time.hour, generation);
-    _animate(_minuteController, time.minute ~/ 5, generation);
   }
 
-  void _animate(
+  void _tapMinute(int index) {
+    final generation = ++_minuteSpin;
+    _heldMinute = generation;
+    final minute = index * 5;
+    if (_minute != minute) setState(() => _minute = minute);
+    _spin(_minuteController, index, () => _heldMinute == generation, () {
+      _heldMinute = null;
+    });
+  }
+
+  void _spin(
     FixedExtentScrollController controller,
-    int item,
-    int generation,
+    int index,
+    bool Function() stillHeld,
+    void Function() clear,
   ) {
     controller
         .animateToItem(
-          item,
+          index,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         )
         .whenComplete(() {
-          if (!mounted || _heldSpin != generation) return;
-          _heldPending--;
-          if (_heldPending > 0) return;
-          _heldSpin = null;
+          if (!mounted || !stillHeld()) return;
+          clear();
         });
+  }
+
+  // 回転中は数字がポインターを受けない。世代を進めて、止めた位置で上書きしない。
+  // true のときだけ、離した位置の数字を選び直す。描き直すとドラッグが消える。
+  bool _onHourPointerDown() {
+    if (_heldHour == null) return false;
+    _heldHour = ++_hourSpin;
+    if (_hourController.hasClients) {
+      _hourController.jumpTo(_hourController.offset);
+    }
+    return true;
+  }
+
+  bool _onMinutePointerDown() {
+    if (_heldMinute == null) return false;
+    _heldMinute = ++_minuteSpin;
+    if (_minuteController.hasClients) {
+      _minuteController.jumpTo(_minuteController.offset);
+    }
+    return true;
+  }
+
+  void _onHourDrag() => _heldHour = null;
+
+  void _onMinuteDrag() => _heldMinute = null;
+
+  void _onHourScrollEnd() => _takeStopped(
+    _hourController,
+    _heldHour,
+    () => _hour,
+    (index) => _hour = index,
+  );
+
+  void _onMinuteScrollEnd() => _takeStopped(
+    _minuteController,
+    _heldMinute,
+    () => _minute ~/ 5,
+    (index) => _minute = index * 5,
+  );
+
+  void _takeStopped(
+    FixedExtentScrollController controller,
+    int? held,
+    int Function() current,
+    void Function(int index) apply,
+  ) {
+    if (held != null || !controller.hasClients) return;
+    final index = controller.selectedItem;
+    if (index == current()) return;
+    setState(() => apply(index));
   }
 
   void _confirm() {
@@ -277,20 +322,23 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
                         hour: _hour,
                         minute: _minute,
                         onHour: (index) {
-                          if (_heldSpin != null || index == _hour) return;
+                          if (_heldHour != null || index == _hour) return;
                           setState(() => _hour = index);
                         },
                         onMinute: (index) {
                           final minute = index * 5;
-                          if (_heldSpin != null || minute == _minute) return;
+                          if (_heldMinute != null || minute == _minute) return;
                           setState(() => _minute = minute);
                         },
+                        onTapHour: _tapHour,
+                        onTapMinute: _tapMinute,
+                        onHourPointerDown: _onHourPointerDown,
+                        onMinutePointerDown: _onMinutePointerDown,
+                        onHourDrag: _onHourDrag,
+                        onMinuteDrag: _onMinuteDrag,
+                        onHourScrollEnd: _onHourScrollEnd,
+                        onMinuteScrollEnd: _onMinuteScrollEnd,
                       ),
-                      if (usualAnswerTimes(widget.answeredLog.value).isNotEmpty)
-                        _UsualTimes(
-                          times: usualAnswerTimes(widget.answeredLog.value),
-                          onTap: _spinTo,
-                        ),
                     ],
                   ),
                   Padding(
@@ -390,7 +438,6 @@ class _MonthGrid extends StatelessWidget {
     ];
     return Column(
       mainAxisSize: MainAxisSize.min,
-      spacing: 2,
       children: [
         Row(
           children: [
@@ -410,6 +457,8 @@ class _MonthGrid extends StatelessWidget {
               ),
           ],
         ),
+        // 曜日の下だけモックの行間 2。日の行は 44 で隙間なく並べ、下端が次の週にならない。
+        const SizedBox(height: 2),
         for (var start = 0; start < cells.length; start += 7)
           Row(
             children: [
@@ -423,7 +472,7 @@ class _MonthGrid extends StatelessWidget {
 
   Widget _cellAt(List<DateTime?> cells, int index) {
     final date = index < cells.length ? cells[index] : null;
-    if (date == null) return const SizedBox(height: 44);
+    if (date == null) return const SizedBox(height: _dayRowHeight);
     final enabled = canSelect(date);
     return _DayCell(
       date: date,
@@ -453,36 +502,38 @@ class _DayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = isToday ? '${formatMonthDay(date)}、今日' : formatMonthDay(date);
-    return AppPressable(
-      onTap: onTap,
-      foregroundColor: AppColors.inkPrimary,
-      shape: const CircleBorder(),
-      minHeight: 44,
-      selected: isSelected,
-      semanticLabel: label,
-      // モックのマスは 40。押せる領域は 44 にする
-      child: ExcludeSemantics(
-        child: Center(
-          child: Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.inkPrimary : null,
-              shape: BoxShape.circle,
-              border: isToday
-                  ? Border.all(color: AppColors.inkPrimary, width: 1.5)
-                  : null,
-            ),
-            child: Text(
-              '${date.day}',
-              softWrap: false,
-              style: AppTextStyles.monoM.copyWith(
-                color: isSelected
-                    ? AppColors.paperRaised
-                    : enabled
-                    ? AppColors.inkPrimary
-                    : AppColors.lineStrong,
+    return SizedBox(
+      height: _dayRowHeight,
+      child: AppPressable(
+        onTap: onTap,
+        foregroundColor: AppColors.inkPrimary,
+        shape: const CircleBorder(),
+        minHeight: _dayRowHeight,
+        selected: isSelected,
+        semanticLabel: label,
+        child: ExcludeSemantics(
+          child: Center(
+            child: Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.inkPrimary : null,
+                shape: BoxShape.circle,
+                border: isToday
+                    ? Border.all(color: AppColors.inkPrimary, width: 1.5)
+                    : null,
+              ),
+              child: Text(
+                '${date.day}',
+                softWrap: false,
+                style: AppTextStyles.monoM.copyWith(
+                  color: isSelected
+                      ? AppColors.paperRaised
+                      : enabled
+                      ? AppColors.inkPrimary
+                      : AppColors.lineStrong,
+                ),
               ),
             ),
           ),
@@ -500,6 +551,14 @@ class _Wheel extends StatelessWidget {
     required this.minute,
     required this.onHour,
     required this.onMinute,
+    required this.onTapHour,
+    required this.onTapMinute,
+    required this.onHourPointerDown,
+    required this.onMinutePointerDown,
+    required this.onHourDrag,
+    required this.onMinuteDrag,
+    required this.onHourScrollEnd,
+    required this.onMinuteScrollEnd,
   });
 
   final FixedExtentScrollController hourController;
@@ -508,6 +567,14 @@ class _Wheel extends StatelessWidget {
   final int minute;
   final ValueChanged<int> onHour;
   final ValueChanged<int> onMinute;
+  final ValueChanged<int> onTapHour;
+  final ValueChanged<int> onTapMinute;
+  final bool Function() onHourPointerDown;
+  final bool Function() onMinutePointerDown;
+  final VoidCallback onHourDrag;
+  final VoidCallback onMinuteDrag;
+  final VoidCallback onHourScrollEnd;
+  final VoidCallback onMinuteScrollEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -548,6 +615,10 @@ class _Wheel extends StatelessWidget {
                       selectedIndex: hour,
                       labelOf: (index) => '$index',
                       onSelected: onHour,
+                      onTapItem: onTapHour,
+                      onPointerDown: onHourPointerDown,
+                      onDrag: onHourDrag,
+                      onScrollEnd: onHourScrollEnd,
                     ),
                   ),
                   const ExcludeSemantics(
@@ -564,6 +635,10 @@ class _Wheel extends StatelessWidget {
                       labelOf: (index) =>
                           (index * 5).toString().padLeft(2, '0'),
                       onSelected: onMinute,
+                      onTapItem: onTapMinute,
+                      onPointerDown: onMinutePointerDown,
+                      onDrag: onMinuteDrag,
+                      onScrollEnd: onMinuteScrollEnd,
                     ),
                   ),
                 ],
@@ -576,7 +651,7 @@ class _Wheel extends StatelessWidget {
   }
 }
 
-class _WheelColumn extends StatelessWidget {
+class _WheelColumn extends StatefulWidget {
   const _WheelColumn({
     required this.controller,
     required this.label,
@@ -584,6 +659,10 @@ class _WheelColumn extends StatelessWidget {
     required this.selectedIndex,
     required this.labelOf,
     required this.onSelected,
+    required this.onTapItem,
+    required this.onPointerDown,
+    required this.onDrag,
+    required this.onScrollEnd,
   });
 
   final FixedExtentScrollController controller;
@@ -592,136 +671,119 @@ class _WheelColumn extends StatelessWidget {
   final int selectedIndex;
   final String Function(int index) labelOf;
   final ValueChanged<int> onSelected;
+  final ValueChanged<int> onTapItem;
+  // 回転中なら true。プログラムの回転は数字を無視するので、離した位置で選び直す。
+  final bool Function() onPointerDown;
+  final VoidCallback onDrag;
+  final VoidCallback onScrollEnd;
+
+  @override
+  State<_WheelColumn> createState() => _WheelColumnState();
+}
+
+class _WheelColumnState extends State<_WheelColumn> {
+  Offset? _origin;
+  var _tracking = false;
+  var _dragged = false;
+
+  void _down(PointerDownEvent event) {
+    _tracking = widget.onPointerDown();
+    _dragged = false;
+    _origin = event.localPosition;
+  }
+
+  void _move(PointerMoveEvent event) {
+    if (!_tracking || _dragged) return;
+    final origin = _origin;
+    if (origin == null) return;
+    if ((event.localPosition - origin).distance <= kTouchSlop) return;
+    _dragged = true;
+    widget.onDrag();
+  }
+
+  void _up(PointerUpEvent event) {
+    if (!_tracking) return;
+    _tracking = false;
+    // ドラッグのあとは、スクロールの終了が止まった位置を取る。
+    if (_dragged) {
+      _dragged = false;
+      return;
+    }
+    widget.onTapItem(_indexAt(event.localPosition) ?? widget.selectedIndex);
+  }
+
+  void _cancel(PointerCancelEvent event) {
+    if (!_tracking) return;
+    _tracking = false;
+    _dragged = false;
+    widget.onDrag();
+    widget.onScrollEnd();
+  }
+
+  // 中央の数字が scroll offset の位置。円筒はほぼ平面なので、近い番号で足りる。
+  int? _indexAt(Offset local) {
+    final controller = widget.controller;
+    if (!controller.hasClients) return null;
+    final index =
+        ((local.dy - _wheelHeight / 2 + controller.offset) / _itemExtent)
+            .round();
+    if (index < 0 || index >= widget.itemCount) return null;
+    return index;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: label,
-      child: ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (rect) => _fade.createShader(rect),
-        child: ListWheelScrollView.useDelegate(
-          controller: controller,
-          itemExtent: _itemExtent,
-          diameterRatio: 100,
-          perspective: 0.0001,
-          physics: const FixedExtentScrollPhysics(),
-          onSelectedItemChanged: onSelected,
-          childDelegate: ListWheelChildBuilderDelegate(
-            childCount: itemCount,
-            builder: (context, index) {
-              final selected = index == selectedIndex;
-              return Semantics(
-                button: true,
-                selected: selected,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => controller.animateToItem(
-                    index,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOut,
-                  ),
-                  child: Center(
-                    child: Text(
-                      labelOf(index),
-                      style: selected ? _wheelSelected : _wheelIdle,
+      label: widget.label,
+      child: Listener(
+        onPointerDown: _down,
+        onPointerMove: _move,
+        onPointerUp: _up,
+        onPointerCancel: _cancel,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (notification) {
+            if (notification.depth == 0 &&
+                notification is ScrollEndNotification) {
+              widget.onScrollEnd();
+            }
+            return false;
+          },
+          child: ShaderMask(
+            blendMode: BlendMode.dstIn,
+            shaderCallback: (rect) => _fade.createShader(rect),
+            child: ListWheelScrollView.useDelegate(
+              controller: widget.controller,
+              itemExtent: _itemExtent,
+              diameterRatio: 100,
+              perspective: 0.0001,
+              physics: const FixedExtentScrollPhysics(),
+              onSelectedItemChanged: widget.onSelected,
+              childDelegate: ListWheelChildBuilderDelegate(
+                childCount: widget.itemCount,
+                builder: (context, index) {
+                  final selected = index == widget.selectedIndex;
+                  return Semantics(
+                    button: true,
+                    selected: selected,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => widget.onTapItem(index),
+                      child: Center(
+                        child: Text(
+                          widget.labelOf(index),
+                          style: selected ? _wheelSelected : _wheelIdle,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
         ),
       ),
-    );
-  }
-}
-
-class _UsualTimes extends StatelessWidget {
-  const _UsualTimes({required this.times, required this.onTap});
-
-  final List<TimeOfDay> times;
-  final ValueChanged<TimeOfDay> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    // 見出しが長くて折り返すときは、ボタンの並びを崩さない。
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        const _UsualHeading(),
-        // 文字を大きくしても、ボタンの並びが欄からはみ出さない
-        FittedBox(
-          fit: BoxFit.scaleDown,
-          alignment: Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: 8,
-            children: [
-              for (final time in times)
-                _UsualChip(
-                  label: formatSheetTime(time.hour, time.minute),
-                  onTap: () => onTap(time),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _UsualHeading extends StatelessWidget {
-  const _UsualHeading();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 6,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: const BoxDecoration(
-            color: AppColors.stateOk,
-            shape: BoxShape.circle,
-          ),
-        ),
-        Text(
-          'よく電話に出る時刻',
-          style: AppTextStyles.labelS.copyWith(color: AppColors.inkSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-class _UsualChip extends StatelessWidget {
-  const _UsualChip({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppPressable(
-      onTap: onTap,
-      foregroundColor: AppColors.inkPrimary,
-      backgroundColor: AppColors.paperRaised,
-      shape: RoundedRectangleBorder(
-        borderRadius: AppRadius.borderRadius,
-        side: const BorderSide(color: AppColors.lineStrong),
-      ),
-      // モックのチップは 32。上下の余白で押せる領域を 44 にする
-      minHeight: 32,
-      hitPadding: 6,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Text(label, style: AppTextStyles.monoM),
     );
   }
 }

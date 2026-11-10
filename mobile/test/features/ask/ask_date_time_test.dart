@@ -5,6 +5,7 @@ import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
+import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
 import '../../support/fake_call_progress_repository.dart';
@@ -92,19 +93,46 @@ Future<void> _open(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _spin(WidgetTester tester, Finder wheel, int index) async {
-  // 見えている数個だけが作られるので、目的の位置まで回してから押す。
+Finder _wheelScrollable(Finder wheel) {
   // 回転式の Scrollable は非公開の子クラスなので、型の一致では見つからない。
-  final scrollable = find.descendant(
+  return find.descendant(
     of: wheel,
     matching: find.byWidgetPredicate((widget) => widget is Scrollable),
   );
-  final controller =
-      tester.widget<Scrollable>(scrollable).controller!
-          as FixedExtentScrollController;
-  controller.jumpToItem(index);
+}
+
+FixedExtentScrollController _wheelController(
+  WidgetTester tester,
+  Finder wheel,
+) {
+  return tester.widget<Scrollable>(_wheelScrollable(wheel)).controller!
+      as FixedExtentScrollController;
+}
+
+Future<void> _spin(WidgetTester tester, Finder wheel, int index) async {
+  // 見えている数個だけが作られるので、目的の位置まで回してから押す。
+  _wheelController(tester, wheel).jumpToItem(index);
   await tester.pumpAndSettle();
-  await tester.tap(scrollable);
+  await tester.tap(_wheelScrollable(wheel));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapNumber(WidgetTester tester, Finder wheel, String label) {
+  return tester.tap(find.descendant(of: wheel, matching: find.text(label)));
+}
+
+// 回転の途中で指を動かす。一回の移動ではドラッグと認められないことがある。
+Future<void> _dragWheel(WidgetTester tester, Finder wheel, double dy) async {
+  final gesture = await tester.startGesture(tester.getCenter(wheel));
+  await tester.pump(const Duration(milliseconds: 20));
+  const step = 20.0;
+  final moves = (dy.abs() / step).ceil();
+  final delta = Offset(0, dy.sign * step);
+  for (var i = 0; i < moves; i++) {
+    await gesture.moveBy(delta);
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  await gesture.up();
   await tester.pumpAndSettle();
 }
 
@@ -234,10 +262,38 @@ void main() {
       _expectWheelHits(tester, _hourWheel());
       _expectWheelHits(tester, _minuteWheel());
     });
+
+    testWidgets('カレンダーの日は重ならず、途中の週の下端もその日になる', (tester) async {
+      await _pump(tester, log: _log());
+      await _open(tester);
+
+      final first = tester.getRect(find.bySemanticsLabel('11月1日'));
+      final eighth = tester.getRect(find.bySemanticsLabel('11月8日'));
+      final fifteenth = tester.getRect(find.bySemanticsLabel('11月15日'));
+      expect(first.width, greaterThanOrEqualTo(44));
+      expect(first.height, greaterThanOrEqualTo(44));
+      expect(eighth.height, greaterThanOrEqualTo(44));
+      // 隣の週の矩形と重ならない。下端までその日を押せる。
+      expect(eighth.top, greaterThanOrEqualTo(first.bottom - 0.1));
+      expect(eighth.top - first.top, greaterThanOrEqualTo(44));
+
+      await tester.tapAt(eighth.bottomCenter - const Offset(0, 1));
+      await tester.pumpAndSettle();
+      expect(find.text('11/8(日) 8:30にする'), findsOneWidget);
+
+      await tester.tapAt(fifteenth.topCenter + const Offset(0, 1));
+      await tester.pumpAndSettle();
+      expect(find.text('11/15(日) 8:30にする'), findsOneWidget);
+
+      final last = tester.getRect(find.bySemanticsLabel('11月30日'));
+      await tester.tapAt(last.bottomCenter - const Offset(0, 1));
+      await tester.pumpAndSettle();
+      expect(find.text('11/30(月) 8:30にする'), findsOneWidget);
+    });
   });
 
   group('よく電話に出る時刻', () {
-    testWidgets('出た電話の始まった時刻で多いものから 3 つ出し、押すとその時刻になる', (tester) async {
+    testWidgets('出た電話があっても、ボタンも見出しも出さない', (tester) async {
       await _pump(
         tester,
         log: _log(
@@ -247,75 +303,77 @@ void main() {
       );
       await _open(tester);
 
-      expect(find.text('よく電話に出る時刻'), findsOneWidget);
-      final labels = ['19:00', '9:00', '10:00'];
-      final lefts = [
-        for (final label in labels) tester.getTopLeft(find.text(label)).dx,
-      ];
-      expect(lefts[0], lessThan(lefts[1]));
-      expect(lefts[1], lessThan(lefts[2]));
+      expect(find.text('よく電話に出る時刻'), findsNothing);
+      expect(find.text('19:00'), findsNothing);
+      expect(find.text('9:00'), findsNothing);
+      expect(find.text('10:00'), findsNothing);
       expect(find.text('12:00'), findsNothing);
       expect(find.text('8:00'), findsNothing);
+    });
+  });
 
-      await tester.tap(find.text('19:00'));
-      await tester.pumpAndSettle();
-      expect(find.text('11/6(金) 19:00にする'), findsOneWidget);
+  group('押した数字', () {
+    testWidgets('回転が終わる前に決定すると、押した時と分になる', (tester) async {
+      await _pump(tester, log: _log());
+      await _open(tester);
 
-      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 19:00にする'));
+      await _tapNumber(tester, _minuteWheel(), '35');
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('11/6(金) 8:35にする'), findsOneWidget);
+
+      await _tapNumber(tester, _hourWheel(), '9');
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('11/6(金) 9:35にする'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 9:35にする'));
       await tester.pumpAndSettle();
-      expect(find.text('19:00'), findsOneWidget);
+      expect(find.text('9:35'), findsOneWidget);
       expect(find.text('8:30'), findsNothing);
     });
 
-    testWidgets('5 分に寄らない始まりも、近い 5 分として数える', (tester) async {
-      await _pump(tester, log: _log(answered: _times([(9, 2, 3)])));
+    testWidgets('回転の途中でドラッグすると、止まった時刻になる', (tester) async {
+      await _pump(tester, log: _log());
       await _open(tester);
 
-      expect(find.text('9:00'), findsOneWidget);
-      expect(find.text('9:02'), findsNothing);
-    });
+      await _tapNumber(tester, _hourWheel(), '9');
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('11/6(金) 9:30にする'), findsOneWidget);
 
-    testWidgets('出た電話がなければ、ボタンも見出しも出さない', (tester) async {
-      await _pump(tester, log: _log(missed: [DateTime(2026, 11, 2, 9, 0)]));
-      await _open(tester);
+      // 上へ動かすと、あとの時へ進む。
+      await _dragWheel(tester, _hourWheel(), -180);
+      final hour = _wheelController(tester, _hourWheel()).selectedItem;
+      final label = '11/6(金) ${formatSheetTime(hour, 30)}にする';
+      expect(hour, isNot(9));
+      expect(find.text(label), findsOneWidget);
 
-      expect(find.text('よく電話に出る時刻'), findsNothing);
-      expect(find.text('9:00'), findsNothing);
-    });
-
-    testWidgets('通話記録を読み終えていなければ、ボタンは出さない', (tester) async {
-      await _pump(tester);
-      await _open(tester);
-
-      expect(find.text('よく電話に出る時刻'), findsNothing);
-      expect(find.text('9:00'), findsNothing);
-    });
-
-    testWidgets('開いたあとに通話記録が届くと、よく出る時刻が出る', (tester) async {
-      final calls = FakeCallsRepository();
-      await _pump(tester, calls: calls);
-      await _open(tester);
-
-      expect(find.text('よく電話に出る時刻'), findsNothing);
-
-      calls.log.value = _log(answered: _times([(9, 0, 1)]));
-      await tester.pump();
-
-      expect(find.text('よく電話に出る時刻'), findsOneWidget);
-      expect(find.text('9:00'), findsOneWidget);
-    });
-
-    testWidgets('候補を押して回転中に決定しても、その候補の時刻になる', (tester) async {
-      await _pump(tester, log: _log(answered: _times([(19, 0, 1)])));
-      await _open(tester);
-
-      await tester.tap(find.text('19:00'));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('11/6(金) 19:00にする'), findsOneWidget);
-
-      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 19:00にする'));
+      await tester.tap(find.widgetWithText(AppButton, label));
       await tester.pumpAndSettle();
-      expect(find.text('19:00'), findsOneWidget);
+      expect(find.text(formatSheetTime(hour, 30)), findsOneWidget);
+      expect(find.text('8:30'), findsNothing);
+    });
+
+    testWidgets('回転の途中で同じ列を押し直すと、押した数字になる', (tester) async {
+      await _pump(tester, log: _log());
+      await _open(tester);
+
+      await _tapNumber(tester, _hourWheel(), '9');
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.text('11/6(金) 9:30にする'), findsOneWidget);
+
+      // 回転中の数字はポインターを受けない。当たるのは列の側なので、警告は出さない。
+      await tester.tap(
+        find.descendant(of: _hourWheel(), matching: find.text('7')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(find.text('11/6(金) 7:30にする'), findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(find.text('11/6(金) 7:30にする'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(AppButton, '11/6(金) 7:30にする'));
+      await tester.pumpAndSettle();
+      expect(find.text('7:30'), findsOneWidget);
       expect(find.text('8:30'), findsNothing);
     });
   });

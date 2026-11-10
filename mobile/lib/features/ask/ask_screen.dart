@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import 'package:kazokuai/app/router.dart';
 import 'package:kazokuai/data/call_progress_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
-import 'package:kazokuai/data/calls_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_form.dart';
@@ -145,7 +144,6 @@ class _AskScreenState extends ConsumerState<AskScreen> {
   }
 
   // キーボードがシートに被らないように、開く前に欄から焦点を外す。
-  // 通話記録はシートが開いているあいだの更新も見る。画面を描くたびに読まない。
   Future<void> _pickWhen() async {
     FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDateTimeSheet(
@@ -157,7 +155,6 @@ class _AskScreenState extends ConsumerState<AskScreen> {
         _time.hour,
         _time.minute,
       ),
-      answeredLog: ref.read(callsRepositoryProvider).log,
     );
     if (!mounted || picked == null) return;
     setState(() {
