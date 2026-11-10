@@ -90,12 +90,13 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 
 // New は、protocol.TokenPath でデバイスにトークンを渡し、protocol.PhonePath で電話機の接続を受け、
 // protocol.PhoneRegisterPath で電話機の ID と鍵を登録し、protocol.PhoneCodePath で認証コードを出し、
+// protocol.PhoneCallPath で見守る方からの電話を始め、
 // watchedPersonsPath でアプリから見守る方の登録を受け、protocol.DraftScriptPath で通話内容の案を作り、
 // protocol.StartCallPath で今すぐ通話を始め、protocol.CallReportPath でデバイスから電話の報告を受け、
 // protocol.SyncPreparePath で同期の準備を始め、protocol.SyncCodePath で認証コードを受け付け、
 // protocol.BookingPath で予約を保存し直し、protocol.BookingTaskPath で予約の時刻に電話を始める Handler を返す。
 // アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
-// 電話機の道（登録、認証コード、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
+// 電話機の道（登録、認証コード、見守る方からの電話、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
 // demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約と、印を付けたあと送る前に止まった予約と、送ったか分からない呼び出し中を読み直す。一覧の読み込みが失敗したときはやり直す。送ったか分からない電話はかけ直さず、期限が来たらつながらなかったにする。
 // それ以外で Tasks があるときは、保存と直しのたびに Cloud Tasks のタスクを 1 つ作る。
 // タスクがまだ入っていない予約は、起動時に登録をやり直す。見本の予約は印が無いので入れない。
@@ -135,6 +136,7 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 	router := chi.NewRouter()
 	router.Post(protocol.PhoneRegisterPath, s.registerPhone)
 	router.Post(protocol.PhoneCodePath, s.requirePhone(s.issueSyncCode))
+	router.Post(protocol.PhoneCallPath, s.requirePhone(s.startWatchedCall))
 	router.Get(protocol.PhonePath, s.requirePhone(s.phone))
 	router.Post(protocol.TokenPath, s.requirePhone(s.token))
 	router.Post(protocol.CallReportPath, s.requirePhone(s.reportCall))
@@ -233,8 +235,10 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var script string
+	var fromWatched bool
 	if data := doc.Data(); data != nil {
 		script, _ = data["script"].(string)
+		fromWatched, _ = data[protocol.CallStartedByWatchedPerson].(bool)
 	}
 	config := s.config
 	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, personID)
@@ -244,7 +248,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.clock.Now()
-	token, err := s.tokens.Create(r.Context(), tokenConfig(config, person, now, script))
+	token, err := s.tokens.Create(r.Context(), tokenConfig(config, person, now, script, fromWatched))
 	if err != nil {
 		log.Printf("短命トークンを作れなかった: %v", err)
 		http.Error(w, "短命トークンを作れなかった", http.StatusBadGateway)
@@ -265,7 +269,7 @@ func (s *server) token(w http.ResponseWriter, r *http.Request) {
 // tokenConfig は、1 回の電話のための短命トークンの制約である。
 // LockAdditionalFields を指定しないので、モデルと設定のすべてのフィールドがトークンに固定され、
 // デバイスはどれも変えられない。
-func tokenConfig(config Config, person watchedPerson, now time.Time, script string) *genai.CreateAuthTokenConfig {
+func tokenConfig(config Config, person watchedPerson, now time.Time, script string, fromWatched bool) *genai.CreateAuthTokenConfig {
 	return &genai.CreateAuthTokenConfig{
 		// 有効期限が切れると開いている接続も切れるので、呼び出しと電話の全体を覆う。
 		// 新しいセッションを始められる期限は、SDK の既定の 60 秒のままにする。
@@ -280,7 +284,7 @@ func tokenConfig(config Config, person watchedPerson, now time.Time, script stri
 						PrebuiltVoiceConfig: &genai.PrebuiltVoiceConfig{VoiceName: config.Voice},
 					},
 				},
-				SystemInstruction: genai.NewContentFromText(systemInstruction(config, person, now, script), genai.RoleUser),
+				SystemInstruction: genai.NewContentFromText(systemInstruction(config, person, now, script, fromWatched), genai.RoleUser),
 				// 言語を自分で判定すると、「うん」のような短い返事が別の言語になる。
 				// 見守る方の文字起こしには、言語のヒントとして日本語を渡す。
 				InputAudioTranscription: &genai.AudioTranscriptionConfig{

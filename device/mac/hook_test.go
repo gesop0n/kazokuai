@@ -48,6 +48,10 @@ func TestHashLineIsAKeyAndNotTheHook(t *testing.T) {
 	if got := readKey(t, h); got != "#" {
 		t.Fatalf("キー = %q, want #", got)
 	}
+	fmt.Fprintln(inW, "*")
+	if got := readKey(t, h); got != "*" {
+		t.Fatalf("キー = %q, want *", got)
+	}
 	fmt.Fprintln(inW, "5")
 	if got := readKey(t, h); got != "5" {
 		t.Fatalf("キー = %q, want 5", got)

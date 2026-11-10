@@ -240,6 +240,28 @@ void main() {
     );
   });
 
+  testWidgets('伝えたことが空なら、その行は出さない', (tester) async {
+    await _pump(
+      tester,
+      _view(
+        latest: _call(
+          at: DateTime(2026, 11, 5, 9, 2),
+          minutes: 3,
+          headline: '庭の話をした',
+        ),
+        reply: Reply(
+          told: '',
+          text: '今日は庭の話をしようか。',
+          saidAt: DateTime(2026, 11, 5, 9, 4),
+        ),
+      ),
+    );
+
+    expect(find.text('ハナさんからのお返事'), findsOneWidget);
+    expect(find.text('今日は庭の話をしようか。'), findsOneWidget);
+    expect(find.text('伝えたこと'), findsNothing);
+  });
+
   testWidgets('返答がなければ、返答のカードは出さない', (tester) async {
     await _pump(
       tester,

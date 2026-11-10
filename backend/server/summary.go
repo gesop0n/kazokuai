@@ -191,8 +191,10 @@ type callMessage struct {
 	Script  string `firestore:"script"`
 }
 
+// hasMessage は、家族の伝言があるときである。伝えたいことが空なら、通話内容があっても伝言にしない。
+// 見守る方からの電話は、伝えたいことが空で、始めの通話内容だけがある。
 func (m callMessage) hasMessage() bool {
-	return strings.TrimSpace(m.Message) != "" || strings.TrimSpace(m.Script) != ""
+	return strings.TrimSpace(m.Message) != ""
 }
 
 func readCallMessage(ctx context.Context, ref *firestore.DocumentRef) (callMessage, error) {

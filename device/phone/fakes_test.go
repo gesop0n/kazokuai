@@ -530,6 +530,7 @@ type fakePhone struct {
 
 	mu      sync.Mutex
 	ringing bool
+	rings   int
 	lit     bool
 	up      bool
 	mic     chan []byte // マイクが開いている間だけある
@@ -584,7 +585,18 @@ func (p *fakePhone) setUp(up bool) {
 	p.mu.Unlock()
 }
 
-func (p *fakePhone) Ring() { p.set(&p.ringing, true) }
+func (p *fakePhone) Ring() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.ringing = true
+	p.rings++
+}
+
+func (p *fakePhone) ringCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.rings
+}
 func (p *fakePhone) Stop() { p.set(&p.ringing, false) }
 func (p *fakePhone) On()   { p.set(&p.lit, true) }
 

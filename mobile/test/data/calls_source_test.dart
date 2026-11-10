@@ -417,6 +417,32 @@ void main() {
     expect(log.days, isEmpty);
   });
 
+  test('見守る方からの電話は、伝言の行なしで通話記録に出る', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _call(firestore, 'from-parent', {
+      ..._made(
+        at: DateTime(2026, 11, 5, 9, 2),
+        durationMs: 180000,
+        headline: '庭の話をした',
+        topic: '話し相手',
+      ),
+      'state': '終わった',
+      'message': '',
+      'script': 'ハナさんと呼びかけて、かぞくAIであることを伝えてください。何を話したいかを尋ねてから、話し相手として話してください。',
+      'startedByWatchedPerson': true,
+    });
+
+    final log = await _log(firestore, _now);
+    final entry = log.days.single.entries.single as AnsweredCallEntry;
+
+    expect(entry.id, 'from-parent');
+    expect(entry.text, '庭の話をした');
+    expect(entry.duration, const Duration(minutes: 3));
+    expect(entry.topic, CallTopic.companion);
+    expect(entry.text.contains('伝えたこと'), isFalse);
+    expect(entry.text.contains('かぞくAI'), isFalse);
+  });
+
   test('知らない話の種類は、出さない', () async {
     final firestore = FakeFirebaseFirestore();
     await _call(

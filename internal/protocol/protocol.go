@@ -24,6 +24,16 @@ const PhoneRegisterPath = "/phones"
 // 電話機は PhoneIDHeader と PhoneKeyHeader に ID と鍵を付ける。
 const PhoneCodePath = "/phones/code"
 
+// PhoneCallPath は、電話機が受話器を上げて「＊」を押したときに電話を始めるパスである。/api の下には置かない。
+// 電話機は PhoneIDHeader と PhoneKeyHeader を付ける。トークンの道と同じ認証である。本文は空。答えは StartedCall。
+const PhoneCallPath = "/phones/calls"
+
+// StartedCall は、始めた電話の ID である。
+// 電話機は、ほかの電話と同じく、これをトークンと報告に使う。
+type StartedCall struct {
+	ID string `json:"id"`
+}
+
 // PhoneSecretHeader は、電話機を登録するときの合言葉のヘッダーである。
 const PhoneSecretHeader = "Kazokuai-Secret"
 
@@ -81,8 +91,15 @@ const SyncCodePath = "/sync/code"
 const PhoneNotConnected = "phone_not_connected"
 
 // CallInProgress は、電話の最中なので今すぐ通話を始められなかった、というエラーである。
-// アプリはこれを見て「通話中です」と出す。
+// アプリはこれを見て「通話中です」と出す。見守る方からの電話でも、呼び出し中か通話中なら同じ答えを返す。
 const CallInProgress = "call_in_progress"
+
+// PhoneNotSynced は、電話機が同期していないので、見守る方からの電話を始められなかった、というエラーである。
+const PhoneNotSynced = "phone_not_synced"
+
+// CallStartedByWatchedPerson は、電話の文書で、見守る方が「＊」で始めたことを示すフィールドである。
+// 値が true の電話は、伝えたいことが空である。
+const CallStartedByWatchedPerson = "startedByWatchedPerson"
 
 // BookingPath は、ログインした家族が予約を保存するパスである。/api の下にも置く。
 // Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に BookingBody を JSON で入れて POST する。

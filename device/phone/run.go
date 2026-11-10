@@ -140,19 +140,33 @@ func writeState(conn *websocket.Conn, msg protocol.PhoneMessage) error {
 
 // callQueue は、電話の指示を、読む側を止めずに貯める。
 // 通話中も接続の切断を読めるようにするため、入れた側は待たない。
+// own は、電話機が「＊」で始めた電話である。受話器は上がっているので、鳴らさない。
 type callQueue struct {
 	mu   sync.Mutex
 	ids  []string
+	own  map[string]bool
 	wake chan struct{}
 }
 
 func newCallQueue() *callQueue {
-	return &callQueue{wake: make(chan struct{}, 1)}
+	return &callQueue{wake: make(chan struct{}, 1), own: map[string]bool{}}
 }
 
 func (q *callQueue) push(id string) {
+	q.pushCall(id, false)
+}
+
+// pushOwn は、電話機が始めた電話を貯める。受話器は上がっている。
+func (q *callQueue) pushOwn(id string) {
+	q.pushCall(id, true)
+}
+
+func (q *callQueue) pushCall(id string, own bool) {
 	q.mu.Lock()
 	q.ids = append(q.ids, id)
+	if own {
+		q.own[id] = true
+	}
 	q.mu.Unlock()
 	select {
 	case q.wake <- struct{}{}:
@@ -161,16 +175,19 @@ func (q *callQueue) push(id string) {
 }
 
 // try は、待っている電話が 1 本あればそれを返す。無ければ false で、待たない。
-func (q *callQueue) try() (string, bool) {
+// own は、電話機が「＊」で始めた電話である。
+func (q *callQueue) try() (id string, own bool, ok bool) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if len(q.ids) == 0 {
-		return "", false
+		return "", false, false
 	}
-	id := q.ids[0]
+	id = q.ids[0]
 	q.ids[0] = ""
 	q.ids = q.ids[1:]
-	return id, true
+	own = q.own[id]
+	delete(q.own, id)
+	return id, own, true
 }
 
 // Run は、バックエンドと WebSocket でつながり続け、電話の指示が来るたびに電話をする。
@@ -269,7 +286,7 @@ func (d *Device) finish(err error) {
 // handleCommands は、電話が来るまでフックとキーパッドを見て、来たら 1 本ずつ電話をする。
 func (d *Device) handleCommands(ctx context.Context, link callLink, commands *callQueue) {
 	for {
-		callID, ok := d.idleUntilCall(ctx, commands)
+		callID, fromHandset, ok := d.idleUntilCall(ctx, commands)
 		if !ok {
 			return
 		}
@@ -282,7 +299,7 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 			d.finish(context.Canceled)
 			continue
 		}
-		err := d.place(callCtx, link, callID)
+		err := d.place(callCtx, link, callID, fromHandset)
 		d.disarmCall()
 		cancel()
 		// 呼び出し中に置いても、出なかった電話はそこで終わらない。戻ったときに、今の受話器を読み直す。

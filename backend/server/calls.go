@@ -122,6 +122,48 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(startedCall{ID: ref.ID})
 }
 
+// startWatchedCall は、ID と鍵で認証した電話機が、結び付いた見守る方の電話を始める。
+// 同期していないときと、呼び出し中か通話中のときは、電話の文書を作らない。
+// 伝えたいことは空にする。通話内容は、呼び方で挨拶してから話し相手になるよう書く。
+// 電話には、見守る方から始めた印を付ける。答えは、その電話の ID である。
+func (s *server) startWatchedCall(w http.ResponseWriter, r *http.Request) {
+	identity := phoneIdentityFrom(r.Context())
+	if identity.personID == "" {
+		s.logf("見守る方からの電話を断りました。電話機が同期していません。電話機: %s", identity.phoneID)
+		writeAPIError(w, http.StatusConflict, protocol.PhoneNotSynced)
+		return
+	}
+	person, err := readWatchedPerson(r.Context(), s.firebase.Firestore, identity.personID)
+	if err != nil {
+		log.Printf("見守る方 %s を読めなかった: %v", identity.personID, err)
+		http.Error(w, "見守る方を読めなかった", http.StatusInternalServerError)
+		return
+	}
+	ref, err := s.createCall(r.Context(), identity.personID, callDraft{
+		state:       protocol.StateRinging,
+		script:      openingScript(person.CallName),
+		fromWatched: true,
+	})
+	if errors.Is(err, errCallInProgress) {
+		writeAPIError(w, http.StatusConflict, protocol.CallInProgress)
+		return
+	}
+	if err != nil {
+		log.Printf("電話を作れなかった: %v", err)
+		http.Error(w, "電話を作れなかった", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(protocol.StartedCall{ID: ref.ID})
+}
+
+// openingScript は、見守る方からの電話の始めの通話内容である。
+// 呼び方で呼びかけ、かぞくAIだと伝え、何を話したいかを尋ねてから、話し相手として話すよう書く。
+func openingScript(callName string) string {
+	return strings.TrimSpace(callName) + "と呼びかけて、かぞくAIであることを伝えてください。何を話したいかを尋ねてから、話し相手として話してください。"
+}
+
 // sendToLinkedPhone は、linkMu を持って、今の結び付きが phoneID のときだけ msg を届ける。
 // 届いたら、その電話機の認証コードを捨てる。有効なあいだの「＃」で同じコードを返さない。
 // 読み直せないときは、そのエラーを返す。結び付きが違うときと、届かないときは errPhoneNotConnected を返す。
@@ -150,10 +192,28 @@ func (s *server) discardCall(ctx context.Context, ref *firestore.DocumentRef) {
 	}
 }
 
+// callDraft は、新しく作る電話の文書である。
+type callDraft struct {
+	state       string
+	message     string
+	script      string
+	fromWatched bool
+}
+
 // beginCall は、見守る方の電話が呼び出し中でも通話中でもなければ、
 // 呼び出し中の電話の文書を作ってその参照を返す。
 // 読み取りと作成は 1 つのトランザクションなので、同時に 2 回頼まれても 1 つしか作らない。
 func (s *server) beginCall(ctx context.Context, personID, message, script string) (*firestore.DocumentRef, error) {
+	return s.createCall(ctx, personID, callDraft{
+		state:   protocol.StateRinging,
+		message: message,
+		script:  script,
+	})
+}
+
+// createCall は、見守る方の電話が呼び出し中でも通話中でもなければ、電話の文書を作ってその参照を返す。
+// 読み取りと作成は 1 つのトランザクションなので、同時に 2 回頼まれても 1 つしか作らない。
+func (s *server) createCall(ctx context.Context, personID string, draft callDraft) (*firestore.DocumentRef, error) {
 	collection := s.firebase.Firestore.Collection(watchedPersons).Doc(personID).Collection(callsCollection)
 	ref := collection.NewDoc()
 	err := s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
@@ -165,12 +225,16 @@ func (s *server) beginCall(ctx context.Context, personID, message, script string
 			return errCallInProgress
 		}
 		// createdAt はかけた時刻。出なかった電話には始まりの時刻がないので、通話記録はこの時刻を出す。
-		return tx.Create(ref, map[string]any{
-			"state":     protocol.StateRinging,
-			"message":   message,
-			"script":    script,
+		fields := map[string]any{
+			"state":     draft.state,
+			"message":   draft.message,
+			"script":    draft.script,
 			"createdAt": s.clock.Now(),
-		})
+		}
+		if draft.fromWatched {
+			fields[protocol.CallStartedByWatchedPerson] = true
+		}
+		return tx.Create(ref, fields)
 	})
 	if err != nil {
 		return nil, err
