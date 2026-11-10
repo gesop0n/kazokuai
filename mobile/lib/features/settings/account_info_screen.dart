@@ -12,6 +12,7 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/settings/settings_rows.dart';
+import 'package:kazokuai/features/tutorial/tutorial_replay.dart';
 
 // 08e。家族自身のアカウント。名前はここで書き換えて、Auth の表示名に残す
 class AccountInfoScreen extends ConsumerStatefulWidget {
@@ -38,6 +39,12 @@ class _AccountInfoScreenState extends ConsumerState<AccountInfoScreen> {
   void _onNameFocus() {
     if (_nameFocus.hasFocus) return;
     unawaited(_saveName());
+  }
+
+  // 見た記録はそのまま。ホームで T1 からもう一度出す
+  void _showTutorialAgain() {
+    ref.read(tutorialReplayProvider).request();
+    context.goNamed(AppRoutes.home);
   }
 
   Future<void> _saveName() async {
@@ -138,7 +145,7 @@ class _AccountInfoScreenState extends ConsumerState<AccountInfoScreen> {
                             SettingsLinkRow(
                               label: 'チュートリアル確認',
                               value: '使い方をもう一度見る',
-                              onTap: () => showComingSoon(context),
+                              onTap: _showTutorialAgain,
                             ),
                           ],
                         ),

@@ -119,6 +119,8 @@ void main() {
 
     expect(find.byType(SettingsScreen), findsOneWidget);
     expect(find.text('田中ハナさんの設定'), findsOneWidget);
+    expect(find.text('見守る方のお名前'), findsOneWidget);
+    expect(find.text('お名前'), findsNothing);
     expect(find.text('田中ハナ'), findsOneWidget);
     expect(find.text('ハナさん'), findsOneWidget);
     expect(find.text('家族・孫、庭・花、料理'), findsOneWidget);
@@ -155,7 +157,7 @@ void main() {
     await pumpApp(tester);
     await openSettings(tester);
 
-    const labels = ['お名前', '電話での呼び方', '好きな話題', 'AIの声'];
+    const labels = ['見守る方のお名前', '電話での呼び方', '好きな話題', 'AIの声'];
     for (final label in labels) {
       await tapLabel(tester, label);
       expect(find.text('準備中です'), findsOneWidget);
@@ -192,8 +194,6 @@ void main() {
     expect(currentPath(tester, AccountInfoScreen), '/settings/account');
 
     await tapLabel(tester, 'パスワード');
-    expect(find.text('準備中です'), findsOneWidget);
-    await tapLabel(tester, 'チュートリアル確認');
     expect(find.text('準備中です'), findsOneWidget);
   });
 

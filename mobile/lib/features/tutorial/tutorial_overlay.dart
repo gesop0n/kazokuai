@@ -23,6 +23,7 @@ class TutorialOverlay extends StatefulWidget {
     required this.registry,
     required this.onNext,
     required this.onSkip,
+    this.onBack,
   });
 
   final TutorialStep step;
@@ -32,6 +33,9 @@ class TutorialOverlay extends StatefulWidget {
   final TutorialAnchorRegistry registry;
   final VoidCallback onNext;
   final VoidCallback onSkip;
+
+  // T1 には渡さない
+  final VoidCallback? onBack;
 
   @override
   State<TutorialOverlay> createState() => _TutorialOverlayState();
@@ -208,6 +212,7 @@ class _TutorialOverlayState extends State<TutorialOverlay> {
                     number: number,
                     step: widget.step,
                     onNext: widget.onNext,
+                    onBack: widget.onBack,
                     onSkip: widget.onSkip,
                   ),
                 ),
@@ -260,17 +265,20 @@ class _Tip extends StatelessWidget {
     required this.number,
     required this.step,
     required this.onNext,
+    required this.onBack,
     required this.onSkip,
   });
 
   final int number;
   final TutorialStep step;
   final VoidCallback onNext;
+  final VoidCallback? onBack;
   final VoidCallback onSkip;
 
   @override
   Widget build(BuildContext context) {
     final last = number == 9;
+    final onBack = this.onBack;
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -341,9 +349,14 @@ class _Tip extends StatelessWidget {
                   child: Row(
                     children: [
                       // モックの T9 は「はじめる」だけだが、仕様はどの段階にもスキップを置く。
-                      // AppButton は親の幅いっぱいに広がるので、文字の幅で押せるようにする
+                      // AppButton は親の幅いっぱいに広がるので、文字の幅で押せるようにする。
+                      // T2 からは「戻る」を「次へ」の左に置く。T1 には置かない
                       _SkipButton(onTap: onSkip),
                       const Spacer(),
+                      if (onBack != null) ...[
+                        _BackButton(onTap: onBack),
+                        const SizedBox(width: 8),
+                      ],
                       _NextButton(label: last ? 'はじめる' : '次へ', onTap: onNext),
                     ],
                   ),
@@ -420,6 +433,40 @@ class _SkipButton extends StatelessWidget {
                 color: AppColors.inkSecondary,
                 decoration: TextDecoration.none,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// モックの btn M secondary。白地に line-strong の枠
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppPressable(
+      onTap: onTap,
+      foregroundColor: AppColors.inkPrimary,
+      backgroundColor: AppColors.paperRaised,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.borderRadius,
+        side: BorderSide(color: AppColors.lineStrong, width: 1.5),
+      ),
+      minHeight: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '戻る',
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.inkPrimary,
+              decoration: TextDecoration.none,
             ),
           ),
         ],
