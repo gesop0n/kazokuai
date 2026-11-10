@@ -32,17 +32,40 @@ func openPhone(out io.Writer) (phone.Phone, func(), error) {
 		handset.Close()
 		return phone.Phone{}, nil, err
 	}
+	keypadCfg, err := pi.LoadKeypad(os.Getenv)
+	if err != nil {
+		ringer.Close()
+		hook.Close()
+		handset.Close()
+		return phone.Phone{}, nil, err
+	}
+	pad, err := pi.OpenKeypad(cfg.GPIOChip, keypadCfg)
+	if err != nil {
+		ringer.Close()
+		hook.Close()
+		handset.Close()
+		return phone.Phone{}, nil, err
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	keypad, done := pi.ListenKeys(ctx, pad)
 	return phone.Phone{
 		Handset: handset,
 		Hook:    hook,
+		Keypad:  keypad,
 		Ringer:  ringer,
 		Lamp:    pi.Lamp{Out: out},
 	}, func() {
+		cancel()
+		done()
+		pad.Close()
 		ringer.Close()
 		hook.Close()
 		handset.Close()
 	}, nil
 }
+
+// echoesSpeech は、Pi では読み上げをターミナルに書かない。
+func echoesSpeech() bool { return false }
 
 func runCheck(part string) error {
 	getenv, err := pi.ReadSettings(pi.SettingsPath, os.LookupEnv)
