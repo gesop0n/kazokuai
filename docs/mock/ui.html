@@ -1782,7 +1782,7 @@
  <div class="tut-tip">
   <div style="display:flex;justify-content:space-between;align-items:center"><span class="label-s muted">使い方 ${n}/${TUT_N}</span><div style="width:110px">${prog(n, TUT_N)}</div></div>
   <div style="display:flex;flex-direction:column;gap:4px"><span class="title-m">${title}</span><span class="body-m muted">${body}</span></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">${n < TUT_N ? `<button class="btn M ghost link" style="padding:0 8px"${to('00')}>スキップ</button>` : '<span></span>'}<button class="btn M primary" style="padding:0 24px"${to(next)}>${n < TUT_N ? '次へ' : 'はじめる'}</button></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px">${n < TUT_N ? `<button class="btn M ghost link" style="padding:0 8px"${to('00')}>スキップ</button>` : '<span></span>'}<div style="display:flex;align-items:center;gap:8px">${n > 1 ? `<button class="btn M secondary" style="padding:0 16px"${to('T' + (n - 1))}>戻る</button>` : ''}<button class="btn M primary" style="padding:0 24px"${to(next)}>${n < TUT_N ? '次へ' : 'はじめる'}</button></div></div>
  </div></div>`;
         const tutOn = (screen, t) => screen.replace(/<\/div>$/, `${t}</div>`);
         S.T1 = () => tutOn(home('top'), tut(1, '[data-part=recent]', '直近の電話', 'AIがハナさんにかけた電話の内容を短くまとめてここに届けます。「会話を見る」で全文も読めます。', 'T2'));
@@ -1803,7 +1803,7 @@
   ${navBar('chevron-left', 'もどる', '田中ハナさんの設定', '00')}
   <div style="padding:8px 16px 0;display:flex;flex-direction:column;gap:16px">
    <section class="card" style="padding:0 16px;gap:0">
-    ${editRow('お名前', '田中 ハナ')}
+    ${editRow('見守る方のお名前', '田中 ハナ')}
     ${editRow('電話での呼び方', 'ハナさん')}
     ${setRow('好きな話題', '<span data-topic-summary>家族・孫、庭・花、料理</span>', '08b')}
     ${setRow('AIの声', '<span data-voice-summary>やさしい女性の声</span>', '08c')}
@@ -2075,7 +2075,7 @@
             L6: ['見守る方の名前', '入力は名前と呼び方だけです。呼び方はあとから変更できます。'],
             L7: ['好きな話題', '話し相手として会話を弾ませるための入力です。候補を押すだけで複数選べて、もう一度押すと外せます。候補にない話題は、左の＋で入力欄を増やして書けます。入力欄が2つ以上あるときは、右上の✕で消せます。08の設定からいつでも変更できます。', '選ばれた話題で話しかける', '話題を選ぶ'],
             L8: ['AIの声', '声を選び、再生ボタンで同じ言葉を聞き比べます。選んだ声はすべての電話で使います。あとから08の設定で変更できます。', '選ばれた声で話す', '聞き比べて声を選ぶ'],
-            T1: ['チュートリアル 直近の電話', 'L8の「はじめる」のあとに出ます。08eの「チュートリアル確認」からも、もう一度見られます。画面の上を暗くして、説明する場所だけを明るく残します。どの画面からも「スキップ」で00に移れます。'],
+            T1: ['チュートリアル 直近の電話', 'L8の「はじめる」のあとに出ます。08eの「チュートリアル確認」からも、もう一度見られます。画面の上を暗くして、説明する場所だけを明るく残します。どの画面からも「スキップ」で00に移れます。T2からは「戻る」で一つ前のチュートリアルに戻れます。'],
             T2: ['チュートリアル AIに伝えてもらう', '家族がいちばん使う「AIに伝えてもらう」の場所を示します。'],
             T3: ['チュートリアル 今日の様子', 'ホームを下にスクロールした状態で、今日の様子を示します。気になる話に印が付くことも伝えます。'],
             T4: ['チュートリアル 通話記録 日付', '通話記録の画面に移って、過去7日間の見方と、カレンダー(04b)で日付を選べることを伝えます。'],
