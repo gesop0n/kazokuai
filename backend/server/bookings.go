@@ -632,7 +632,7 @@ func (s *server) fireBooking(ctx context.Context, personID, bookingID string, nu
 func (s *server) placeBookedCall(ctx context.Context, personID, bookingID string, number int64) error {
 	s.deliverMu.Lock()
 	defer s.deliverMu.Unlock()
-	phoneID, linked, online, err := s.phoneLine(ctx, personID)
+	phoneID, online, err := s.phoneLine(ctx, personID)
 	if err != nil {
 		return err
 	}
@@ -643,7 +643,7 @@ func (s *server) placeBookedCall(ctx context.Context, personID, bookingID string
 	if err != nil {
 		return err
 	}
-	if err := s.sendBookedCall(ctx, personID, phoneID, linked, callID); err != nil {
+	if err := s.sendBookedCall(ctx, personID, phoneID, callID); err != nil {
 		if rerr := s.releaseBookedCall(personID, bookingID, callID); rerr != nil {
 			log.Printf("予約 %s の電話を戻せなかった: %v", bookingID, rerr)
 			return errReleaseFailed
@@ -657,19 +657,19 @@ func (s *server) placeBookedCall(ctx context.Context, personID, bookingID string
 	return nil
 }
 
-func (s *server) phoneLine(ctx context.Context, personID string) (phoneID string, linked, online bool, err error) {
-	phoneID, linked, err = s.linkedPhoneID(ctx, personID)
+func (s *server) phoneLine(ctx context.Context, personID string) (phoneID string, online bool, err error) {
+	phoneID, linked, err := s.linkedPhoneID(ctx, personID)
 	if err != nil {
-		return "", false, false, err
+		return "", false, err
 	}
-	if linked {
-		return phoneID, true, s.phones.hasPhone(phoneID), nil
+	if !linked {
+		return "", false, nil
 	}
-	return "", false, s.phones.connected(personID), nil
+	return phoneID, s.phones.hasPhone(phoneID), nil
 }
 
-// sendBookedCall は、今すぐ通話と同じように、電話機へ電話をかける指示を送る。
-func (s *server) sendBookedCall(ctx context.Context, personID, phoneID string, linked bool, callID string) error {
+// sendBookedCall は、今すぐ通話と同じように、結び付いた電話機へ電話をかける指示を送る。
+func (s *server) sendBookedCall(ctx context.Context, personID, phoneID, callID string) error {
 	bookingHookMu.Lock()
 	hook := beforeBookedSend
 	bookingHookMu.Unlock()
@@ -677,12 +677,6 @@ func (s *server) sendBookedCall(ctx context.Context, personID, phoneID string, l
 		hook(ctx)
 	}
 	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: callID}
-	if !linked {
-		if err := s.phones.send(personID, msg); err != nil {
-			return errPhoneNotConnected
-		}
-		return nil
-	}
 	return s.sendToLinkedPhone(ctx, personID, phoneID, msg)
 }
 

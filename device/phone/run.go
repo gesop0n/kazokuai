@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -176,16 +175,14 @@ func (q *callQueue) try() (string, bool) {
 
 // Run は、バックエンドと WebSocket でつながり続け、電話の指示が来るたびに電話をする。
 // 電話のあいだも接続を読み、切れれば間隔を空けてつなぎ直す。届かなかった状態は、つなぎ直したあとに送る。
-// ctx が終わると戻る。ID が無く、WatchedPerson も空なら、つなぐ前にエラーを返す。
-// ID があるときは、先に登録する。バックエンドがその ID を知らないときは、同じ ID と鍵で登録し直す。
+// ctx が終わると戻る。ID と鍵が無ければ、つなぐ前にエラーを返す。
+// 先に登録する。バックエンドがその ID を知らないときは、同じ ID と鍵で登録し直す。
 func (d *Device) Run(ctx context.Context) error {
-	if d.ID == "" && strings.TrimSpace(d.WatchedPerson) == "" {
-		return errors.New("見守る方の ID が要ります。--watched-person で渡してください")
+	if d.Identity.ID == "" || d.Identity.Key == "" {
+		return errors.New("電話機の ID と鍵が要ります")
 	}
-	if d.ID != "" {
-		if err := d.Register(ctx); err != nil {
-			return err
-		}
+	if err := d.Register(ctx); err != nil {
+		return err
 	}
 	d.speeches = make(chan speech, 1)
 	link := &sessionLink{}
@@ -288,7 +285,7 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 		err := d.place(callCtx, link, callID)
 		d.disarmCall()
 		cancel()
-		// 電話の最中に置いた受話器は出来事にならない。同期の知らせを見る前に、今の状態を読む。
+		// 呼び出し中に置いても、出なかった電話はそこで終わらない。戻ったときに、今の受話器を読み直す。
 		d.adoptHandset()
 		d.setCalling(false)
 		d.finish(err)
@@ -305,7 +302,7 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 // readOnce は、1 本の接続で指示を読む。電話の処理は止めない。
 // 接続できたら connected を true にする。ダイヤルに失敗したときは false である。
 func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *callQueue) (bool, error) {
-	wsURL, err := phoneWebSocketURL(d.Backend, d.dialPerson())
+	wsURL, err := phoneWebSocketURL(d.Backend)
 	if err != nil {
 		return false, err
 	}
@@ -343,22 +340,13 @@ func (d *Device) readOnce(ctx context.Context, link *sessionLink, commands *call
 	}
 }
 
-// dialPerson は、WebSocket のクエリに付ける見守る方である。
-// ID と鍵でつなぐときは、見守る方を名乗らない。結び付きから決まる。
-func (d *Device) dialPerson() string {
-	if d.ID != "" {
-		return ""
-	}
-	return d.WatchedPerson
-}
-
 // dialPhone は、WebSocket をつなぐ。ID を知らないと返されたときは、同じ ID と鍵で登録してからもう一度つなぐ。
 func (d *Device) dialPhone(ctx context.Context, wsURL string) (*websocket.Conn, error) {
 	conn, resp, err := d.dial(ctx, wsURL)
 	if err == nil {
 		return conn, nil
 	}
-	if d.ID == "" {
+	if d.Identity.ID == "" {
 		closeBody(resp)
 		return nil, err
 	}
@@ -393,7 +381,7 @@ func closeBody(resp *http.Response) {
 	}
 }
 
-func phoneWebSocketURL(backend, personID string) (string, error) {
+func phoneWebSocketURL(backend string) (string, error) {
 	u, err := url.Parse(backend)
 	if err != nil {
 		return "", err
@@ -407,8 +395,6 @@ func phoneWebSocketURL(backend, personID string) (string, error) {
 		return "", fmt.Errorf("バックエンドの URL の scheme が %s だった", u.Scheme)
 	}
 	u.Path = protocol.PhonePath
-	if personID != "" {
-		u.RawQuery = url.Values{"watchedPerson": {personID}}.Encode()
-	}
+	u.RawQuery = ""
 	return u.String(), nil
 }

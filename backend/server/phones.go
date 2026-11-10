@@ -23,12 +23,10 @@ import (
 // errPhoneNotConnected は、見守る方の電話機が今つながっていないときである。
 var errPhoneNotConnected = errors.New("電話機がつながっていない")
 
-// phoneBook は、つながっている電話機をメモリーで持つ。
-// 古い道の電話機は見守る方の ID ごと、ID と鍵で認証した電話機は電話機の ID ごとである。
+// phoneBook は、つながっている電話機を、電話機の ID ごとにメモリーで持つ。
 // プロセスが終わると消える。Cloud Run のインスタンスをまたぐ送り方は、ここに載せない。
 type phoneBook struct {
 	mu      sync.Mutex
-	byID    map[string]*phoneLink
 	byPhone map[string]*phoneLink
 	grace   map[string]*callGrace
 }
@@ -41,11 +39,13 @@ type callGrace struct {
 
 func newPhoneBook() *phoneBook {
 	return &phoneBook{
-		byID:    map[string]*phoneLink{},
 		byPhone: map[string]*phoneLink{},
 		grace:   map[string]*callGrace{},
 	}
 }
+
+// phoneWriteTimeout は、電話機への 1 通の書き込みを待つ上限である。
+const phoneWriteTimeout = 5 * time.Second
 
 // phoneLink は、1 台の電話機との WebSocket である。
 type phoneLink struct {
@@ -55,50 +55,21 @@ type phoneLink struct {
 	mu       sync.Mutex
 	personID string
 	callID   string
-}
-
-func (b *phoneBook) connected(personID string) bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	_, ok := b.byID[personID]
-	return ok
+	// ready は、接続のあとで今の結び付きを読んでから真になる。
+	// 読む前でも接続は登録してあり、同期の知らせは届く。電話は、読んでから届ける。
+	ready bool
 }
 
 func (b *phoneBook) hasPhone(phoneID string) bool {
 	b.mu.Lock()
-	defer b.mu.Unlock()
-	_, ok := b.byPhone[phoneID]
-	return ok
-}
-
-// replace は、personID の接続を link にする。
-// 猶予で待っていた電話と、前の接続が持っていた電話を link に引き継ぐ。
-// 前の接続は、呼び出し側が閉じる。
-func (b *phoneBook) replace(personID string, link *phoneLink) (old *phoneLink) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	var adopt string
-	if g := b.grace[personID]; g != nil {
-		delete(b.grace, personID)
-		adopt = g.callID
-		g.cancel()
-	}
-	old = b.byID[personID]
-	if old != nil {
-		old.mu.Lock()
-		if adopt == "" {
-			adopt = old.callID
-		}
-		old.callID = ""
-		old.mu.Unlock()
+	link := b.byPhone[phoneID]
+	b.mu.Unlock()
+	if link == nil {
+		return false
 	}
 	link.mu.Lock()
-	if link.callID == "" {
-		link.callID = adopt
-	}
-	link.mu.Unlock()
-	b.byID[personID] = link
-	return old
+	defer link.mu.Unlock()
+	return link.ready
 }
 
 // takeGrace は、g が personID の今の猶予なら外して true を返す。
@@ -112,59 +83,6 @@ func (b *phoneBook) takeGrace(personID string, g *callGrace) bool {
 	return true
 }
 
-func (b *phoneBook) setCall(personID, callID string) {
-	b.mu.Lock()
-	link := b.byID[personID]
-	b.mu.Unlock()
-	if link == nil {
-		return
-	}
-	link.mu.Lock()
-	link.callID = callID
-	link.mu.Unlock()
-}
-
-func (b *phoneBook) clearCall(personID, callID string) {
-	b.mu.Lock()
-	link := b.byID[personID]
-	b.mu.Unlock()
-	if link == nil {
-		return
-	}
-	link.mu.Lock()
-	defer link.mu.Unlock()
-	if link.callID == callID {
-		link.callID = ""
-	}
-}
-
-// send は、personID の電話機に指示を送る。つながっていなければ errPhoneNotConnected を返す。
-func (b *phoneBook) send(personID string, msg protocol.PhoneMessage) error {
-	b.mu.Lock()
-	link := b.byID[personID]
-	b.mu.Unlock()
-	if link == nil {
-		return errPhoneNotConnected
-	}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	link.mu.Lock()
-	defer link.mu.Unlock()
-	ctx, cancel := context.WithTimeout(link.ctx, 5*time.Second)
-	defer cancel()
-	if err := link.conn.Write(ctx, websocket.MessageText, body); err != nil {
-		return err
-	}
-	// すでに追跡している電話があるときは、その ID を残す。
-	// あとから来た指示で置き換えると、接続が切れたときに、今の電話を「つながらなかった」にできない。
-	if link.callID == "" {
-		link.callID = msg.CallID
-	}
-	return nil
-}
-
 // sendPhone は、phoneID の電話機に指示を送る。つながっていなければ errPhoneNotConnected を返す。
 // 届いた指示の見守る方を、その接続が今の電話の相手として覚える。
 func (b *phoneBook) sendPhone(phoneID, personID string, msg protocol.PhoneMessage) error {
@@ -174,22 +92,14 @@ func (b *phoneBook) sendPhone(phoneID, personID string, msg protocol.PhoneMessag
 	if link == nil {
 		return errPhoneNotConnected
 	}
-	body, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	link.mu.Lock()
-	defer link.mu.Unlock()
-	ctx, cancel := context.WithTimeout(link.ctx, 5*time.Second)
-	defer cancel()
-	if err := link.conn.Write(ctx, websocket.MessageText, body); err != nil {
-		return err
-	}
-	link.personID = personID
-	if link.callID == "" {
-		link.callID = msg.CallID
-	}
-	return nil
+	return link.deliver(msg, func() {
+		link.personID = personID
+		// すでに追跡している電話があるときは、その ID を残す。
+		// あとから来た指示で置き換えると、接続が切れたときに、今の電話を「つながらなかった」にできない。
+		if link.callID == "" {
+			link.callID = msg.CallID
+		}
+	})
 }
 
 // notify は、phoneID の電話機に知らせを送る。電話の追跡は変えない。
@@ -200,15 +110,27 @@ func (b *phoneBook) notify(phoneID string, msg protocol.PhoneMessage) error {
 	if link == nil {
 		return errPhoneNotConnected
 	}
+	return link.deliver(msg, nil)
+}
+
+// deliver は、msg を JSON にして、時間を限って書く。
+// after は、書けたときだけ、同じロックの中で呼ぶ。通知は nil にして、電話の追跡を変えない。
+func (l *phoneLink) deliver(msg protocol.PhoneMessage, after func()) error {
 	body, err := json.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	link.mu.Lock()
-	defer link.mu.Unlock()
-	ctx, cancel := context.WithTimeout(link.ctx, 5*time.Second)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	ctx, cancel := context.WithTimeout(l.ctx, phoneWriteTimeout)
 	defer cancel()
-	return link.conn.Write(ctx, websocket.MessageText, body)
+	if err := l.conn.Write(ctx, websocket.MessageText, body); err != nil {
+		return err
+	}
+	if after != nil {
+		after()
+	}
+	return nil
 }
 
 // detachPerson は、phoneID の接続が覚えていた見守る方と電話を外す。
@@ -226,64 +148,18 @@ func (b *phoneBook) detachPerson(phoneID string) {
 	link.mu.Unlock()
 }
 
-// phone は、電話機からの WebSocket を受け、切れるまで状態を読む。
-// ID と鍵で認証した電話機は、電話機の ID ごとに持つ。古い道は、名乗った見守る方ごとに持つ。
+// phone は、ID と鍵で認証した電話機の WebSocket を受け、切れるまで状態を読む。
+// 接続を先に登録してから、今の結び付きを読む。そのあいだに同期が終わっても、知らせは失わない。
+// 同期していない電話機も、つながったままにする。電話は、結び付きを読んでから届く。
+// 結び付きを読めなかったときは、その接続を外して閉じる。未同期とは知らせない。つなぎ直したときに読み直す。
 func (s *server) phone(w http.ResponseWriter, r *http.Request) {
-	if identity := phoneIdentityFrom(r.Context()); identity.phoneID != "" {
-		s.phoneWithKey(w, r, identity)
+	identity := phoneIdentityFrom(r.Context())
+	if identity.phoneID == "" {
+		http.Error(w, "電話機の ID と鍵を入れてください", http.StatusUnauthorized)
 		return
 	}
-	personID := r.URL.Query().Get("watchedPerson")
-	if personID == "" {
-		http.Error(w, "見守る方の ID を watchedPerson で指定してください", http.StatusBadRequest)
-		return
-	}
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
-	if err != nil {
-		log.Printf("電話機の接続を受けられなかった: %v", err)
-		return
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "")
-
-	ctx, cancel := context.WithCancel(s.base)
-	defer cancel()
-	go func() {
-		select {
-		case <-s.base.Done():
-			conn.Close(websocket.StatusGoingAway, "バックエンドが止まった")
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
-
-	link := &phoneLink{conn: conn, ctx: ctx}
-	if old := s.phones.replace(personID, link); old != nil {
-		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
-	}
-	s.logf("電話機がつながりました。見守る方: %s", personID)
-	defer s.disconnect(personID, link)
-	go keepalive.Run(ctx, s.clock, conn)
-
-	for {
-		_, data, err := conn.Read(ctx)
-		if err != nil {
-			s.logf("電話機が切れました。見守る方: %s、理由: %s", personID, s.dropReason(err))
-			return
-		}
-		var msg protocol.PhoneMessage
-		if json.Unmarshal(data, &msg) != nil || msg.Type != protocol.PhoneTypeState {
-			continue
-		}
-		s.applyState(personID, msg.CallID, msg.State, nil)
-	}
-}
-
-// phoneWithKey は、ID と鍵で認証した電話機の WebSocket を受け、切れるまで状態を読む。
-// 同期していない電話機も、つながったままにする。電話は、結び付きがあるときだけ届く。
-func (s *server) phoneWithKey(w http.ResponseWriter, r *http.Request, identity phoneIdentity) {
-	named := r.URL.Query().Get("watchedPerson")
-	if named != "" && named != identity.personID {
-		http.Error(w, protocol.PhoneAnswerOtherPerson, http.StatusForbidden)
+	if r.URL.Query().Get("watchedPerson") != "" {
+		http.Error(w, "見守る方は結び付きから決まります", http.StatusBadRequest)
 		return
 	}
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
@@ -305,13 +181,26 @@ func (s *server) phoneWithKey(w http.ResponseWriter, r *http.Request, identity p
 	}()
 
 	link := &phoneLink{conn: conn, ctx: ctx}
-	if old := s.phones.replacePhone(identity.phoneID, identity.personID, link); old != nil {
+	if old := s.phones.replacePhone(identity.phoneID, link); old != nil {
 		old.conn.Close(websocket.StatusGoingAway, "新しい接続に代わりました")
 	}
-	s.logf("電話機がつながりました。見守る方: %s", identity.personID)
-	// つながっていなかった電話機は、つないだときに自分の状態を知る。
-	s.tellSyncState(identity.phoneID, identity.personID != "")
 	defer s.disconnectPhone(identity.phoneID, link)
+	// 登録したあと、結び付きを読む前に止まれる。テストが、そのあいだに同期を終える。
+	if s.afterPhoneRegistered != nil {
+		s.afterPhoneRegistered()
+	}
+	s.linkMu.Lock()
+	personID, err := s.phonePerson(r.Context(), identity.phoneID)
+	if err != nil {
+		s.logf("電話機 %s の結び付きを読めなかった: %v", identity.phoneID, err)
+		s.disconnectPhone(identity.phoneID, link)
+		s.linkMu.Unlock()
+		return
+	}
+	s.phones.bindPerson(identity.phoneID, personID, link)
+	s.tellSyncState(identity.phoneID, personID != "")
+	s.linkMu.Unlock()
+	s.logf("電話機がつながりました。見守る方: %s", personID)
 	go keepalive.Run(ctx, s.clock, conn)
 
 	for {
@@ -338,10 +227,36 @@ func (s *server) phoneWithKey(w http.ResponseWriter, r *http.Request, identity p
 }
 
 // replacePhone は、phoneID の接続を link にする。
-// personID の猶予で待っていた電話と、前の接続が持っていた電話を link に引き継ぐ。
-func (b *phoneBook) replacePhone(phoneID, personID string, link *phoneLink) (old *phoneLink) {
+// 前の接続が持っていた電話の ID は引き継ぐ。猶予は、結び付きを読んでから bindPerson が引き継ぐ。
+// 同じ電話機のつなぎ直しでは、切れた接続の電話を失わない。
+func (b *phoneBook) replacePhone(phoneID string, link *phoneLink) (old *phoneLink) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	old = b.byPhone[phoneID]
+	var adopt string
+	if old != nil {
+		old.mu.Lock()
+		adopt = old.callID
+		old.callID = ""
+		old.mu.Unlock()
+	}
+	link.mu.Lock()
+	if link.callID == "" {
+		link.callID = adopt
+	}
+	link.mu.Unlock()
+	b.byPhone[phoneID] = link
+	return old
+}
+
+// bindPerson は、link が phoneID の今の接続なら、personID を結び、猶予の電話を引き継いで、電話を届けてよい印を付ける。
+// 接続がすでに替わっていたら何もしない。印を付けるまでは、同期の知らせは届くが、電話は届かない。
+func (b *phoneBook) bindPerson(phoneID, personID string, link *phoneLink) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.byPhone[phoneID] != link {
+		return
+	}
 	var adopt string
 	if personID != "" {
 		if g := b.grace[personID]; g != nil {
@@ -350,23 +265,13 @@ func (b *phoneBook) replacePhone(phoneID, personID string, link *phoneLink) (old
 			g.cancel()
 		}
 	}
-	old = b.byPhone[phoneID]
-	if old != nil {
-		old.mu.Lock()
-		if adopt == "" {
-			adopt = old.callID
-		}
-		old.callID = ""
-		old.mu.Unlock()
-	}
 	link.mu.Lock()
 	link.personID = personID
 	if link.callID == "" {
 		link.callID = adopt
 	}
+	link.ready = true
 	link.mu.Unlock()
-	b.byPhone[phoneID] = link
-	return old
 }
 
 // disconnectPhone は、phoneID の接続が link のままなら外す。
@@ -462,25 +367,6 @@ func (s *server) redact(text string) string {
 	return strings.ReplaceAll(text, secret, "[合言葉]")
 }
 
-// disconnect は、personID の接続が link のままなら外す。
-// 途中の電話があれば、つなぎ直すまでの猶予を始めてから戻る。
-func (s *server) disconnect(personID string, link *phoneLink) {
-	s.phones.mu.Lock()
-	defer s.phones.mu.Unlock()
-	if s.phones.byID[personID] != link {
-		return
-	}
-	delete(s.phones.byID, personID)
-	link.mu.Lock()
-	callID := link.callID
-	link.callID = ""
-	link.mu.Unlock()
-	if callID == "" || s.base.Err() != nil {
-		return
-	}
-	s.armGraceLocked(personID, callID)
-}
-
 // armGraceLocked は、電話機の本のロックを持っているときに呼ぶ。
 // タイマーを登録してから戻るので、接続が外れたと見えたときには、猶予が始まっている。
 func (s *server) armGraceLocked(personID, callID string) {
@@ -547,20 +433,14 @@ func (s *server) applyState(personID, callID, state string, link *phoneLink) {
 	if !applied {
 		return
 	}
-	if link != nil {
-		switch state {
-		case protocol.StateEnded, protocol.StateMissed, protocol.StateFailed:
-			link.forgetCall(callID)
-		default:
-			link.rememberCall(callID)
-		}
+	if link == nil {
 		return
 	}
 	switch state {
 	case protocol.StateEnded, protocol.StateMissed, protocol.StateFailed:
-		s.phones.clearCall(personID, callID)
+		link.forgetCall(callID)
 	default:
-		s.phones.setCall(personID, callID)
+		link.rememberCall(callID)
 	}
 }
 

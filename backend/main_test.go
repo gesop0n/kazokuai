@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"flag"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/coder/websocket"
 	"google.golang.org/genai"
 
@@ -195,10 +200,16 @@ func TestListenAddr(t *testing.T) {
 }
 
 func TestServeStopsPhonesWhenTheContextEnds(t *testing.T) {
+	fb, err := server.ConnectFirebase(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { fb.Firestore.Close() })
+	const secret = "dev-phone-secret"
 	handler := server.New(server.Config{
 		ProjectID:   "demo-kazokuai",
-		PhoneSecret: "dev-phone-secret",
-	}, server.Firebase{}, nil, nil, nil)
+		PhoneSecret: secret,
+	}, fb, nil, nil, nil)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -207,21 +218,48 @@ func TestServeStopsPhonesWhenTheContextEnds(t *testing.T) {
 	errc := make(chan error, 1)
 	go func() { errc <- serve(ctx, ln, handler) }()
 
-	header := http.Header{}
-	header.Set(protocol.PhoneSecretHeader, "dev-phone-secret")
-	wsURL := "ws://" + ln.Addr().String() + "/phone?watchedPerson=hanako"
-	var conn *websocket.Conn
+	var nonce [4]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		t.Fatal(err)
+	}
+	id := "phone-stop-" + hex.EncodeToString(nonce[:])
+	const key = "stop-key"
+	base := "http://" + ln.Addr().String()
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		c, _, dialErr := websocket.Dial(context.Background(), wsURL, &websocket.DialOptions{HTTPHeader: header})
-		if dialErr == nil {
-			conn = c
-			break
+		req, err := http.NewRequest(http.MethodPost, base+protocol.PhoneRegisterPath, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set(protocol.PhoneSecretHeader, secret)
+		req.Header.Set(protocol.PhoneIDHeader, id)
+		req.Header.Set(protocol.PhoneKeyHeader, key)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
+				break
+			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatal(dialErr)
+			t.Fatalf("電話機を登録できなかった: %v", err)
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := fb.Firestore.Collection("phones").Doc(id).Update(context.Background(), []firestore.Update{
+		{Path: "watchedPersonId", Value: "hanako"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	header := http.Header{}
+	header.Set(protocol.PhoneIDHeader, id)
+	header.Set(protocol.PhoneKeyHeader, key)
+	wsURL := "ws://" + ln.Addr().String() + "/phone"
+	conn, _, err := websocket.Dial(context.Background(), wsURL, &websocket.DialOptions{HTTPHeader: header})
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Cleanup(func() { conn.CloseNow() })
 	waitUntilConnected(t, handler, "hanako")
@@ -237,8 +275,17 @@ func TestServeStopsPhonesWhenTheContextEnds(t *testing.T) {
 	}
 	readCtx, stop := context.WithTimeout(context.Background(), time.Second)
 	defer stop()
-	if _, _, err := conn.Read(readCtx); err == nil {
-		t.Fatal("止めたあとも電話機の接続が生きている")
+	// つながったときに送る同期の状態は、閉じる前に届くことがある。
+	// 閉じるまで読み、時間切れのあいだデータが来続けるなら接続は生きている。
+	for {
+		_, _, err := conn.Read(readCtx)
+		if err == nil {
+			continue
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			t.Fatal("止めたあとも電話機の接続が生きている")
+		}
+		return
 	}
 }
 

@@ -146,8 +146,8 @@ func TestSyncCode(t *testing.T) {
 		}
 
 		legacy := askSyncCodeWithSecret(t, srv.URL)
-		if legacy.status != http.StatusBadRequest || !strings.Contains(string(legacy.body), "電話機の ID と鍵を入れてください") {
-			t.Fatalf("合言葉だけ = %d %s, want 400", legacy.status, legacy.body)
+		if legacy.status != http.StatusUnauthorized || !strings.Contains(string(legacy.body), "電話機の ID と鍵を入れてください") {
+			t.Fatalf("合言葉だけ = %d %s, want 401", legacy.status, legacy.body)
 		}
 	})
 
@@ -206,7 +206,7 @@ func TestSyncCode(t *testing.T) {
 			t.Fatal("届かなかった電話で認証コードが捨てられた")
 		}
 
-		conn := dialPhoneKey(t, srv.URL, id, syncPhoneKey, "")
+		conn := dialPhoneKey(t, srv.URL, id, syncPhoneKey)
 		collectMessages(t, conn)
 		waitConnected(t, handler, personID, true)
 		startNow(t, srv.URL, protocol.StartCallPath, family.IDToken)
@@ -468,7 +468,7 @@ func TestLinkPhone(t *testing.T) {
 		registerKeyedPhone(t, srv.URL, id)
 		personID := linkPhoneWithCode(t, srv.URL, family.IDToken, id)
 
-		conn := dialPhoneKey(t, srv.URL, id, syncPhoneKey, "")
+		conn := dialPhoneKey(t, srv.URL, id, syncPhoneKey)
 		msgs := collectMessages(t, conn)
 		awaitMessage(t, msgs, protocol.PhoneTypeSynced)
 		waitConnected(t, handler, personID, true)
@@ -504,7 +504,7 @@ func TestSyncNotifiesPhone(t *testing.T) {
 	registerKeyedPhone(t, srv.URL, secondID)
 
 	personID := linkPhoneWithCode(t, srv.URL, family.IDToken, firstID)
-	first := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey, "")
+	first := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey)
 	firstMsgs := collectMessages(t, first)
 	awaitMessage(t, firstMsgs, protocol.PhoneTypeSynced)
 	waitConnected(t, handler, personID, true)
@@ -513,7 +513,7 @@ func TestSyncNotifiesPhone(t *testing.T) {
 		t.Fatalf("状態 = %s, want %s", callState(t, personID, callID), protocol.StateRinging)
 	}
 
-	second := dialPhoneKey(t, srv.URL, secondID, syncPhoneKey, "")
+	second := dialPhoneKey(t, srv.URL, secondID, syncPhoneKey)
 	secondMsgs := collectMessages(t, second)
 	awaitMessage(t, secondMsgs, protocol.PhoneTypeNotSynced)
 
@@ -641,7 +641,7 @@ func TestReviewReplacementCannotReceiveStaleCall(t *testing.T) {
 	registerKeyedPhone(t, srv.URL, firstID)
 	registerKeyedPhone(t, srv.URL, secondID)
 	personID := linkPhoneWithCode(t, srv.URL, family.IDToken, firstID)
-	first := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey, "")
+	first := dialPhoneKey(t, srv.URL, firstID, syncPhoneKey)
 	firstMsgs := collectMessages(t, first)
 	awaitMessage(t, firstMsgs, protocol.PhoneTypeSynced)
 	waitConnected(t, handler, personID, true)

@@ -218,12 +218,7 @@ share_env_file
 warn_gpio
 enable_linger
 
-person=$(read_value "$env_file" KAZOKUAI_WATCHED_PERSON)
 backend=$(read_value "$env_file" KAZOKUAI_BACKEND)
-if [[ "$person" == *[[:space:]]* ]]; then
-  echo "見守る方の ID に空白が含まれます。${env_file} の KAZOKUAI_WATCHED_PERSON を直してから、もう一度動かしてください。" >&2
-  exit 1
-fi
 if [[ -z "$backend" || "$backend" == *[[:space:]]* ]]; then
   echo "バックエンドの URL が空か、空白を含みます。${env_file} の KAZOKUAI_BACKEND を書いてから、もう一度動かしてください。" >&2
   exit 1

@@ -147,10 +147,9 @@ func TestUnknownPhoneRegistersAgainForTheToken(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	device := &Device{
-		Backend: srv.URL,
-		Secret:  protocol.DevPhoneSecret,
-		ID:      id,
-		Key:     key,
+		Backend:  srv.URL,
+		Secret:   protocol.DevPhoneSecret,
+		Identity: Identity{ID: id, Key: key},
 	}
 	token, err := device.fetchToken(context.Background(), "call-1")
 	if err != nil {

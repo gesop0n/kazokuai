@@ -25,21 +25,17 @@ import (
 type Device struct {
 	// Backend は、バックエンドのベースの URL である。例: http://localhost:8080。https は wss でつなぐ。
 	Backend string
-	// Secret は、登録するときの合言葉である。古い道では、どのリクエストにも付ける。
+	// Secret は、登録するときの合言葉である。
 	Secret string
-	// ID と Key は、この電話機が作った ID と鍵である。
-	// 空でなければ、合言葉で登録したあと、WebSocket、トークン、電話の報告にこの 2 つを付ける。
-	// 見守る方は結び付きから決まるので、WatchedPerson は空のままにする。
-	ID  string
-	Key string
+	// Identity は、この電話機が作った ID と鍵である。
+	// 合言葉で登録したあと、WebSocket、トークン、電話の報告にこの 2 つを付ける。
+	// 見守る方は結び付きから決まる。
+	Identity Identity
 	// HTTP は、バックエンドへのクライアントである。nil なら http.DefaultClient を使う。
 	// テストが、自分の証明を信じる TLS のバックエンドへつなぐときに渡す。
-	HTTP *http.Client
-	// WatchedPerson は、古い道の見守る方の ID である。--watched-person で渡す。
-	// ID があるときは使わない。
-	WatchedPerson string
-	Gemini        Gemini
-	Phone         Phone
+	HTTP   *http.Client
+	Gemini Gemini
+	Phone  Phone
 	// Out は、開発者が見るターミナルである。両方の文字起こしを 1 行ずつ書く。
 	// 接続のつなぎ直しはここへ書かない。文字起こしの行と混ざる。
 	Out io.Writer
@@ -154,7 +150,6 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 		if !lines.pickedUp.IsZero() {
 			built := lines.report(d.Clock.Now())
 			built.CallID = callID
-			built.WatchedPersonID = d.WatchedPerson
 			pending = &built
 			// 失敗で戻った電話は、受話器が上がっていても、つながらなかったのままにする。
 			if err == nil {
@@ -619,7 +614,7 @@ func (d *Device) sendState(link callLink, callID, state string) {
 
 // fetchToken は、バックエンドからこの電話の短命トークンをもらう。
 func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.TokenResponse, error) {
-	body, err := json.Marshal(protocol.TokenRequest{CallID: callID, WatchedPersonID: d.WatchedPerson})
+	body, err := json.Marshal(protocol.TokenRequest{CallID: callID})
 	if err != nil {
 		return nil, err
 	}
@@ -642,7 +637,7 @@ func (d *Device) fetchToken(ctx context.Context, callID string) (*protocol.Token
 // Register は、この電話機の ID と鍵を、合言葉を添えてバックエンドに登録する。
 // 同じ ID と鍵なら、もう一度登録しても成功する。
 func (d *Device) Register(ctx context.Context) error {
-	if d.ID == "" || d.Key == "" {
+	if d.Identity.ID == "" || d.Identity.Key == "" {
 		return errors.New("電話機の ID と鍵が要ります")
 	}
 	resp, err := d.post(ctx, protocol.PhoneRegisterPath, nil, true)
@@ -659,7 +654,7 @@ func (d *Device) Register(ctx context.Context) error {
 
 func (d *Device) postBackend(ctx context.Context, path string, body []byte) (*http.Response, error) {
 	resp, err := d.post(ctx, path, body, false)
-	if err != nil || d.ID == "" {
+	if err != nil || d.Identity.ID == "" {
 		return resp, err
 	}
 	unknown, uerr := unknownPhone(resp)
@@ -705,14 +700,10 @@ func (d *Device) post(ctx context.Context, path string, body []byte, register bo
 	return client.Do(req)
 }
 
-// authorize は、ID と鍵があるときはそれを、無いときは合言葉をヘッダーに付ける。
+// authorize は、この電話機の ID と鍵をヘッダーに付ける。
 func (d *Device) authorize(header http.Header) {
-	if d.ID != "" {
-		header.Set(protocol.PhoneIDHeader, d.ID)
-		header.Set(protocol.PhoneKeyHeader, d.Key)
-		return
-	}
-	header.Set(protocol.PhoneSecretHeader, d.Secret)
+	header.Set(protocol.PhoneIDHeader, d.Identity.ID)
+	header.Set(protocol.PhoneKeyHeader, d.Identity.Key)
 }
 
 // unknownPhone は、バックエンドがこの電話機の ID を知らないと答えたとき true を返す。
