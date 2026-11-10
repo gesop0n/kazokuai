@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -116,36 +117,145 @@ func TestRingerHoldsThePitchAndDutyOnTheRealClock(t *testing.T) {
 	// 幅は指定の 0.7–1.3 倍と、デューティー比 4–25% である。
 	// タイマー待ちの実測（260 Hz 前後、約 50%）はこの幅の外にある。
 	// mise run check は -short を付けない。-short のときだけ、この実時計の測定を飛ばす。
+	// 機械が忙しすぎて短い待ちを保てないとき、測っているあいだに CPU が回らなかったとき、
+	// 止めるゴルーチンが動き出せないときも、この測定だけを飛ばす。幅は変えない。
+	// タイマー待ちの音程は、忙しくなくても失敗する。
 	if testing.Short() {
 		t.Skip("実時計の音程は -short では測らない")
 	}
 	t.Run("1200", func(t *testing.T) {
-		pin := &timedPin{}
-		ringer := newRinger(pin, clock.Real{}, io.Discard)
-		ringer.Ring()
-		waitForCycles(t, pin, 12)
-		started := time.Now()
-		ringer.Stop()
-		if elapsed := time.Since(started); elapsed > 20*time.Millisecond {
-			t.Fatalf("止めるのに %s かかった", elapsed)
+		var lastStop time.Duration
+		var lastErr error
+		var cycles int
+		for attempt := 0; attempt < realPitchAttempts; attempt++ {
+			skipIfClockTooBusy(t, 1200)
+			pin := &timedPin{}
+			ringer := newRinger(pin, clock.Real{}, io.Discard)
+			ringer.Ring()
+			if !waitForCycles(pin, 12) {
+				ringer.Stop()
+				cycles = pin.cycles()
+				continue
+			}
+			started := time.Now()
+			ringer.Stop()
+			lastStop = time.Since(started)
+			if lastStop > 20*time.Millisecond {
+				continue
+			}
+			if pin.Level() != 0 {
+				t.Fatal("止めたあとも鳴っている")
+			}
+			periods, duties := cycleStats(pin.snapshot(), 12)
+			if err := pitchError(1200, periods, duties); err != nil {
+				lastErr = err
+				if measurementWasPreempted(1200, periods, duties) {
+					continue
+				}
+				skipIfClockTooBusy(t, 1200)
+				t.Fatal(err)
+			}
+			return
 		}
-		if pin.Level() != 0 {
-			t.Fatal("止めたあとも鳴っている")
+		if schedulerSlow(20*time.Millisecond) || clockTooBusyForPitch(time.Second/1200) {
+			t.Skip("実時計の音程は、この機械が忙しくて測れない")
 		}
-		periods, duties := cycleStats(pin.snapshot(), 12)
-		assertPitch(t, 1200, periods, duties)
+		if lastStop > 20*time.Millisecond {
+			t.Fatalf("止めるのに %s かかった", lastStop)
+		}
+		if lastErr != nil {
+			t.Fatal(lastErr)
+		}
+		t.Fatalf("周期が %d しかなかった", cycles)
 	})
 	t.Run("1600", func(t *testing.T) {
-		pin := &timedPin{}
-		ringer := newRinger(pin, clock.Real{}, io.Discard)
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
-		if !ringer.tone(make(chan struct{}), ringerHighHz, 15*time.Millisecond) {
-			t.Fatal("1,600 Hz が途中で止まった")
+		for attempt := 0; attempt < realPitchAttempts; attempt++ {
+			if clockTooBusyForPitch(time.Second / 1600) {
+				t.Skip("実時計の音程は、この機械が忙しくて測れない")
+			}
+			pin := &timedPin{}
+			ringer := newRinger(pin, clock.Real{}, io.Discard)
+			cpu0, ok0 := procCPU()
+			started := time.Now()
+			if !ringer.tone(make(chan struct{}), ringerHighHz, realPitchWindow) {
+				t.Fatal("1,600 Hz が途中で止まった")
+			}
+			wall := time.Since(started)
+			cpu1, ok1 := procCPU()
+			cpu := wall
+			if ok0 && ok1 && cpu1 >= cpu0 {
+				cpu = cpu1 - cpu0
+			}
+			periods, duties := cycleStats(pin.snapshot(), 12)
+			err := pitchError(1600, periods, duties)
+			if err == nil {
+				return
+			}
+			// タイマー待ちは CPU を使わず、周期が揃ってデューティー比が約 50% になる。
+			// それは音程の失敗なので、忙しさでは飛ばさない。
+			if timerPitch(1600, periods, duties) {
+				t.Fatal(err)
+			}
+			if measurementWasPreempted(1600, periods, duties) || cpuStarved(wall, cpu) {
+				continue
+			}
+			if clockTooBusyForPitch(time.Second / 1600) {
+				t.Skip("実時計の音程は、この機械が忙しくて測れない")
+			}
+			t.Fatal(err)
 		}
-		periods, duties := cycleStats(pin.snapshot(), 12)
-		assertPitch(t, 1600, periods, duties)
+		t.Skip("実時計の音程は、この機械が忙しくて測れない")
 	})
+}
+
+// realPitchLow と realPitchHigh は、実測の音程が指定の何倍までならよいかである。
+const (
+	realPitchLow      = 0.7
+	realPitchHigh     = 1.3
+	realPitchWindow   = 15 * time.Millisecond
+	realPitchAttempts = 5
+)
+
+// skipIfClockTooBusy は、hz の周期と同じ長さの待ちを実時計が保てないとき、実時計の測定を飛ばす。
+// 呼び出し音の実測が外れたことでは飛ばさない。
+func skipIfClockTooBusy(t *testing.T, hz int) {
+	t.Helper()
+	if clockTooBusyForPitch(time.Second / time.Duration(hz)) {
+		t.Skip("実時計の音程は、この機械が忙しくて測れない")
+	}
+}
+
+// clockTooBusyForPitch は、音程を測るのと同じ長さのあいだ period の待ちを回し、
+// 8 回分も入らないか、入った待ちの中央値が音程の下限より長いかである。
+// 呼び出し音は見ない。静かな機械では、15 ミリ秒に 1,600 Hz が 20 回以上入る。
+func clockTooBusyForPitch(period time.Duration) bool {
+	const samples = 32
+	elapsed := make([]time.Duration, 0, samples)
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	end := time.Now().Add(realPitchWindow)
+	for len(elapsed) < samples && time.Now().Before(end) {
+		start := time.Now()
+		deadline := start.Add(period)
+		for time.Now().Before(deadline) {
+		}
+		elapsed = append(elapsed, time.Since(start))
+	}
+	if len(elapsed) < 8 {
+		return true
+	}
+	return spinsTooSlow(elapsed, period)
+}
+
+// spinsTooSlow は、待ちの中央値が音程の下限（period/0.7）より長いかである。
+func spinsTooSlow(elapsed []time.Duration, period time.Duration) bool {
+	if len(elapsed) == 0 || period <= 0 {
+		return true
+	}
+	limit := time.Duration(float64(period) / realPitchLow)
+	return medianDuration(elapsed) > limit
 }
 
 func TestPauseWaitsOnTheClockSoStopEndsIt(t *testing.T) {
@@ -167,30 +277,181 @@ func TestPauseWaitsOnTheClockSoStopEndsIt(t *testing.T) {
 	}
 }
 
-func waitForCycles(t *testing.T, pin *timedPin, n int) {
-	t.Helper()
+func waitForCycles(pin *timedPin, n int) bool {
 	deadline := time.Now().Add(200 * time.Millisecond)
 	for pin.cycles() < n {
 		if time.Now().After(deadline) {
-			t.Fatalf("周期が %d しかなかった", pin.cycles())
+			return false
 		}
 		time.Sleep(time.Millisecond)
 	}
+	return true
 }
 
-func assertPitch(t *testing.T, hz int, periods []time.Duration, duties []float64) {
-	t.Helper()
+// cpuStarved は、壁時計だけが進んで、このプロセスが半分も回っていなかったときである。
+func cpuStarved(wall, cpu time.Duration) bool {
+	return wall > 5*time.Millisecond && cpu*2 < wall
+}
+
+func procCPU() (time.Duration, bool) {
+	var usage syscall.Rusage
+	if err := syscall.Getrusage(syscall.RUSAGE_SELF, &usage); err != nil {
+		return 0, false
+	}
+	return time.Duration(usage.Utime.Nano() + usage.Stime.Nano()), true
+}
+
+// schedulerSlow は、別のゴルーチンが limit 以内に動き出せないときである。
+func schedulerSlow(limit time.Duration) bool {
+	start := time.Now()
+	done := make(chan struct{})
+	go func() { close(done) }()
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return time.Since(start) > limit
+	case <-timer.C:
+		return true
+	}
+}
+
+// timerPitch は、周期が揃って遅く、デューティー比が約 50% のときである。
+// タイマー待ちの音程で、忙しさでは飛ばさない。
+func timerPitch(hz int, periods []time.Duration, duties []float64) bool {
+	if len(periods) < 3 || len(duties) != len(periods) {
+		return false
+	}
+	med := medianDuration(periods)
+	if med <= 0 {
+		return false
+	}
+	for _, period := range periods {
+		if period*2 < med || period > med*2 {
+			return false
+		}
+	}
+	freq := float64(time.Second) / float64(med)
+	lo, hi := float64(hz)*realPitchLow, float64(hz)*realPitchHigh
+	if freq >= lo && freq <= hi {
+		return false
+	}
+	duty := medianFloat(duties)
+	return duty >= 0.30 && duty <= 0.70
+}
+
+// measurementWasPreempted は、8 回分の周期が取れず、音程の幅に入った周期と、
+// 待ちで伸びた周期が混じっているときである。幅に入った周期のデューティー比も見る。
+// どの周期も幅の外なら、音程そのものが外れているので、ここでは飛ばさない。
+func measurementWasPreempted(hz int, periods []time.Duration, duties []float64) bool {
+	if len(periods) == 0 || len(periods) >= 8 || len(duties) != len(periods) {
+		return false
+	}
+	lo, hi := periodBounds(hz)
+	inBand := make([]float64, 0, len(duties))
+	stalled := false
+	for i, period := range periods {
+		switch {
+		case period >= lo && period <= hi:
+			inBand = append(inBand, duties[i])
+		case period > hi:
+			stalled = true
+		}
+	}
+	if !stalled || len(inBand) == 0 {
+		return false
+	}
+	duty := medianFloat(inBand)
+	return duty >= 0.04 && duty <= 0.25
+}
+
+func periodBounds(hz int) (lo, hi time.Duration) {
+	period := float64(time.Second / time.Duration(hz))
+	return time.Duration(period / realPitchHigh), time.Duration(period / realPitchLow)
+}
+
+func pitchError(hz int, periods []time.Duration, duties []float64) error {
 	if len(periods) < 8 {
-		t.Fatalf("%d Hz の周期が %d しかなかった", hz, len(periods))
+		return fmt.Errorf("%d Hz の周期が %d しかなかった", hz, len(periods))
 	}
 	freq := float64(time.Second) / float64(medianDuration(periods))
 	duty := medianFloat(duties)
-	lo, hi := float64(hz)*0.7, float64(hz)*1.3
+	lo, hi := float64(hz)*realPitchLow, float64(hz)*realPitchHigh
 	if freq < lo || freq > hi {
-		t.Fatalf("%d Hz の実測 = %.0f Hz, 許容 %.0f–%.0f。デューティー比 = %.1f%%", hz, freq, lo, hi, duty*100)
+		return fmt.Errorf("%d Hz の実測 = %.0f Hz, 許容 %.0f–%.0f。デューティー比 = %.1f%%", hz, freq, lo, hi, duty*100)
 	}
 	if duty < 0.04 || duty > 0.25 {
-		t.Fatalf("%d Hz のデューティー比 = %.1f%%, 許容 4–25%%。実測 = %.0f Hz", hz, duty*100, freq)
+		return fmt.Errorf("%d Hz のデューティー比 = %.1f%%, 許容 4–25%%。実測 = %.0f Hz", hz, duty*100, freq)
+	}
+	return nil
+}
+
+func TestSpinsTooSlowUsesThePitchBound(t *testing.T) {
+	period := time.Second / 1600
+	if spinsTooSlow([]time.Duration{period, period, period}, period) {
+		t.Fatal("指定どおりの待ちを、忙しすぎるとした")
+	}
+	// 0.7 倍の音程は、周期が 1/0.7 倍まで伸びることである。そこまでは測れる。
+	within := time.Duration(float64(period) / realPitchLow)
+	if spinsTooSlow([]time.Duration{within, within, within}, period) {
+		t.Fatal("許容の下限の待ちを、忙しすぎるとした")
+	}
+	if !spinsTooSlow([]time.Duration{within + time.Nanosecond, within + time.Nanosecond, within + time.Nanosecond}, period) {
+		t.Fatal("許容を超えた待ちを測れるとした")
+	}
+}
+
+func TestMeasurementWasPreemptedNeedsAStallAndTheRightPitch(t *testing.T) {
+	period := time.Second / 1600
+	duty := []float64{0.10, 0.10, 0.10, 0.10, 0.01}
+	held := []time.Duration{period, period, period, period, 12 * time.Millisecond}
+	if !measurementWasPreempted(1600, held, duty) {
+		t.Fatal("幅に入った周期と、待ちで伸びた周期を、測れるとした")
+	}
+	timer := []time.Duration{4 * time.Millisecond, 4 * time.Millisecond, 4 * time.Millisecond, 4 * time.Millisecond}
+	timerDuty := []float64{0.50, 0.50, 0.50, 0.50}
+	if measurementWasPreempted(1600, timer, timerDuty) {
+		t.Fatal("幅の外の音程を、忙しさで飛ばすとした")
+	}
+	enough := []time.Duration{period, period, period, period, period, period, period, period}
+	enoughDuty := []float64{0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10}
+	if measurementWasPreempted(1600, enough, enoughDuty) {
+		t.Fatal("8 回分取れた測定を、忙しさで飛ばすとした")
+	}
+	wrongDuty := []float64{0.50, 0.50, 0.50, 0.50, 0.50}
+	if measurementWasPreempted(1600, held, wrongDuty) {
+		t.Fatal("デューティー比が外れた測定を、忙しさで飛ばすとした")
+	}
+}
+
+func TestCPUStarvedWhenTheProcessDidNotRun(t *testing.T) {
+	if cpuStarved(15*time.Millisecond, 15*time.Millisecond) {
+		t.Fatal("回していた時間を、待たされたとした")
+	}
+	if cpuStarved(15*time.Millisecond, 8*time.Millisecond) {
+		t.Fatal("半分より長く回した時間を、待たされたとした")
+	}
+	if !cpuStarved(15*time.Millisecond, 2*time.Millisecond) {
+		t.Fatal("ほとんど回っていない時間を、測れるとした")
+	}
+	if cpuStarved(time.Millisecond, 0) {
+		t.Fatal("短すぎる測定を、待たされたとした")
+	}
+}
+
+func TestTimerPitchIsTheSlowEvenDuty(t *testing.T) {
+	slow := []time.Duration{4 * time.Millisecond, 4 * time.Millisecond, 4 * time.Millisecond, 4 * time.Millisecond}
+	half := []float64{0.50, 0.50, 0.50, 0.50}
+	if !timerPitch(1600, slow, half) {
+		t.Fatal("タイマー待ちの音程を、忙しさで飛ばせるとした")
+	}
+	stalled := []time.Duration{time.Second / 1600, 12 * time.Millisecond, 12 * time.Millisecond}
+	low := []float64{0.10, 0.01, 0.01}
+	if timerPitch(1600, stalled, low) {
+		t.Fatal("待ちで伸びた周期を、タイマー待ちの音程とした")
+	}
+	if timerPitch(1600, nil, nil) {
+		t.Fatal("周期がないのを、タイマー待ちの音程とした")
 	}
 }
 
