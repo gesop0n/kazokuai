@@ -890,6 +890,65 @@ func TestRedeliveredBookingCallsOnceAfterAStop(t *testing.T) {
 	}
 }
 
+// ソケットへ送った直後、まだ届けた印を書く前に止める。送ったか分からない ID は送る前に残るので、同じ電話のままである。
+func TestRedeliveredBookingKeepsTheCallStoppedAfterTheSend(t *testing.T) {
+	clk := clocktest.New(bookingNow)
+	srv, handler := newTaskServerWith(t, clk, allowTaskToken)
+	person, token := registerHanako(t, srv.URL)
+	forgetBookings(t, person)
+	conn := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+	calls := readPhoneCalls(conn)
+	waitConnected(t, handler, person, true)
+	clk.WaitForTimers(1)
+	id := createdBooking(t, postBooking(t, srv.URL, protocol.BookingPath, token, bookingNow.Add(2*time.Minute), bookingMsg, bookingWords))
+	clk.Advance(2 * time.Minute)
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+	server.StubAfterBookedWrite(func(context.Context) {
+		close(started)
+		<-release
+	})
+	t.Cleanup(func() { server.StubAfterBookedWrite(nil) })
+
+	raw, err := json.Marshal(protocol.BookingTask{WatchedPersonID: person, BookingID: id, Number: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		_, _ = postJSONBody(context.Background(), srv.URL+protocol.BookingTaskPath, "Bearer "+taskToken, string(raw))
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("電話を送ったところで止まらなかった")
+	}
+	callID, _ := receiveCall(t, calls, "")
+	saved := bookingData(t, person, id)
+	if saved["unknownCallId"] != callID || saved["callId"] != callID {
+		t.Fatalf("止めたとき = %v, want 送った %s を残す", saved, callID)
+	}
+
+	next, nextHandler := newTaskServerWith(t, clk, allowTaskToken)
+	conn2 := dialPhone(t, next.URL, person, protocol.DevPhoneSecret)
+	calls2 := readPhoneCalls(conn2)
+	waitConnected(t, nextHandler, person, true)
+	again := postTask(t, next.URL, taskToken, person, id, 1)
+	if again.status != http.StatusOK {
+		t.Fatalf("届き直したタスク = %d %s, want 200", again.status, again.body)
+	}
+	if callCount(t, person) != 1 || bookingData(t, person, id)["callId"] != callID {
+		t.Fatalf("電話 = %d、予約の電話 = %v, want 送った %s の 1 件", callCount(t, person), bookingData(t, person, id)["callId"], callID)
+	}
+	select {
+	case extra := <-calls2:
+		t.Fatalf("もう一度かけた: %s", extra.CallID)
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
 // かけた印を付けたあと、送る前に止まった予約を、起動したタイマーが拾って 1 回かける。
 func TestCalledUnsentBookingIsRecoveredAtStart(t *testing.T) {
 	clk := clocktest.New(bookingNow)

@@ -55,7 +55,8 @@ type booking struct {
 	// Sent は、電話機に届け終えたかである。かけていても、届く前に失敗したときは false のままである。
 	Sent bool `firestore:"sent"`
 	// UnknownCallID は、電話機に送ったかどうかが分からない電話の ID である。
-	// 送ったあと、届けた印を書く前にプロセスが止まると残る。残っているあいだは、同じ予約で別の電話を始めない。
+	// ソケットへ送る前に書く。書き込みがエラーで戻ったときは外す。
+	// 残っているあいだは、同じ予約で別の電話を始めない。
 	UnknownCallID string `firestore:"unknownCallId"`
 	// Sample は、見本の予約である。demo:seed が true にする。タスクは作らない。
 	// 家族が直すと外す。
@@ -84,11 +85,12 @@ var (
 	errBookingTaskConfig = errors.New("予約のタスクの設定が無い")
 )
 
-// 予定へ入れる前の読み直しと、届ける直前と、印を外す直前を、テストが一時的な失敗に差し替える。
+// 予定へ入れる前の読み直しと、届ける直前と、ソケットへ送った直後と、印を外す直前を、テストが差し替える。
 var (
 	bookingHookMu        sync.Mutex
 	bookingScheduleRead  func(context.Context, *firestore.DocumentRef) (*firestore.DocumentSnapshot, error)
 	beforeBookedSend     func(context.Context)
+	afterBookedWrite     func(context.Context)
 	afterBookedSend      func(context.Context)
 	beforeBookingRelease func(context.Context) error
 	uncalledBookingsRead func(context.Context) ([]*firestore.DocumentSnapshot, error)
@@ -698,7 +700,7 @@ func (s *server) fireBooking(ctx context.Context, personID, bookingID string, nu
 
 // placeBookedCall は、今すぐ通話と同じように電話を作り、電話機に届ける。
 // 届ける前にトランザクションで予約へかけた印を付けるので、同じ番号が 2 回到いてもかけるのは 1 回である。
-// 届けられなかったときは印を外し、呼んだ側がやり直せるようにする。
+// 送ったか分からない ID は、ソケットへ送る前に書く。書き込みがエラーで戻ったときだけ外して、やり直せるようにする。
 func (s *server) placeBookedCall(ctx context.Context, personID, bookingID string, number int64) error {
 	s.deliverMu.Lock()
 	defer s.deliverMu.Unlock()
@@ -713,18 +715,19 @@ func (s *server) placeBookedCall(ctx context.Context, personID, bookingID string
 	if err != nil {
 		return err
 	}
-	if err := s.sendBookedCall(ctx, personID, phoneID, linked, callID); err != nil {
+	if err := s.sendBookedCall(ctx, personID, bookingID, phoneID, linked, callID); err != nil {
+		// 書き込みが成功する前の失敗である。先に ID を外すと、電話を戻せなくても次のタスクがかけ直せる。
+		if cerr := s.forgetUnknownCall(personID, bookingID); cerr != nil {
+			log.Printf("予約 %s の、送る前に失敗した電話を外せなかった: %v", bookingID, cerr)
+		}
 		if rerr := s.releaseBookedCall(personID, bookingID, callID); rerr != nil {
 			log.Printf("予約 %s の電話を戻せなかった: %v", bookingID, rerr)
 			return errReleaseFailed
 		}
 		return err
 	}
-	// 届けた印の前に、送ったか分からない電話の ID を残す。プロセスが止まっても、次のタスクは別の電話を始めない。
-	if err := s.rememberUnknownCall(personID, bookingID, callID); err != nil {
-		log.Printf("予約 %s の、送ったか分からない電話を覚えられなかった: %v", bookingID, err)
-		s.noteDelivered(callID)
-	}
+	// 書き込みは戻っている。届けた印を書けなくても、このプロセスでは届いたと覚える。
+	s.noteDelivered(callID)
 	bookingHookMu.Lock()
 	after := afterBookedSend
 	bookingHookMu.Unlock()
@@ -750,21 +753,34 @@ func (s *server) phoneLine(ctx context.Context, personID string) (phoneID string
 }
 
 // sendBookedCall は、今すぐ通話と同じように、電話機へ電話をかける指示を送る。
-func (s *server) sendBookedCall(ctx context.Context, personID, phoneID string, linked bool, callID string) error {
+// 送る前に、送ったか分からない電話の ID を残す。書き込みがエラーで戻ったときは、呼んだ側がそれを外す。
+func (s *server) sendBookedCall(ctx context.Context, personID, bookingID, phoneID string, linked bool, callID string) error {
 	bookingHookMu.Lock()
 	hook := beforeBookedSend
 	bookingHookMu.Unlock()
 	if hook != nil {
 		hook(ctx)
 	}
+	if err := s.rememberUnknownCall(personID, bookingID, callID); err != nil {
+		return err
+	}
 	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: callID}
+	var err error
 	if !linked {
-		if err := s.phones.send(personID, msg); err != nil {
+		err = s.phones.send(personID, msg)
+		if err != nil {
 			return errPhoneNotConnected
 		}
-		return nil
+	} else if err = s.sendToLinkedPhone(ctx, personID, phoneID, msg); err != nil {
+		return err
 	}
-	return s.sendToLinkedPhone(ctx, personID, phoneID, msg)
+	bookingHookMu.Lock()
+	wrote := afterBookedWrite
+	bookingHookMu.Unlock()
+	if wrote != nil {
+		wrote(ctx)
+	}
+	return nil
 }
 
 // claimBooking は、番号が一致し、まだかけていなくて、電話の最中でもなければ、
@@ -955,8 +971,22 @@ func (s *server) markBookingSent(personID, bookingID string) error {
 	return last
 }
 
-// rememberUnknownCall は、送ったかどうかが分からない電話の ID を予約に残す。
-// 届けた印を書く前にプロセスが止まっても、次のタスクが同じ ID を見て、別の電話を始めないためである。
+// forgetUnknownCall は、送る前に失敗した予約から、送ったか分からない電話の ID を外す。
+func (s *server) forgetUnknownCall(personID, bookingID string) error {
+	var last error
+	for range bookingReleaseTries {
+		ctx, cancel := context.WithTimeout(context.Background(), bookingOpTimeout)
+		_, last = s.bookingRef(personID, bookingID).Update(ctx, []firestore.Update{{Path: "unknownCallId", Value: ""}})
+		cancel()
+		if last == nil {
+			return nil
+		}
+	}
+	return last
+}
+
+// rememberUnknownCall は、送る前に、送ったかどうかが分からない電話の ID を予約へ書く。
+// この書き込みが戻ってからソケットへ送る。プロセスが止まっても、次のタスクは別の電話を始めない。
 func (s *server) rememberUnknownCall(personID, bookingID, callID string) error {
 	var last error
 	for range bookingReleaseTries {
@@ -964,7 +994,6 @@ func (s *server) rememberUnknownCall(personID, bookingID, callID string) error {
 		_, last = s.bookingRef(personID, bookingID).Update(ctx, []firestore.Update{{Path: "unknownCallId", Value: callID}})
 		cancel()
 		if last == nil {
-			s.noteDelivered(callID)
 			return nil
 		}
 	}

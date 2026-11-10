@@ -20,6 +20,8 @@ bootstrap_targets=(
   google_project_service_identity.run
   google_artifact_registry_repository_iam_member.run_reader
   google_firestore_database.default
+  # 登録待ちの予約を読むインデックス。データベースだけを対象にしても、この資源は作られない。
+  google_firestore_field.booking_task_pending
   google_firebaserules_ruleset.firestore
   google_firebaserules_release.firestore
   google_firebase_web_app.web

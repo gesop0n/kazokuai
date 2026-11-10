@@ -21,6 +21,14 @@ func StubBeforeBookedSend(fn func(context.Context)) {
 	bookingHookMu.Unlock()
 }
 
+// StubAfterBookedWrite は、ソケットへの書き込みが戻った直後に呼ぶ。nil で元に戻す。
+// 送ったか分からない電話の ID は、この前に書いてある。
+func StubAfterBookedWrite(fn func(context.Context)) {
+	bookingHookMu.Lock()
+	afterBookedWrite = fn
+	bookingHookMu.Unlock()
+}
+
 // StubAfterBookedSend は、予約の電話を届けたあと、届けた印を書く前に呼ぶ。nil で元に戻す。
 func StubAfterBookedSend(fn func(context.Context)) {
 	bookingHookMu.Lock()
