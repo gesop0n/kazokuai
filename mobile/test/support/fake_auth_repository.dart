@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/misc.dart';
 
@@ -49,6 +51,12 @@ class FakeAuthRepository implements AuthRepository {
   // true のときは、名前を保存できない
   bool nameUpdateFails;
 
+  // テストが complete するまで、Google のポップアップを開いたままにする
+  Completer<void>? pendingGoogleSignIn;
+
+  // true のときは、ポップアップを閉じたことにする。ログインせず、失敗にもしない
+  bool googlePopupClosed = false;
+
   // updateName に渡された、いちばん新しい名前。失敗したときも残る
   String? submittedName;
 
@@ -60,6 +68,15 @@ class FakeAuthRepository implements AuthRepository {
     if (accounts[email] != password) {
       throw const SignInException(SignInError.wrongCredentials);
     }
+    signedIn.value = true;
+  }
+
+  @override
+  Future<void> signInWithGoogle() async {
+    final pending = pendingGoogleSignIn;
+    if (pending != null) await pending.future;
+    if (googlePopupClosed) return;
+    if (unreachable) throw const SignInException(SignInError.other);
     signedIn.value = true;
   }
 

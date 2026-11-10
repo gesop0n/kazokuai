@@ -64,9 +64,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    if (_signingIn) return;
+    setState(() {
+      _signingIn = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).signInWithGoogle();
+    } on SignInException catch (e) {
+      if (mounted) setState(() => _error = e.error);
+    } finally {
+      if (mounted) setState(() => _signingIn = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final error = _error;
+    final googleOnWeb = ref.watch(googleSignInOnWebProvider);
     return Scaffold(
       body: SafeArea(
         // キーボードが出るとホームバーの余白がなくなるので、ボタンがキーボードに付かないようにする
@@ -94,7 +110,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           height: 20,
                           excludeFromSemantics: true,
                         ),
-                        onTap: () => showComingSoon(context),
+                        onTap: googleOnWeb
+                            ? (_signingIn ? null : _signInWithGoogle)
+                            : () => showComingSoon(context),
                       ),
                       const _OrLine(),
                       _LabeledField(

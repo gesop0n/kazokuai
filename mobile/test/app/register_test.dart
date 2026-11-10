@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +17,9 @@ import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_bookings_repository.dart';
+import '../support/fake_calls_repository.dart';
+import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
 
 // 見本の文が画面に収まると、開いただけで最後まで読んだことになる。
@@ -37,7 +42,12 @@ const _privacyHeadings = [
   '第10条 このポリシーの変更',
 ];
 
-Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
+Future<void> pumpApp(
+  WidgetTester tester,
+  FakeAuthRepository auth, {
+  bool googleOnWeb = false,
+  WatchedPersonStatus watchedPerson = WatchedPersonStatus.none,
+}) async {
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = _surface;
@@ -47,10 +57,15 @@ Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
     ProviderScope(
       overrides: [
         authRepositoryProvider.overrideWithValue(auth),
-        // 作ったばかりのアカウントには、見守る方がいない
+        // このファイルのテストは、Web 以外を既定にする。Web の流れだけ true にする
+        googleSignInOnWebProvider.overrideWithValue(googleOnWeb),
+        // 作ったばかりのアカウントには、見守る方がいない。あるアカウントのテストだけ registered
         watchedPersonRepositoryProvider.overrideWithValue(
-          FakeWatchedPersonRepository(status: WatchedPersonStatus.none),
+          FakeWatchedPersonRepository(status: watchedPerson),
         ),
+        sampleHome(),
+        sampleCalls(),
+        emptyBookings(),
       ],
       child: const KazokuAiApp(),
     ),
@@ -462,7 +477,7 @@ void main() {
     expect(find.text('メールアドレスとパスワードを入力してください'), findsNothing);
   });
 
-  testWidgets('両方に同意したあとの Google での登録は「準備中です」', (tester) async {
+  testWidgets('Web 以外では、両方に同意したあとの Google での登録は「準備中です」', (tester) async {
     await pumpApp(tester, FakeAuthRepository());
     await openRegister(tester);
     await readDocument(tester, '利用規約');
@@ -472,5 +487,98 @@ void main() {
 
     expect(find.text('準備中です'), findsOneWidget);
     expect(find.text('新規登録'), findsOneWidget);
+  });
+
+  testWidgets('Web では「Googleで登録」は、2つにチェックが入るまで押せず、入ると L3 が開く', (tester) async {
+    await pumpApp(tester, FakeAuthRepository(), googleOnWeb: true);
+    await openRegister(tester);
+
+    expect(button(tester, 'Googleで登録').onTap, isNull);
+
+    await readDocument(tester, '利用規約');
+    expect(button(tester, 'Googleで登録').onTap, isNull);
+
+    await readDocument(tester, 'プライバシーポリシー');
+    expect(button(tester, 'Googleで登録').onTap, isNotNull);
+
+    await tapText(tester, 'Googleで登録');
+
+    expect(find.byType(SyncScreen), findsOneWidget);
+    expect(find.text('電話機との同期を始めます。'), findsOneWidget);
+    expect(find.text('準備中です'), findsNothing);
+    expect(find.text('新規登録'), findsNothing);
+  });
+
+  testWidgets('Web では、あるアカウントの「Googleで登録」はログインと同じくホームを開く', (tester) async {
+    await pumpApp(
+      tester,
+      FakeAuthRepository(),
+      googleOnWeb: true,
+      watchedPerson: WatchedPersonStatus.registered,
+    );
+    await openRegister(tester);
+    await readDocument(tester, '利用規約');
+    await readDocument(tester, 'プライバシーポリシー');
+
+    await tapText(tester, 'Googleで登録');
+
+    expect(find.byType(HomeScreen), findsOneWidget);
+    expect(find.byType(SyncScreen), findsNothing);
+    expect(find.text('準備中です'), findsNothing);
+  });
+
+  testWidgets('Web で Google のポップアップを閉じても、新規登録は変わらない', (tester) async {
+    final auth = FakeAuthRepository()..googlePopupClosed = true;
+    await pumpApp(tester, auth, googleOnWeb: true);
+    await openRegister(tester);
+    await readDocument(tester, '利用規約');
+    await readDocument(tester, 'プライバシーポリシー');
+
+    await tapText(tester, 'Googleで登録');
+
+    expect(find.text('新規登録'), findsOneWidget);
+    expect(find.byType(SyncScreen), findsNothing);
+    expect(find.text('ログインできませんでした。時間をおいて、もう一度お試しください'), findsNothing);
+    expect(find.text('準備中です'), findsNothing);
+  });
+
+  testWidgets('Web で Google の登録に失敗すると、メッセージが出る', (tester) async {
+    await pumpApp(
+      tester,
+      FakeAuthRepository(unreachable: true),
+      googleOnWeb: true,
+    );
+    await openRegister(tester);
+    await readDocument(tester, '利用規約');
+    await readDocument(tester, 'プライバシーポリシー');
+
+    await tapText(tester, 'Googleで登録');
+
+    expect(find.text('新規登録'), findsOneWidget);
+    expect(find.text('ログインできませんでした。時間をおいて、もう一度お試しください'), findsOneWidget);
+    expect(find.byType(SyncScreen), findsNothing);
+  });
+
+  testWidgets('Web では、Google のポップアップが開いているあいだ「Googleで登録」を押せない', (tester) async {
+    final gate = Completer<void>();
+    addTearDown(() {
+      if (!gate.isCompleted) gate.complete();
+    });
+    final auth = FakeAuthRepository()..pendingGoogleSignIn = gate;
+    await pumpApp(tester, auth, googleOnWeb: true);
+    await openRegister(tester);
+    await readDocument(tester, '利用規約');
+    await readDocument(tester, 'プライバシーポリシー');
+
+    await tester.ensureVisible(find.widgetWithText(AppButton, 'Googleで登録'));
+    await tester.tap(find.widgetWithText(AppButton, 'Googleで登録'));
+    await tester.pump();
+
+    expect(button(tester, 'Googleで登録').onTap, isNull);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SyncScreen), findsOneWidget);
   });
 }

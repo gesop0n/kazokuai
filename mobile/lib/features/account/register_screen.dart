@@ -37,8 +37,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _termsUnlocked = false;
   bool _privacyUnlocked = false;
   bool _creating = false;
+  bool _googleSigningIn = false;
   bool _missingFields = false;
   CreateAccountError? _error;
+  SignInError? _googleError;
 
   bool get _bothChecked => _termsChecked && _privacyChecked;
 
@@ -52,6 +54,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   void _onChanged(String _) => setState(() {
     _missingFields = false;
     _error = null;
+    _googleError = null;
   });
 
   Future<void> _openDocument(String routeName) async {
@@ -70,13 +73,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Future<void> _createAccount() async {
-    if (!_bothChecked || _creating) return;
+    if (!_bothChecked || _creating || _googleSigningIn) return;
     final email = _emailController.text;
     final password = _passwordController.text;
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         _missingFields = true;
         _error = null;
+        _googleError = null;
       });
       return;
     }
@@ -84,6 +88,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _creating = true;
       _missingFields = false;
       _error = null;
+      _googleError = null;
     });
     try {
       await ref
@@ -96,8 +101,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    if (!_bothChecked || _creating || _googleSigningIn) return;
+    setState(() {
+      _googleSigningIn = true;
+      _missingFields = false;
+      _error = null;
+      _googleError = null;
+    });
+    try {
+      await ref.read(authRepositoryProvider).signInWithGoogle();
+    } on SignInException catch (e) {
+      if (mounted) setState(() => _googleError = e.error);
+    } finally {
+      if (mounted) setState(() => _googleSigningIn = false);
+    }
+  }
+
   String? get _message {
     if (_missingFields) return 'メールアドレスとパスワードを入力してください';
+    // Google の失敗は、ログインの画面と同じ文にする。Firebase の文はそのまま出さない
+    if (_googleError != null) {
+      return 'ログインできませんでした。時間をおいて、もう一度お試しください';
+    }
     return switch (_error) {
       null => null,
       CreateAccountError.emailInUse => 'このメールアドレスはすでに使われています',
@@ -109,6 +135,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final message = _message;
+    final googleOnWeb = ref.watch(googleSignInOnWebProvider);
     return Scaffold(
       body: SafeArea(
         minimum: const EdgeInsets.only(bottom: 8),
@@ -162,9 +189,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           height: 20,
                           excludeFromSemantics: true,
                         ),
-                        onTap: _bothChecked
-                            ? () => showComingSoon(context)
-                            : null,
+                        onTap: !googleOnWeb
+                            ? (_bothChecked
+                                  ? () => showComingSoon(context)
+                                  : null)
+                            : (_bothChecked && !_googleSigningIn && !_creating
+                                  ? _signInWithGoogle
+                                  : null),
                       ),
                       const _OrLine(),
                       _LabeledField(
@@ -228,7 +259,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: '登録する',
                     variant: AppButtonVariant.primary,
                     size: AppButtonSize.l,
-                    onTap: _bothChecked && !_creating ? _createAccount : null,
+                    onTap: _bothChecked && !_creating && !_googleSigningIn
+                        ? _createAccount
+                        : null,
                   ),
                 ],
               ),
