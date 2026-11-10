@@ -100,6 +100,7 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 		clock:      clk,
 		phones:     newPhoneBook(),
 		syncs:      newSyncBook(),
+		delivered:  map[string]struct{}{},
 		base:       ctx,
 	}
 	var bookings *demoSchedule
@@ -123,6 +124,7 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 		Handler: s.withCORS(router),
 		stop: func() {
 			stop()
+			s.work.Wait()
 			if bookings != nil {
 				bookings.wg.Wait()
 			}
@@ -164,6 +166,14 @@ type server struct {
 	// linkMu は、結び付きの確認から消費までと、電話を届ける直前の読み直しを重ねない。
 	// 同じ準備で二人分を結び付けたり、外した電話機へ電話を届けたりしないためである。
 	linkMu sync.Mutex
+	// deliverMu は、予約の電話を届ける処理を 1 件ずつにする。
+	// 届けた印を付ける前に、もう一方が印の無い予約を戻さないためである。
+	deliverMu sync.Mutex
+	// delivered は、電話機には届いたが、届けた印を書けなかった電話の ID である。
+	// プロセスが終わると消える。印を書けたあとは見ない。
+	delivered map[string]struct{}
+	// work は、保存した予約を予定へ入れ続ける goroutine を待つ。
+	work sync.WaitGroup
 	// clock は、トークンの期限と、ping と、切れた接続の猶予と、同期の期限と、予約の時刻を進める。nil なら実時間である。
 	clock clock.Clock
 	// schedule は、予約の ID と番号で、その時刻に電話を予定へ入れる。
