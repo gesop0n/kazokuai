@@ -1,0 +1,15 @@
+[Unit]
+Description=かぞくAI 電話機のラズパイ(シミュレーター)
+After=local-fs.target pisim-net.service
+Wants=pisim-net.service
+
+[Service]
+ExecStart=/usr/local/bin/pisim daemon
+Restart=always
+RestartSec=2
+NotifyAccess=main
+FileDescriptorStoreMax=256
+FileDescriptorStorePreserve=restart
+
+[Install]
+WantedBy=multi-user.target

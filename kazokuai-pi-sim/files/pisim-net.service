@@ -1,0 +1,13 @@
+[Unit]
+Description=かぞくAI 電話機のネットワーク(eth0 と wlan0)
+After=local-fs.target
+Before=NetworkManager.service wpa_supplicant.service pisim.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/pisim net up
+ExecStop=/usr/local/bin/pisim net down
+
+[Install]
+WantedBy=multi-user.target

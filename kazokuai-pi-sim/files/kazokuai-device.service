@@ -1,0 +1,17 @@
+[Unit]
+Description=かぞくAI 電話機のデバイス(kazokuai-device)
+After=pisim.service pisim-arm64.service NetworkManager.service
+Requires=pisim.service
+ConditionPathExists=/usr/local/bin/kazokuai-device
+
+[Service]
+Environment=LANG=ja_JP.UTF-8 PULSE_SERVER=unix:/mnt/wslg/PulseServer
+EnvironmentFile=/etc/kazokuai/device.env
+EnvironmentFile=-/etc/kazokuai/secret/.env
+ExecCondition=/bin/sh -c 'grep -qE "^KAZOKUAI_BACKEND=.+" /etc/kazokuai/secret/.env'
+ExecStart=/usr/local/bin/pisim exec --user tana -- /bin/sh -c 'exec /usr/local/bin/kazokuai-device -backend "$$KAZOKUAI_BACKEND"'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

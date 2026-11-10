@@ -1,0 +1,13 @@
+[Unit]
+Description=かぞくAI 電話機で arm64 のプログラムを動かす(GPIO 対応の qemu)
+After=proc-sys-fs-binfmt_misc.mount
+Before=pisim.service kazokuai-device.service
+ConditionPathExists=/usr/local/libexec/pisim/qemu-aarch64-gpio
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/libexec/pisim/pisim-arm64
+
+[Install]
+WantedBy=multi-user.target
