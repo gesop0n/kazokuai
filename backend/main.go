@@ -5,6 +5,9 @@
 // プロジェクトは環境変数 GOOGLE_CLOUD_PROJECT から読む。demo- のプロジェクトは Firebase のエミュレーターにつながり、
 // それ以外は渡したプロジェクトのサービスアカウントでつながる。手元では mise run backend が demo-kazokuai とエミュレーターを渡す。
 // 電話機の合言葉は環境変数 PHONE_SECRET から読む。前後の空白は除く。demo- のプロジェクトで未設定なら、開発用の合言葉を使う。
+// 予約のタスクの OIDC は、環境変数 BOOKING_TASK_AUDIENCE（バックエンド自身の URL）と BOOKING_TASK_ACCOUNT（サービスアカウントのメール）を読む。前後の空白は除く。
+// 本物のプロジェクトでは BOOKING_TASK_QUEUE（Cloud Tasks のキュー）も要る。保存と直しのたびに、そのキューへタスクを 1 つ作る。
+// demo- のプロジェクトでは、その道を閉じ、中のタイマーが予約の時刻に電話をかける。
 // SIGTERM を受けると、電話機との接続を閉じてから止まる。
 //
 //	mise run backend
@@ -25,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	cloudtasks "cloud.google.com/go/cloudtasks/apiv2"
 	"google.golang.org/genai"
 
 	"github.com/gesop0n/kazokuai/backend/server"
@@ -94,11 +98,21 @@ func run(config server.Config) error {
 	}
 	config.ProjectID = projectID
 	config.PhoneSecret = secret
+	config.TasksAudience = strings.TrimSpace(os.Getenv("BOOKING_TASK_AUDIENCE"))
+	config.TasksAccount = strings.TrimSpace(os.Getenv("BOOKING_TASK_ACCOUNT"))
+	config.TasksQueue = strings.TrimSpace(os.Getenv("BOOKING_TASK_QUEUE"))
+	ctx := context.Background()
+	tasks, err := openBookingTasks(ctx, projectID, &config)
+	if err != nil {
+		return err
+	}
+	if tasks != nil {
+		defer tasks.Close()
+	}
 	addr, err := listenAddr(os.Getenv("PORT"))
 	if err != nil {
 		return err
 	}
-	ctx := context.Background()
 	client, err := newGeminiClient(ctx, apiKey, genai.HTTPOptions{APIVersion: protocol.GeminiAPIVersion})
 	if err != nil {
 		return err
@@ -117,6 +131,24 @@ func run(config server.Config) error {
 	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	return serve(sigCtx, ln, handler)
+}
+
+// openBookingTasks は、本物のプロジェクトで Cloud Tasks のクライアントを作り、config に渡す。
+// demo- のプロジェクトはタイマーを使うので、クライアントは作らない。
+// キュー、バックエンド自身の URL、タスクのサービスアカウントのどれかが空なら起動しない。
+func openBookingTasks(ctx context.Context, projectID string, config *server.Config) (*cloudtasks.Client, error) {
+	if strings.HasPrefix(projectID, "demo-") {
+		return nil, nil
+	}
+	if config.TasksQueue == "" || config.TasksAudience == "" || config.TasksAccount == "" {
+		return nil, errors.New("本物のプロジェクトでは環境変数 BOOKING_TASK_QUEUE と BOOKING_TASK_AUDIENCE と BOOKING_TASK_ACCOUNT を入れてください")
+	}
+	client, err := cloudtasks.NewClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Cloud Tasks のクライアントを作れなかった: %w", err)
+	}
+	config.Tasks = client
+	return client, nil
 }
 
 // readGeminiAPIKey は、環境変数の Gemini の API キーを返す。前後の空白は除く。

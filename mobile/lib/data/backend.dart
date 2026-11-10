@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
 import 'package:kazokuai/data/sync_repository.dart';
@@ -176,6 +177,87 @@ class Backend {
     }
     throw const SyncFailedException();
   }
+
+  // 予約を保存する。201 で終わる。
+  // 早すぎる、先すぎる、近い予約、送れなかった、を分けて投げる。
+  Future<void> createBooking({
+    required String idToken,
+    required DateTime at,
+    required String message,
+    required String script,
+  }) {
+    return _saveBooking(
+      idToken: idToken,
+      at: at,
+      message: message,
+      script: script,
+      path: '/bookings',
+      success: 201,
+    );
+  }
+
+  // 予約を直す。200 で終わる。区別は保存と同じ。
+  Future<void> editBooking({
+    required String idToken,
+    required String id,
+    required DateTime at,
+    required String message,
+    required String script,
+  }) {
+    return _saveBooking(
+      idToken: idToken,
+      at: at,
+      message: message,
+      script: script,
+      path: '/bookings/${Uri.encodeComponent(id)}',
+      success: 200,
+    );
+  }
+
+  Future<void> _saveBooking({
+    required String idToken,
+    required DateTime at,
+    required String message,
+    required String script,
+    required String path,
+    required int success,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            _uri(path),
+            headers: {
+              'Authorization': 'Bearer $idToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'at': at.toUtc().toIso8601String(),
+              'message': message,
+              'script': script,
+            }),
+          )
+          .timeout(_timeout);
+    } on http.ClientException {
+      throw const BookingFailedException();
+    } on TimeoutException {
+      throw const BookingFailedException();
+    }
+    if (response.statusCode == success) return;
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _bookingTooSoon)) {
+      throw const BookingTooSoonException();
+    }
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _bookingTooFar)) {
+      throw const BookingTooFarException();
+    }
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _bookingTooClose)) {
+      throw const BookingTooCloseException();
+    }
+    throw const BookingFailedException();
+  }
 }
 
 // protocol.PhoneNotConnected と合わせる
@@ -188,6 +270,11 @@ const _callInProgress = 'call_in_progress';
 const _syncCodeWrong = 'sync_code_wrong';
 const _syncPrepEnded = 'sync_prep_ended';
 const _syncPrepLimited = 'sync_prep_limited';
+
+// protocol.BookingTooSoon、BookingTooFar、BookingTooClose と合わせる
+const _bookingTooSoon = 'booking_too_soon';
+const _bookingTooFar = 'booking_too_far';
+const _bookingTooClose = 'booking_too_close';
 
 bool _isAPIError(String body, String code) {
   try {

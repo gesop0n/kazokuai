@@ -128,14 +128,97 @@ void main() {
       expect(formatSheetTime(19, 5), '19:05');
     });
 
-    test('基準日の予約は「今日」と書く', () {
-      expect(formatBookedAt(DateTime(2026, 11, 5, 12)), '今日 12:00');
-      expect(formatBookedAt(DateTime(2026, 11, 5, 8, 30)), '今日 08:30');
+    test('今日の予約は「今日」と書く', () {
+      final today = DateTime(2026, 11, 5, 15);
+      expect(
+        formatBookedAt(DateTime(2026, 11, 5, 12), today: today),
+        '今日 12:00',
+      );
+      expect(
+        formatBookedAt(DateTime(2026, 11, 5, 8, 30), today: today),
+        '今日 08:30',
+      );
     });
 
-    test('基準日と別の日は月と日で書く', () {
-      expect(formatBookedAt(DateTime(2026, 11, 7, 10)), '11/7 10:00');
-      expect(formatBookedAt(DateTime(2027, 11, 5, 10)), '11/5 10:00');
+    test('今日と別の日は月と日で書く', () {
+      final today = DateTime(2026, 11, 5);
+      expect(
+        formatBookedAt(DateTime(2026, 11, 7, 10), today: today),
+        '11/7 10:00',
+      );
+      expect(
+        formatBookedAt(DateTime(2027, 11, 5, 10), today: today),
+        '11/5 10:00',
+      );
+    });
+  });
+
+  group('これからの予約', () {
+    final now = DateTime(2026, 11, 10, 15);
+
+    BookedCall booking(
+      String id,
+      DateTime at, {
+      String message = '伝言',
+      bool called = false,
+    }) => BookedCall(
+      id: id,
+      at: at,
+      message: message,
+      script: '「通話内容」',
+      called: called,
+    );
+
+    test('かけていない、今よりあとの予約だけを時刻の順に並べる', () {
+      final upcoming = upcomingBookings([
+        booking('later', DateTime(2026, 11, 12, 9), message: 'あと'),
+        booking('past', DateTime(2026, 11, 9, 9), message: '前'),
+        booking(
+          'called',
+          DateTime(2026, 11, 11, 9),
+          message: 'かけた',
+          called: true,
+        ),
+        booking('soon', DateTime(2026, 11, 10, 18), message: '近い'),
+        booking('same', DateTime(2026, 11, 10, 18), message: '同時'),
+        booking('now', now, message: 'ちょうど今'),
+      ], now);
+
+      expect(upcoming.map((call) => call.id), ['same', 'soon', 'later']);
+    });
+
+    test('見本はモックの 3 件で、今日は見本の日', () {
+      expect(sampleBookedCalls.map((call) => call.id), [
+        'noon',
+        'evening',
+        'weekend',
+      ]);
+      expect(sampleBookedCalls.map((call) => call.message), [
+        '話し相手',
+        '薬と戸締まりの確認',
+        '週末に帰ると伝える',
+      ]);
+      expect(
+        sampleBookedCalls.map(
+          (call) => formatBookedAt(call.at, today: sampleBookingDay),
+        ),
+        ['今日 12:00', '今日 19:00', '11/7 10:00'],
+      );
+    });
+
+    test('今から 1 分よりあと、30 日先まで予約できる', () {
+      expect(canBookAt(now.add(const Duration(minutes: 1)), now), isFalse);
+      expect(
+        canBookAt(now.add(const Duration(minutes: 1, seconds: 1)), now),
+        isTrue,
+      );
+      expect(canBookAt(now.add(const Duration(days: 30)), now), isTrue);
+      expect(
+        canBookAt(now.add(const Duration(days: 30, seconds: 1)), now),
+        isFalse,
+      );
+      expect(bookingDay(now), DateTime(2026, 11, 10));
+      expect(bookingLastDay(now), DateTime(2026, 12, 10));
     });
   });
 
@@ -145,117 +228,6 @@ void main() {
     setUp(() {
       container = ProviderContainer();
       addTearDown(container.dispose);
-    });
-
-    test('予約の初期値はモックの 3 件', () {
-      final calls = container.read(bookedCallsProvider);
-
-      expect(calls.map((call) => call.message), [
-        '話し相手',
-        '薬と戸締まりの確認',
-        '週末に帰ると伝える',
-      ]);
-      expect(calls.map((call) => call.script), [
-        '「ハナさん、こんにちは。\n体調はいかがですか。」',
-        '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」',
-        '「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」',
-      ]);
-      expect(calls.map((call) => formatBookedAt(call.at)), [
-        '今日 12:00',
-        '今日 19:00',
-        '11/7 10:00',
-      ]);
-    });
-
-    test('add は日時の順に合う場所へ足す', () {
-      final notifier = container.read(bookedCallsProvider.notifier);
-
-      notifier.add(
-        at: DateTime(2026, 11, 6, 8, 30),
-        message: '通院の日です',
-        script: '「ハナさん、美咲さんからご伝言です。」',
-      );
-      notifier.add(
-        at: DateTime(2026, 11, 5, 8, 30),
-        message: '朝に伝える',
-        script: '「ハナさん、おはようございます。」',
-      );
-      notifier.add(
-        at: DateTime(2026, 11, 8, 9),
-        message: '翌週に伝える',
-        script: '「ハナさん、来週です。」',
-      );
-      notifier.add(
-        at: DateTime(2026, 11, 5, 12),
-        message: '昼にもう一件',
-        script: '「ハナさん、昼です。」',
-      );
-
-      final calls = container.read(bookedCallsProvider);
-      expect(calls.map((call) => call.message), [
-        '朝に伝える',
-        '話し相手',
-        '昼にもう一件',
-        '薬と戸締まりの確認',
-        '通院の日です',
-        '週末に帰ると伝える',
-        '翌週に伝える',
-      ]);
-      expect(
-        calls.firstWhere((call) => call.message == '通院の日です').script,
-        '「ハナさん、美咲さんからご伝言です。」',
-      );
-      expect(
-        calls.firstWhere((call) => call.message == '昼にもう一件').at,
-        DateTime(2026, 11, 5, 12),
-      );
-    });
-
-    test('update は伝えたいことと日時だけを変え、通話内容は残す', () {
-      final notifier = container.read(bookedCallsProvider.notifier);
-
-      notifier.update(
-        1,
-        at: DateTime(2026, 11, 8, 9, 5),
-        message: '夕食のあとに電話する',
-      );
-
-      final calls = container.read(bookedCallsProvider);
-      expect(calls.map((call) => call.message), [
-        '話し相手',
-        '週末に帰ると伝える',
-        '夕食のあとに電話する',
-      ]);
-      expect(calls[2].at, DateTime(2026, 11, 8, 9, 5));
-      expect(calls[2].script, '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」');
-      expect(calls[0].script, '「ハナさん、こんにちは。\n体調はいかがですか。」');
-      expect(calls[1].message, '週末に帰ると伝える');
-    });
-
-    test('update は日時が同じなら並びを動かさない', () {
-      final notifier = container.read(bookedCallsProvider.notifier);
-
-      notifier.update(0, at: DateTime(2026, 11, 5, 12), message: '昼に話す');
-
-      final calls = container.read(bookedCallsProvider);
-      expect(calls.map((call) => call.message), [
-        '昼に話す',
-        '薬と戸締まりの確認',
-        '週末に帰ると伝える',
-      ]);
-      expect(calls.first.script, '「ハナさん、こんにちは。\n体調はいかがですか。」');
-    });
-
-    test('update は同じ日時の予約の後ろに入る', () {
-      final notifier = container.read(bookedCallsProvider.notifier);
-
-      notifier.update(2, at: DateTime(2026, 11, 5, 12), message: '週末に帰ると伝える');
-
-      expect(container.read(bookedCallsProvider).map((call) => call.message), [
-        '話し相手',
-        '週末に帰ると伝える',
-        '薬と戸締まりの確認',
-      ]);
     });
 
     test('ルールの初期値は 15 分おきに 3 回', () {

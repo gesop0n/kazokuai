@@ -105,36 +105,42 @@ func (s *server) startCall(w http.ResponseWriter, r *http.Request) {
 	}
 	msg := protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: ref.ID}
 	// 文書を作るあいだに電話機が替わっていることがある。届ける直前に、今の結び付きと一致するときだけ送る。
-	s.linkMu.Lock()
-	nowID, nowLinked, err := s.linkedPhoneID(r.Context(), personID)
+	err = s.sendToLinkedPhone(r.Context(), personID, phoneID, msg)
 	if err != nil {
-		s.linkMu.Unlock()
-		log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
 		s.discardCall(r.Context(), ref)
+		if errors.Is(err, errPhoneNotConnected) {
+			s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
+			writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
+			return
+		}
+		log.Printf("見守る方 %s の電話機を探せなかった: %v", personID, err)
 		http.Error(w, "電話機を読めなかった", http.StatusInternalServerError)
 		return
 	}
-	if !nowLinked || nowID != phoneID || !s.phones.hasPhone(nowID) {
-		s.linkMu.Unlock()
-		s.discardCall(r.Context(), ref)
-		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s", personID)
-		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
-		return
-	}
-	err = s.phones.sendPhone(nowID, personID, msg)
-	if err != nil {
-		s.linkMu.Unlock()
-		s.discardCall(r.Context(), ref)
-		s.logf("今すぐ通話を断りました。電話機がつながっていません。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
-		writeAPIError(w, http.StatusConflict, protocol.PhoneNotConnected)
-		return
-	}
-	// 電話が始まったら、その電話機の認証コードは捨てる。有効なあいだの「＃」で同じコードを返さない。
-	s.syncs.dropCode(nowID)
-	s.linkMu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(startedCall{ID: ref.ID})
+}
+
+// sendToLinkedPhone は、linkMu を持って、今の結び付きが phoneID のときだけ msg を届ける。
+// 届いたら、その電話機の認証コードを捨てる。有効なあいだの「＃」で同じコードを返さない。
+// 読み直せないときは、そのエラーを返す。結び付きが違うときと、届かないときは errPhoneNotConnected を返す。
+func (s *server) sendToLinkedPhone(ctx context.Context, personID, phoneID string, msg protocol.PhoneMessage) error {
+	s.linkMu.Lock()
+	defer s.linkMu.Unlock()
+	nowID, nowLinked, err := s.linkedPhoneID(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if !nowLinked || nowID != phoneID || !s.phones.hasPhone(nowID) {
+		return errPhoneNotConnected
+	}
+	if err := s.phones.sendPhone(nowID, personID, msg); err != nil {
+		s.logf("電話を届けられなかった。見守る方: %s、理由: %s", personID, oneLine(s.redact(err.Error())))
+		return errPhoneNotConnected
+	}
+	s.syncs.dropCode(nowID)
+	return nil
 }
 
 // discardCall は、電話機に届かなかった電話の文書を消す。

@@ -350,6 +350,29 @@ class DeployScriptTest(unittest.TestCase):
         self.assertIn('name = "PHONE_SECRET"', text)
         self.assertNotIn("PHONE_SHARED_SECRET", text)
 
+    def test_booking_tasks_do_not_read_the_cloud_run_service(self):
+        locals_tf = (ROOT / "infra" / "locals.tf").read_text(encoding="utf-8")
+        run = (ROOT / "infra" / "run.tf").read_text(encoding="utf-8")
+        tasks = (ROOT / "infra" / "tasks.tf").read_text(encoding="utf-8")
+        self.assertIn("cloudtasks.googleapis.com", locals_tf)
+        self.assertIn("data.google_project.this.number", locals_tf)
+        self.assertIn("${local.service_name}-${data.google_project.this.number}.${var.region}.run.app", locals_tf)
+        self.assertNotIn("google_cloud_run_v2_service.backend.uri", run)
+        for name in ("BOOKING_TASK_QUEUE", "BOOKING_TASK_ACCOUNT", "BOOKING_TASK_AUDIENCE"):
+            self.assertIn(f'"{name}"', run)
+        self.assertIn("local.backend_url", run)
+        self.assertRegex(tasks, r'max_attempts\s+=\s+11')
+        self.assertRegex(tasks, r'max_retry_duration\s+=\s+"600s"')
+        self.assertRegex(tasks, r'min_backoff\s+=\s+"60s"')
+        self.assertRegex(tasks, r'max_backoff\s+=\s+"60s"')
+        self.assertRegex(tasks, r'max_doublings\s+=\s+0')
+        self.assertIn('location = var.region', tasks)
+        self.assertIn("roles/cloudtasks.enqueuer", tasks)
+        self.assertIn("roles/iam.serviceAccountUser", tasks)
+        self.assertIn("roles/iam.serviceAccountTokenCreator", tasks)
+        bootstrap = (ROOT / "infra" / "run.sh").read_text(encoding="utf-8")
+        self.assertNotIn("google_cloud_tasks_queue", bootstrap)
+
     def test_web_direct_firebase_flags_skip_terraform(self):
         with staged_web_build():
             result = self.run_script(WEB, f"--project={PROJECT}", *firebase_flags())

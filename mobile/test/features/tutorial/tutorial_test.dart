@@ -27,6 +27,7 @@ import 'package:kazokuai/features/tutorial/tutorial_overlay.dart';
 import 'package:kazokuai/features/tutorial/tutorial_step.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_tutorial_repository.dart';
@@ -60,6 +61,7 @@ Future<void> _pump(
           sampleCalls()
         else
           callsRepositoryProvider.overrideWithValue(calls),
+        emptyBookings(),
         tutorialRepositoryProvider.overrideWithValue(tutorial),
       ],
       child: const KazokuAiApp(),

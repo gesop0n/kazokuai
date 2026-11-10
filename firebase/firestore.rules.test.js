@@ -216,6 +216,69 @@ describe('電話と会話', () => {
   });
 });
 
+// バックエンドが保存したときと同じ形で、予約を置く
+async function savedBooking() {
+  await registered('hanako', hanako);
+  await env.withSecurityRulesDisabled((context) =>
+    setDoc(doc(context.firestore(), 'watchedPersons/hanako/bookings/friday'), {
+      at: new Date('2026-11-13T06:00:00Z'),
+      message: '金曜の通院',
+      script: 'ハナさん、美咲さんからです。',
+      number: 1,
+      called: false,
+    }),
+  );
+}
+
+describe('予約', () => {
+  test('家族は、自分の見守る方の予約を読める', async () => {
+    await savedBooking();
+    const db = firestoreOf(misaki);
+
+    const booking = await assertSucceeds(getDoc(doc(db, 'watchedPersons/hanako/bookings/friday')));
+    if (booking.data().message !== '金曜の通院') {
+      throw new Error(`伝えたいこと = ${booking.data().message}, want 金曜の通院`);
+    }
+    const bookings = await assertSucceeds(getDocs(collection(db, 'watchedPersons/hanako/bookings')));
+    if (bookings.docs.map((d) => d.id).join() !== 'friday') {
+      throw new Error(`見つかった予約 = ${bookings.docs.map((d) => d.id)}, want friday だけ`);
+    }
+  });
+
+  test('ほかの家族の予約は読めない', async () => {
+    await savedBooking();
+    const db = firestoreOf(kenta);
+
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/bookings/friday')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/bookings')));
+  });
+
+  test('ログインしていなければ予約を読めない', async () => {
+    await savedBooking();
+    const db = env.unauthenticatedContext().firestore();
+
+    await assertFails(getDoc(doc(db, 'watchedPersons/hanako/bookings/friday')));
+    await assertFails(getDocs(collection(db, 'watchedPersons/hanako/bookings')));
+  });
+
+  test('家族は、自分の見守る方の予約でも書けない', async () => {
+    await savedBooking();
+    const db = firestoreOf(misaki);
+
+    await assertFails(
+      setDoc(doc(db, 'watchedPersons/hanako/bookings/saturday'), {
+        at: new Date('2026-11-14T06:00:00Z'),
+        message: '買い物',
+        script: 'ハナさん、買い物です。',
+        number: 1,
+        called: false,
+      }),
+    );
+    await assertFails(updateDoc(doc(db, 'watchedPersons/hanako/bookings/friday'), { message: '違う' }));
+    await assertFails(deleteDoc(doc(db, 'watchedPersons/hanako/bookings/friday')));
+  });
+});
+
 describe('電話機', () => {
   async function savedPhone() {
     await env.withSecurityRulesDisabled((context) =>

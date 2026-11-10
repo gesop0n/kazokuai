@@ -84,6 +84,31 @@ const PhoneNotConnected = "phone_not_connected"
 // アプリはこれを見て「通話中です」と出す。
 const CallInProgress = "call_in_progress"
 
+// BookingPath は、ログインした家族が予約を保存するパスである。/api の下にも置く。
+// Authorization ヘッダーに家族の ID トークンを Bearer で入れ、本文に BookingBody を JSON で入れて POST する。
+// 予約を直すときは、同じ道のうしろに予約の ID を足して POST する。
+const BookingPath = "/bookings"
+
+// BookingTaskPath は、予約の時刻に Cloud Tasks が呼ぶパスである。/api の下には置かない。
+// Authorization ヘッダーに、タスクのサービスアカウントの OIDC トークンを Bearer で入れる。
+// audience はバックエンドの URL。本文は BookingTask。
+// demo- のプロジェクトではこの道を閉じ、バックエンドの中のタイマーが同じ処理を呼ぶ。
+const BookingTaskPath = "/tasks/bookings"
+
+// 予約の保存と直しで、アプリが見分けるエラーである。本文の error に入る。
+const (
+	// BookingTooSoon は、時刻が今から 1 分より先ではないときである。
+	BookingTooSoon = "booking_too_soon"
+	// BookingTooFar は、時刻が今から 30 日より先のときである。
+	BookingTooFar = "booking_too_far"
+	// BookingTooClose は、同じ見守る方の別の予約が前後 10 分以内にあるときである。
+	BookingTooClose = "booking_too_close"
+	// BookingNotFound は、その予約が、その家族の見守る方の下にないときである。
+	BookingNotFound = "booking_not_found"
+	// BookingAlreadyCalled は、かけたあとの予約を直そうとしたときである。
+	BookingAlreadyCalled = "booking_already_called"
+)
+
 // 同期でアプリが見分けるエラーである。本文の error に入る。
 const (
 	// SyncCodeWrong は、認証コードが違うときである。同期の準備はまだ続く。
@@ -220,6 +245,32 @@ type PhoneMessage struct {
 	CallID string `json:"callId"`
 	// State は、PhoneTypeState のときの電話の状態である。
 	State string `json:"state,omitempty"`
+}
+
+// BookingBody は、予約を保存するときと直すときの本文である。
+// 予約は watchedPersons/{id}/bookings/{予約} に置く。
+// フィールドは at（時刻）、message（伝えたいこと）、script（通話内容）、
+// number（直すたびに 1 つ増える番号）、called（かけたかどうか）、callId（かけた電話）、
+// sent（電話機に届け終えたか。家族の本文には無く、バックエンドだけが書く）、
+// taskPending（タスクがまだ Cloud Tasks に入っていないか。家族の本文には無く、バックエンドだけが書く。見本の予約は持たない）である。
+type BookingBody struct {
+	// At は、電話をかける時刻である。
+	At time.Time `json:"at"`
+	// Message は、家族が入れた伝えたいことである。
+	Message string `json:"message"`
+	// Script は、その電話で AI が話す通話内容である。
+	Script string `json:"script"`
+}
+
+// BookingTask は、BookingTaskPath に Cloud Tasks が送る本文である。
+// Number は、そのタスクを作ったときの予約の番号である。今の番号と違うときは、何もしない。
+type BookingTask struct {
+	// WatchedPersonID は、予約の見守る方の ID である。
+	WatchedPersonID string `json:"watchedPersonId"`
+	// BookingID は、予約の ID である。
+	BookingID string `json:"bookingId"`
+	// Number は、予約の番号である。
+	Number int64 `json:"number"`
 }
 
 // TokenResponse は、TokenPath のレスポンスである。
