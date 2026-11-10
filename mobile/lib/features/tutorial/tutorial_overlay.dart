@@ -348,10 +348,10 @@ class _Tip extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 4),
                   child: Row(
                     children: [
-                      // モックの T9 は「はじめる」だけだが、仕様はどの段階にもスキップを置く。
+                      // モックは T9 にスキップを置かない。戻るとはじめるは右に寄せる。
                       // AppButton は親の幅いっぱいに広がるので、文字の幅で押せるようにする。
                       // T2 からは「戻る」を「次へ」の左に置く。T1 には置かない
-                      _SkipButton(onTap: onSkip),
+                      if (!last) _SkipButton(onTap: onSkip),
                       const Spacer(),
                       if (onBack != null) ...[
                         _BackButton(onTap: onBack),
