@@ -877,8 +877,8 @@ func TestRedeliveredBookingCallsOnceAfterAStop(t *testing.T) {
 	calls2 := readPhoneCalls(conn2)
 	waitConnected(t, nextHandler, person, true)
 	again := postTask(t, next.URL, taskToken, person, id, 1)
-	if again.status != http.StatusOK {
-		t.Fatalf("届き直したタスク = %d %s, want 200", again.status, again.body)
+	if again.status != http.StatusServiceUnavailable {
+		t.Fatalf("届き直したタスク = %d %s, want 503", again.status, again.body)
 	}
 	if callCount(t, person) != 1 || bookingData(t, person, id)["callId"] != callID {
 		t.Fatalf("電話 = %d、予約の電話 = %v, want 送った %s の 1 件", callCount(t, person), bookingData(t, person, id)["callId"], callID)
@@ -936,8 +936,8 @@ func TestRedeliveredBookingKeepsTheCallStoppedAfterTheSend(t *testing.T) {
 	calls2 := readPhoneCalls(conn2)
 	waitConnected(t, nextHandler, person, true)
 	again := postTask(t, next.URL, taskToken, person, id, 1)
-	if again.status != http.StatusOK {
-		t.Fatalf("届き直したタスク = %d %s, want 200", again.status, again.body)
+	if again.status != http.StatusServiceUnavailable {
+		t.Fatalf("届き直したタスク = %d %s, want 503", again.status, again.body)
 	}
 	if callCount(t, person) != 1 || bookingData(t, person, id)["callId"] != callID {
 		t.Fatalf("電話 = %d、予約の電話 = %v, want 送った %s の 1 件", callCount(t, person), bookingData(t, person, id)["callId"], callID)
@@ -946,6 +946,51 @@ func TestRedeliveredBookingKeepsTheCallStoppedAfterTheSend(t *testing.T) {
 	case extra := <-calls2:
 		t.Fatalf("もう一度かけた: %s", extra.CallID)
 	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// 送る前に印を残して止まると、期限のあとにつながらなかったになり、今すぐ通話を電話の最中で断らない。
+func TestReviewUnknownBeforeSendDoesNotKeepPersonBusyForever(t *testing.T) {
+	clk := clocktest.New(bookingNow)
+	srv, handler := newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+	person, token := registerHanako(t, srv.URL)
+	forgetBookings(t, person)
+	at := bookingNow.Add(3 * time.Minute)
+	id := createdBooking(t, postBooking(t, srv.URL, protocol.BookingPath, token, at, bookingMsg, bookingWords))
+	waitTimers(t, clk, 1)
+	handler.Stop()
+
+	callRef, _, err := emulators.Firestore.Collection("watchedPersons").Doc(person).Collection("calls").Add(t.Context(), map[string]any{
+		"state":     protocol.StateRinging,
+		"message":   bookingMsg,
+		"script":    bookingWords,
+		"createdAt": at,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = emulators.Firestore.Collection("watchedPersons").Doc(person).Collection("bookings").Doc(id).Update(t.Context(), []firestore.Update{
+		{Path: "called", Value: true},
+		{Path: "sent", Value: false},
+		{Path: "callId", Value: callRef.ID},
+		{Path: "unknownCallId", Value: callRef.ID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srv, handler = newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+	waitDeadline(t, clk, at)
+	clk.Advance(14 * time.Minute)
+	waitCallState(t, person, callRef.ID, protocol.StateFailed)
+
+	conn := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+	calls := readPhoneCalls(conn)
+	waitConnected(t, handler, person, true)
+	immediate := startNow(t, srv.URL, protocol.StartCallPath, token)
+	receiveCall(t, calls, immediate)
+	if immediate == callRef.ID || callState(t, person, callRef.ID) != protocol.StateFailed {
+		t.Fatalf("今すぐ通話 = %s、止まった電話 = %s, want つながらなかったのまま別の電話", immediate, callState(t, person, callRef.ID))
 	}
 }
 

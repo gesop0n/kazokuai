@@ -57,6 +57,7 @@ type booking struct {
 	// UnknownCallID は、電話機に送ったかどうかが分からない電話の ID である。
 	// ソケットへ送る前に書く。書き込みがエラーで戻ったときは外す。
 	// 残っているあいだは、同じ予約で別の電話を始めない。
+	// 呼び出し中のまま期限を過ぎたら、つながらなかったにする。
 	UnknownCallID string `firestore:"unknownCallId"`
 	// Sample は、見本の予約である。demo:seed が true にする。タスクは作らない。
 	// 家族が直すと外す。
@@ -129,7 +130,8 @@ func (noopSchedule) Schedule(context.Context, string, string, int64) error { ret
 
 // demoSchedule は、バックエンドの中のタイマーで予約の時刻を待つ。
 // プロセスが止まるとタイマーは消え、起動したときに、まだかけていない予約と、
-// 印を付けたあと送る前に止まった予約を読み直す。
+// 印を付けたあと送る前に止まった予約と、送ったか分からない呼び出し中を読み直す。
+// 送ったか分からない電話はかけ直さない。期限が来たら、つながらなかったにする。
 type demoSchedule struct {
 	s    *server
 	mu   sync.Mutex
@@ -153,7 +155,8 @@ func (d *demoSchedule) Schedule(ctx context.Context, personID, bookingID string,
 	if err := snap.DataTo(&saved); err != nil {
 		return err
 	}
-	if saved.Number != number || saved.Sent || saved.UnknownCallID != "" {
+	// 届け終えた予約は予定に入れない。送ったか分からない呼び出し中は入れ、期限で終える。
+	if saved.Number != number || saved.Sent {
 		return nil
 	}
 	key := personID + "/" + bookingID + "/" + strconv.FormatInt(number, 10)
@@ -255,14 +258,18 @@ func (s *server) loadUncalledOnce(ctx context.Context) error {
 	s.scheduleLoaded(docs, func(saved booking, _ map[string]any) bool {
 		return !saved.Called
 	})
-	// かけた印だけが残って、まだ送っていない予約。called == false の一覧には出てこない。
+	// かけた印だけが残っている予約。called == false の一覧には出てこない。
+	// 送ったか分からない呼び出し中も含む。期限まではかけず、期限が来たら終える。
 	stuck, err := s.firebase.Firestore.CollectionGroup(bookingsCollection).Where("called", "==", true).Documents(ctx).GetAll()
 	if err != nil {
 		return err
 	}
 	s.scheduleLoaded(stuck, func(saved booking, raw map[string]any) bool {
 		sent, ok := raw["sent"].(bool)
-		return saved.Called && ok && !sent && saved.UnknownCallID == ""
+		if !saved.Called || !ok || sent {
+			return false
+		}
+		return saved.UnknownCallID == "" || saved.UnknownCallID == saved.CallID
 	})
 	return nil
 }
@@ -668,6 +675,7 @@ func (s *server) fireBooking(ctx context.Context, personID, bookingID string, nu
 		return false, nil
 	}
 	// かけた印が残っている。送ったか分からない電話は残し、別の電話を始めない。
+	// 呼び出し中のまま期限を過ぎたら、つながらなかったにする。
 	// 送っていない呼び出し中は外して、この回でかける。
 	if saved.Called {
 		s.deliverMu.Lock()
@@ -905,6 +913,7 @@ func (s *server) releaseBooking(ctx context.Context, personID, bookingID, callID
 // deliverMu を持っているときに呼ぶ。
 // place が true のときは、送っていない呼び出し中を外してある。呼んだ側がこの回でかける。
 // 送ったか分からない電話は残し、別の電話を始めない。
+// 呼び出し中のまま期限を過ぎたら、つながらなかったにして、あとの電話を妨げない。
 func (s *server) recoverUnsent(personID, bookingID string, number int64) (place bool, retry bool, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), bookingOpTimeout)
 	defer cancel()
@@ -932,8 +941,9 @@ func (s *server) recoverUnsent(personID, bookingID string, number int64) (place 
 		return false, false, nil
 	}
 	// 呼び出し中の電話からは、送ったかどうかが分からない。ID が残っていれば、別の電話を始めない。
+	// 期限まではやり直す。期限を過ぎて呼び出し中のままなら、つながらなかったにする。
 	if saved.UnknownCallID != "" && saved.UnknownCallID == saved.CallID {
-		return false, false, nil
+		return s.holdUnknownCall(saved, personID, bookingID, number)
 	}
 	callDoc, err := s.callRef(personID, saved.CallID).Get(ctx)
 	if err != nil && status.Code(err) != codes.NotFound {
@@ -952,6 +962,84 @@ func (s *server) recoverUnsent(personID, bookingID string, number int64) (place 
 		return false, true, nil
 	}
 	return true, false, nil
+}
+
+// holdUnknownCall は、送ったか分からない電話をかけ直さない。
+// 呼び出し中でなくなっていれば、届けた印を付けて終える。
+// 呼び出し中のまま期限を過ぎたら、つながらなかったにする。期限の前は、呼んだ側がやり直す。
+func (s *server) holdUnknownCall(saved booking, personID, bookingID string, number int64) (bool, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), bookingOpTimeout)
+	defer cancel()
+	callDoc, err := s.callRef(personID, saved.CallID).Get(ctx)
+	if err != nil && status.Code(err) != codes.NotFound {
+		return false, true, nil
+	}
+	if err == nil {
+		state, _ := callDoc.Data()["state"].(string)
+		if state != "" && state != protocol.StateRinging {
+			if err := s.markBookingSent(personID, bookingID); err != nil {
+				log.Printf("予約 %s に届けた印を付けられなかった: %v", bookingID, err)
+			}
+			return false, false, nil
+		}
+	}
+	if s.now().Before(saved.At.Add(bookingGiveUp)) {
+		return false, true, nil
+	}
+	if err := s.endUnknownCall(personID, bookingID, number); err != nil {
+		log.Printf("予約 %s の、送ったか分からない電話を終えられなかった: %v", bookingID, err)
+		return false, true, nil
+	}
+	return false, false, nil
+}
+
+// endUnknownCall は、送ったか分からない呼び出し中を、つながらなかったにして予約を終える。
+// すでに呼び出し中でなければ、電話の状態は変えず、届けた印だけを付ける。
+func (s *server) endUnknownCall(personID, bookingID string, number int64) error {
+	var last error
+	for range bookingReleaseTries {
+		ctx, cancel := context.WithTimeout(context.Background(), bookingOpTimeout)
+		last = s.finishUnknownCall(ctx, personID, bookingID, number)
+		cancel()
+		if last == nil {
+			return nil
+		}
+	}
+	return last
+}
+
+func (s *server) finishUnknownCall(ctx context.Context, personID, bookingID string, number int64) error {
+	ref := s.bookingRef(personID, bookingID)
+	return s.firebase.Firestore.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
+		doc, err := tx.Get(ref)
+		if err != nil {
+			return err
+		}
+		var saved booking
+		if err := doc.DataTo(&saved); err != nil {
+			return err
+		}
+		if saved.Number != number || !saved.Called || saved.Sent || saved.UnknownCallID == "" || saved.UnknownCallID != saved.CallID {
+			return nil
+		}
+		call := s.callRef(personID, saved.CallID)
+		callDoc, err := tx.Get(call)
+		if err != nil && status.Code(err) != codes.NotFound {
+			return err
+		}
+		if err == nil {
+			state, _ := callDoc.Data()["state"].(string)
+			if state == "" || state == protocol.StateRinging {
+				if err := tx.Update(call, []firestore.Update{{Path: "state", Value: protocol.StateFailed}}); err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Update(ref, []firestore.Update{
+			{Path: "sent", Value: true},
+			{Path: "unknownCallId", Value: ""},
+		})
+	})
 }
 
 // markBookingSent は、予約に届けた印を付ける。リクエストが切れても付ける。
