@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:kazokuai/app/app.dart';
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
@@ -12,8 +13,10 @@ import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_screen.dart';
 import 'package:kazokuai/features/booking/retry_rule_screen.dart';
+import 'package:kazokuai/features/tutorial/tutorial_anchor.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
@@ -25,7 +28,31 @@ const _standardLayout = LayoutCase(393, 1.0);
 Future<void> _pumpBooking(
   WidgetTester tester, {
   LayoutCase layout = _standardLayout,
-}) => pumpScreenInLayout(tester, layout, const Scaffold(body: BookingScreen()));
+  List<BookedCall>? bookings,
+  DateTime? now,
+  bool sampling = false,
+}) {
+  final screen = Scaffold(
+    body: sampling
+        ? TutorialAnchors(
+            registry: TutorialAnchorRegistry(),
+            sampling: true,
+            child: const BookingScreen(),
+          )
+        : const BookingScreen(),
+  );
+  return pumpScreenInLayout(
+    tester,
+    layout,
+    screen,
+    overrides: [
+      bookingsRepositoryProvider.overrideWithValue(
+        FakeBookingsRepository(bookings: bookings ?? sampleBookedCalls),
+      ),
+      mockBookingNow(now ?? sampleBookingDay),
+    ],
+  );
+}
 
 // 画面の外にあっても押せるように、スクロールしてから押す
 Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
@@ -49,14 +76,18 @@ void main() {
     testEachLayout('伝えたいことが長い予約を足しても', (tester, layout) async {
       await _pumpBooking(tester, layout: layout);
 
-      tester
-          .container()
-          .read(bookedCallsProvider.notifier)
-          .add(
-            at: DateTime(2026, 11, 8, 9),
-            message: 'とても長い内容です。' * 8,
-            script: '「長い通話内容です。」',
-          );
+      final repository = tester.container().read(
+        bookingsRepositoryProvider,
+      ) as FakeBookingsRepository;
+      repository.bookings.value = [
+        ...?repository.bookings.value,
+        BookedCall(
+          id: 'long',
+          at: DateTime(2026, 11, 8, 9),
+          message: 'とても長い内容です。' * 8,
+          script: '「長い通話内容です。」',
+        ),
+      ];
       await tester.pump();
 
       await tester.ensureVisible(find.textContaining('とても長い内容です。'));
@@ -114,7 +145,7 @@ void main() {
       );
     });
 
-    testWidgets('予約している電話はモックの 3 件で、題も繰り返しもない', (tester) async {
+    testWidgets('渡したこれからの予約を並べ、題も繰り返しもない', (tester) async {
       await _pumpBooking(tester);
 
       expect(find.text('今日 12:00'), findsOneWidget);
@@ -127,6 +158,89 @@ void main() {
       expect(find.text('夜の電話'), findsNothing);
       expect(find.text('1回だけ'), findsNothing);
       expect(find.textContaining('毎日'), findsNothing);
+    });
+
+    testWidgets('かけた予約と過ぎた予約は出さない', (tester) async {
+      final now = DateTime(2026, 11, 10, 15);
+      await _pumpBooking(
+        tester,
+        now: now,
+        bookings: [
+          BookedCall(
+            id: 'past',
+            at: DateTime(2026, 11, 9, 12),
+            message: '昨日の伝言',
+            script: '「昨日」',
+          ),
+          BookedCall(
+            id: 'called',
+            at: DateTime(2026, 11, 11, 9),
+            message: 'かけた伝言',
+            script: '「かけた」',
+            called: true,
+          ),
+          BookedCall(
+            id: 'later',
+            at: DateTime(2026, 11, 12, 10),
+            message: '週末に帰ると伝える',
+            script: '「あと」',
+          ),
+          BookedCall(
+            id: 'soon',
+            at: DateTime(2026, 11, 10, 18),
+            message: '夕方の伝言',
+            script: '「夕方」',
+          ),
+        ],
+      );
+
+      expect(find.text('夕方の伝言'), findsOneWidget);
+      expect(find.text('今日 18:00'), findsOneWidget);
+      expect(find.text('週末に帰ると伝える'), findsOneWidget);
+      expect(find.text('11/12 10:00'), findsOneWidget);
+      expect(find.text('昨日の伝言'), findsNothing);
+      expect(find.text('かけた伝言'), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('今日 18:00')).dy,
+        lessThan(tester.getTopLeft(find.text('11/12 10:00')).dy),
+      );
+    });
+
+    testWidgets('これからの予約がなければ、見本は出さない', (tester) async {
+      await _pumpBooking(tester, bookings: const []);
+
+      expect(find.text('予約している電話'), findsOneWidget);
+      expect(find.text('話し相手'), findsNothing);
+      expect(find.text('今日 12:00'), findsNothing);
+    });
+
+    testWidgets('案内のあいだ、これからの予約がなければ見本を出す', (tester) async {
+      await _pumpBooking(tester, bookings: const [], sampling: true);
+
+      expect(find.text('今日 12:00'), findsOneWidget);
+      expect(find.text('話し相手'), findsOneWidget);
+      expect(find.text('今日 19:00'), findsOneWidget);
+      expect(find.text('11/7 10:00'), findsOneWidget);
+    });
+
+    testWidgets('案内のあいだでも、これからの予約があれば見本は出さない', (tester) async {
+      await _pumpBooking(
+        tester,
+        sampling: true,
+        now: DateTime(2026, 11, 10, 15),
+        bookings: [
+          BookedCall(
+            id: 'real',
+            at: DateTime(2026, 11, 11, 9),
+            message: '本当の予約',
+            script: '「本当」',
+          ),
+        ],
+      );
+
+      expect(find.text('本当の予約'), findsOneWidget);
+      expect(find.text('11/11 09:00'), findsOneWidget);
+      expect(find.text('話し相手'), findsNothing);
     });
 
     testWidgets('一覧とかけなおしのルールの間は 12', (tester) async {
@@ -184,6 +298,8 @@ void main() {
             sampleHome(),
             sampleCalls(),
             idleCallProgress(),
+            emptyBookings(),
+            mockBookingNow(),
           ],
           child: const KazokuAiApp(),
         ),

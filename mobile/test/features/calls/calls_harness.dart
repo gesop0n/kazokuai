@@ -9,6 +9,7 @@ import 'package:kazokuai/features/calls/calls_screen.dart';
 import 'package:kazokuai/features/calls/sample_calls_data.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
@@ -32,6 +33,7 @@ Future<void> pumpCallsTab(WidgetTester tester) async {
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        emptyBookings(),
       ],
       child: const KazokuAiApp(),
     ),

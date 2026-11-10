@@ -257,10 +257,10 @@ GoRouter createAppRouter({
       ),
       GoRoute(
         name: AppRoutes.bookingEdit,
-        path: '/booking/edit/:index',
+        path: '/booking/edit/:id',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) =>
-            BookingEditRoute(index: state.pathParameters['index'] ?? ''),
+            BookingEditRoute(id: state.pathParameters['id'] ?? ''),
       ),
       GoRoute(
         name: AppRoutes.retryRule,

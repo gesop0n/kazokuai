@@ -23,6 +23,7 @@ import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../../support/fake_auth_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_sync_repository.dart';
@@ -51,6 +52,7 @@ Future<void> pumpApp(
         registeredWatchedPerson(),
         home ?? sampleHome(),
         sampleCalls(),
+        emptyBookings(),
         idleCallProgress(),
         if (sync != null) syncRepositoryProvider.overrideWithValue(sync),
       ],

@@ -60,8 +60,10 @@ const _fade = LinearGradient(
 );
 
 // 決定した日時を返す。閉じただけなら null で、01 の日時は変えない。
+// now は端末の今。今日から 30 日先まで、今から 1 分よりあとだけ決められる。
 Future<DateTime?> showDateTimeSheet(
   BuildContext context, {
+  required DateTime now,
   required DateTime initial,
 }) {
   return showModalBottomSheet<DateTime>(
@@ -73,14 +75,15 @@ Future<DateTime?> showDateTimeSheet(
     backgroundColor: Colors.transparent,
     elevation: 0,
     barrierColor: AppColors.scrim,
-    builder: (context) => DateTimeSheet(initial: initial),
+    builder: (context) => DateTimeSheet(now: now, initial: initial),
   );
 }
 
 // 01b。日付はカレンダー、時刻は 5 分ごとの回転式。
 class DateTimeSheet extends StatefulWidget {
-  const DateTimeSheet({super.key, required this.initial});
+  const DateTimeSheet({super.key, required this.now, required this.initial});
 
+  final DateTime now;
   final DateTime initial;
 
   @override
@@ -125,24 +128,28 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     super.dispose();
   }
 
+  DateTime get _today => bookingDay(widget.now);
+
+  DateTime get _lastDay => bookingLastDay(widget.now);
+
   DateTime _clampDay(DateTime day) {
-    if (day.isBefore(bookingToday)) return bookingToday;
-    if (day.isAfter(bookingLastDate)) return bookingLastDate;
+    if (day.isBefore(_today)) return _today;
+    if (day.isAfter(_lastDay)) return _lastDay;
     return day;
   }
 
   bool _canSelect(DateTime date) =>
-      !date.isBefore(bookingToday) && !date.isAfter(bookingLastDate);
+      !date.isBefore(_today) && !date.isAfter(_lastDay);
 
-  // 前の月がすべて基準日より前なら、戻る先がない
+  // 前の月がすべて今日より前なら、戻る先がない
   bool get _canGoBack {
     final previousLast = DateTime(_month.year, _month.month, 0);
-    return !previousLast.isBefore(bookingToday);
+    return !previousLast.isBefore(_today);
   }
 
   bool get _canGoForward {
     final nextFirst = DateTime(_month.year, _month.month + 1);
-    return !nextFirst.isAfter(bookingLastDate);
+    return !nextFirst.isAfter(_lastDay);
   }
 
   void _moveMonth(int delta) {
@@ -238,17 +245,20 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     setState(() => apply(index));
   }
 
+  DateTime get _selectedAt => DateTime(
+    _selectedDay.year,
+    _selectedDay.month,
+    _selectedDay.day,
+    _hour,
+    _minute,
+  );
+
+  // 今から 1 分ちょうどと、30 日より先は決められない。
+  bool get _canConfirm => canBookAt(_selectedAt, widget.now);
+
   void _confirm() {
-    Navigator.pop(
-      context,
-      DateTime(
-        _selectedDay.year,
-        _selectedDay.month,
-        _selectedDay.day,
-        _hour,
-        _minute,
-      ),
-    );
+    if (!_canConfirm) return;
+    Navigator.pop(context, _selectedAt);
   }
 
   @override
@@ -308,6 +318,7 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
                     month: _month,
                     weekdays: _weekdays,
                     selectedDay: _selectedDay,
+                    today: _today,
                     canSelect: _canSelect,
                     onSelect: (date) => setState(() => _selectedDay = date),
                   ),
@@ -347,7 +358,7 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
                       label: label,
                       variant: AppButtonVariant.primary,
                       size: AppButtonSize.l,
-                      onTap: _confirm,
+                      onTap: _canConfirm ? _confirm : null,
                     ),
                   ),
                 ],
@@ -417,6 +428,7 @@ class _MonthGrid extends StatelessWidget {
     required this.month,
     required this.weekdays,
     required this.selectedDay,
+    required this.today,
     required this.canSelect,
     required this.onSelect,
   });
@@ -424,6 +436,7 @@ class _MonthGrid extends StatelessWidget {
   final DateTime month;
   final List<String> weekdays;
   final DateTime selectedDay;
+  final DateTime today;
   final bool Function(DateTime date) canSelect;
   final ValueChanged<DateTime> onSelect;
 
@@ -477,7 +490,7 @@ class _MonthGrid extends StatelessWidget {
     return _DayCell(
       date: date,
       enabled: enabled,
-      isToday: date == bookingToday,
+      isToday: date == today,
       isSelected: date == selectedDay,
       onTap: enabled ? () => onSelect(date) : null,
     );

@@ -8,6 +8,7 @@ import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/fake_calls_repository.dart';
@@ -57,6 +58,7 @@ Future<void> _pump(
   LayoutCase layout = _layout,
   CallLog? log,
   FakeCallsRepository? calls,
+  DateTime? now,
 }) {
   return pumpScreenInLayout(
     tester,
@@ -70,6 +72,7 @@ Future<void> _pump(
       callsRepositoryProvider.overrideWithValue(
         calls ?? FakeCallsRepository(log: log),
       ),
+      mockBookingNow(now),
     ],
   );
 }
@@ -231,28 +234,35 @@ void main() {
       );
     });
 
-    testWidgets('基準日の 1 年後より先の日は選べない', (tester) async {
+    testWidgets('基準日から 30 日より先の日は選べない', (tester) async {
       await _pump(tester, log: _log());
       await _open(tester);
 
-      for (var i = 0; i < 12; i++) {
-        await tester.tap(find.bySemanticsLabel('次の月'));
-        await tester.pumpAndSettle();
-      }
+      await tester.tap(find.bySemanticsLabel('次の月'));
+      await tester.pumpAndSettle();
 
-      expect(find.text('2027年11月'), findsOneWidget);
+      expect(find.text('2026年12月'), findsOneWidget);
+      expect(find.text('2027年11月'), findsNothing);
       expect(
         tester.getSemantics(find.bySemanticsLabel('次の月')),
         isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
       );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('12月5日')),
+        isSemantics(isButton: true, isEnabled: true, hasEnabledState: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('12月6日')),
+        isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
+      );
 
-      await tester.tap(find.bySemanticsLabel('11月6日'));
+      await tester.tap(find.bySemanticsLabel('12月6日'));
       await tester.pumpAndSettle();
       expect(find.text('11/6(金) 8:30にする'), findsOneWidget);
 
-      await tester.tap(find.bySemanticsLabel('11月5日'));
+      await tester.tap(find.bySemanticsLabel('12月4日'));
       await tester.pumpAndSettle();
-      expect(find.text('11/5(金) 8:30にする'), findsOneWidget);
+      expect(find.text('12/4(金) 8:30にする'), findsOneWidget);
     });
 
     testWidgets('時刻の数字は 44pt 以上押せる', (tester) async {
@@ -375,6 +385,87 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('7:30'), findsOneWidget);
       expect(find.text('8:30'), findsNothing);
+    });
+
+    testWidgets('今日から 30 日先までで、1 分以内は決められない', (tester) async {
+      await _pump(tester, now: DateTime(2026, 11, 10, 15, 9));
+      expect(find.text('11/11(水)'), findsOneWidget);
+      expect(find.text('8:30'), findsOneWidget);
+      await _open(tester);
+
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('前の月')),
+        isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('11月9日')),
+        isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('11月10日、今日')),
+        isSemantics(isButton: true, isEnabled: true, hasEnabledState: true),
+      );
+
+      await tester.tap(find.bySemanticsLabel('次の月'));
+      await tester.pumpAndSettle();
+      expect(find.text('2026年12月'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('12月10日')),
+        isSemantics(isButton: true, isEnabled: true, hasEnabledState: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('12月11日')),
+        isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsLabel('次の月')),
+        isSemantics(isButton: true, isEnabled: false, hasEnabledState: true),
+      );
+
+      await tester.tap(find.bySemanticsLabel('12月10日'));
+      await tester.pumpAndSettle();
+      await _spin(tester, _hourWheel(), 15);
+      await _spin(tester, _minuteWheel(), 1);
+      expect(
+        tester
+            .widget<AppButton>(
+              find.widgetWithText(AppButton, '12/10(木) 15:05にする'),
+            )
+            .onTap,
+        isNotNull,
+      );
+
+      await _spin(tester, _minuteWheel(), 3);
+      expect(
+        tester
+            .widget<AppButton>(
+              find.widgetWithText(AppButton, '12/10(木) 15:15にする'),
+            )
+            .onTap,
+        isNull,
+      );
+
+      await tester.tap(find.bySemanticsLabel('前の月'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.bySemanticsLabel('11月10日、今日'));
+      await tester.pumpAndSettle();
+      await _spin(tester, _minuteWheel(), 2);
+      expect(
+        tester
+            .widget<AppButton>(
+              find.widgetWithText(AppButton, '11/10(火) 15:10にする'),
+            )
+            .onTap,
+        isNull,
+      );
+
+      await _spin(tester, _minuteWheel(), 3);
+      final allowed = find.widgetWithText(AppButton, '11/10(火) 15:15にする');
+      expect(tester.widget<AppButton>(allowed).onTap, isNotNull);
+      await tester.tap(allowed);
+      await tester.pumpAndSettle();
+      expect(find.text('11/10(火)'), findsOneWidget);
+      expect(find.text('15:15'), findsOneWidget);
     });
   });
 }

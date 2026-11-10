@@ -22,6 +22,7 @@ import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 
 import '../../support/fake_auth_repository.dart';
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_calls_repository.dart';
 import '../../support/fake_home_repository.dart';
 import '../../support/fake_watched_person_repository.dart';
@@ -156,6 +157,7 @@ Future<void> _openCalls(WidgetTester tester, FakeCallsRepository calls) async {
     ProviderScope(
       overrides: [
         signedInAuth(),
+        emptyBookings(),
         registeredWatchedPerson(),
         sampleHome(),
         callsRepositoryProvider.overrideWithValue(calls),
@@ -288,6 +290,7 @@ void main() {
       ProviderScope(
         overrides: [
           signedInAuth(),
+          emptyBookings(),
           registeredWatchedPerson(),
           homeRepositoryProvider.overrideWithValue(
             FakeHomeRepository(
@@ -372,6 +375,7 @@ void main() {
         ProviderScope(
           overrides: [
             signedInAuth(),
+            emptyBookings(),
             registeredWatchedPerson(),
             sampleHome(),
             callsRepositoryProvider.overrideWithValue(repository),
@@ -528,6 +532,7 @@ void main() {
         ProviderScope(
           overrides: [
             signedInAuth(),
+            emptyBookings(),
             registeredWatchedPerson(),
             homeRepositoryProvider.overrideWithValue(
               FakeHomeRepository(
@@ -614,6 +619,7 @@ void main() {
         ProviderScope(
           overrides: [
             signedInAuth(),
+            emptyBookings(),
             registeredWatchedPerson(),
             homeRepositoryProvider.overrideWithValue(
               FakeHomeRepository(

@@ -20,6 +20,7 @@ import 'package:kazokuai/features/settings/logout_screen.dart';
 import 'package:kazokuai/features/settings/settings_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_bookings_repository.dart';
 import '../support/fake_call_progress_repository.dart';
 import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
@@ -43,6 +44,8 @@ Future<void> openAt(
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        sampleBookings(),
+        mockBookingNow(),
         idleCallProgress(),
       ],
       child: const KazokuAiApp(),
@@ -59,6 +62,8 @@ Future<void> openSignedIn(WidgetTester tester) async {
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        sampleBookings(),
+        mockBookingNow(),
         idleCallProgress(),
       ],
       child: const KazokuAiApp(),
@@ -105,7 +110,7 @@ void main() {
     });
 
     testWidgets('予約の編集の「もどる」は予約電話に移る', (tester) async {
-      await openAt(tester, '/booking/edit/0');
+      await openAt(tester, '/booking/edit/noon');
       expect(find.byType(BookingEditScreen), findsOneWidget);
       expect(find.byType(AppTabBar), findsNothing);
 

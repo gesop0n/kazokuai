@@ -11,32 +11,50 @@ import 'package:kazokuai/features/booking/booking_data.dart';
 class DateTimeFields extends StatelessWidget {
   const DateTimeFields({
     super.key,
+    required this.now,
     required this.date,
     required this.time,
     required this.onDateChanged,
     required this.onTimeChanged,
   });
 
+  // 端末の今。今日から 30 日先まで選べる。
+  final DateTime now;
   final DateTime date;
   final TimeOfDay time;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<TimeOfDay> onTimeChanged;
 
   Future<void> _pickDate(BuildContext context) async {
+    final today = bookingDay(now);
+    final last = bookingLastDay(now);
+    // 開いている予約の日が範囲の外でも、ピッカーが落ちないように収める。
+    var initial = date;
+    if (initial.isBefore(today)) initial = today;
+    if (initial.isAfter(last)) initial = last;
     final picked = await showDatePicker(
       context: context,
-      initialDate: date,
-      firstDate: bookingToday,
-      lastDate: bookingLastDate,
-      // 既定は端末の時計の日付になる
-      currentDate: bookingToday,
+      initialDate: initial,
+      firstDate: today,
+      lastDate: last,
+      currentDate: today,
     );
     if (picked != null) onDateChanged(picked);
   }
 
   Future<void> _pickTime(BuildContext context) async {
     final picked = await showTimePicker(context: context, initialTime: time);
-    if (picked != null) onTimeChanged(picked);
+    if (picked == null) return;
+    final at = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      picked.hour,
+      picked.minute,
+    );
+    // 今から 1 分以内と、30 日より先は時刻にしない。
+    if (!canBookAt(at, now)) return;
+    onTimeChanged(picked);
   }
 
   @override
@@ -96,10 +114,13 @@ class DateTimePickField extends StatelessWidget {
           minHeight: 56,
           padding: const EdgeInsets.symmetric(horizontal: 16),
           semanticLabel: label,
+          // 欄の値は見出しの読み上げに重ねない。01 の日時と同じ。
           child: Align(
             alignment: Alignment.centerLeft,
             heightFactor: 1,
-            child: Text(value, style: AppTextStyles.monoM),
+            child: ExcludeSemantics(
+              child: Text(value, style: AppTextStyles.monoM),
+            ),
           ),
         ),
       ],

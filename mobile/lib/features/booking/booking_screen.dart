@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:kazokuai/app/router.dart';
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/design/app_colors.dart';
 import 'package:kazokuai/design/app_icon.dart';
 import 'package:kazokuai/design/app_radius.dart';
@@ -65,31 +66,45 @@ class _BookedCallsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final calls = ref.watch(bookedCallsProvider);
-    return AppCard(
-      variant: AppCardVariant.paper,
-      children: [
-        // このカードだけ間隔が 10 なので、1 つの Column にまとめる
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          spacing: 10,
+    final repository = ref.watch(bookingsRepositoryProvider);
+    final now = ref.watch(bookingNowProvider)();
+    return ValueListenableBuilder(
+      valueListenable: repository.bookings,
+      builder: (context, bookings, _) {
+        // 読み終えるまでは行を出さない。案内の見本も、空だと決まるまで出さない。
+        final upcoming = bookings == null
+            ? const <BookedCall>[]
+            : upcomingBookings(bookings, now);
+        // 案内のあいだ、これからの予約がなければモックの見本を出す。終わると消す。
+        final sampling = TutorialAnchors.samplingOf(context);
+        final useSamples = bookings != null && upcoming.isEmpty && sampling;
+        final shown = useSamples ? sampleBookedCalls : upcoming;
+        final today = useSamples ? sampleBookingDay : now;
+        return AppCard(
+          variant: AppCardVariant.paper,
           children: [
-            const Text('予約している電話', style: AppTextStyles.titleM),
-            for (final (index, call) in calls.indexed)
-              _BookedRow(call, index: index),
+            // このカードだけ間隔が 10 なので、1 つの Column にまとめる
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              spacing: 10,
+              children: [
+                const Text('予約している電話', style: AppTextStyles.titleM),
+                for (final call in shown) _BookedRow(call, today: today),
+              ],
+            ),
           ],
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
 // モックの bookedRow。1 行に日時、伝えたいこと、シェブロンが並ぶ
 class _BookedRow extends StatelessWidget {
-  const _BookedRow(this.call, {required this.index});
+  const _BookedRow(this.call, {required this.today});
 
   final BookedCall call;
-  final int index;
+  final DateTime today;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +115,7 @@ class _BookedRow extends StatelessWidget {
       child: AppPressable(
         onTap: () => context.pushNamed(
           AppRoutes.bookingEdit,
-          pathParameters: {'index': '$index'},
+          pathParameters: {'id': call.id},
         ),
         foregroundColor: AppColors.inkPrimary,
         shape: const RoundedRectangleBorder(),
@@ -111,7 +126,10 @@ class _BookedRow extends StatelessWidget {
             SizedBox(
               // モックの幅 72。短い時刻は 1 行で、「11/7 10:00」は 2 行になる。文字倍率に合わせて広げる
               width: MediaQuery.textScalerOf(context).scale(72),
-              child: Text(formatBookedAt(call.at), style: AppTextStyles.monoS),
+              child: Text(
+                formatBookedAt(call.at, today: today),
+                style: AppTextStyles.monoS,
+              ),
             ),
             Expanded(child: Text(call.message, style: AppTextStyles.labelM)),
             const AppIcon(
