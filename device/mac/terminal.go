@@ -11,7 +11,7 @@ import (
 )
 
 // Hook は、ターミナルのフックとキーパッドである。
-// 空の行で受話器を上げ下げし、`#` だけの行が「＃」である。
+// 空の行で受話器を上げ下げし、`#` だけの行が「＃」、`*` だけの行が「＊」である。
 // 受話器が上がっているかは監視をまたいで残り、切れ目の空の行は捨てる。
 type Hook struct {
 	out    io.Writer
@@ -27,7 +27,7 @@ type Hook struct {
 }
 
 // NewHook は、in の空の行をフック、それ以外の行をキーとして受ける。
-// `#` だけの行が「＃」である。上げたときと置いたときを out に書く。
+// `#` だけの行が「＃」、`*` だけの行が「＊」である。上げたときと置いたときを out に書く。
 // 上げ下げを知らせるのは、Prepare から Rest までのあいだだけである。
 func NewHook(in io.Reader, out io.Writer) *Hook {
 	h := &Hook{
@@ -135,7 +135,7 @@ func (h *Hook) Lifted() bool {
 	return h.up
 }
 
-// Keys は、空でない行を 1 つずつ返す。`#` だけの行が「＃」である。
+// Keys は、空でない行を 1 つずつ返す。`#` だけの行が「＃」、`*` だけの行が「＊」である。
 func (h *Hook) Keys() <-chan string { return h.keys }
 
 var _ phone.Keypad = (*Hook)(nil)

@@ -43,19 +43,20 @@ class ReplyCard extends StatelessWidget {
             ),
           ],
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 2,
-          children: [
-            Text(
-              '伝えたこと',
-              style: AppTextStyles.labelS.copyWith(
-                color: AppColors.inkSecondary,
+        if (reply.told.trim().isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: 2,
+            children: [
+              Text(
+                '伝えたこと',
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.inkSecondary,
+                ),
               ),
-            ),
-            Text(reply.told, style: AppTextStyles.bodyM),
-          ],
-        ),
+              Text(reply.told, style: AppTextStyles.bodyM),
+            ],
+          ),
         Container(
           padding: const EdgeInsets.only(top: 12),
           decoration: const BoxDecoration(

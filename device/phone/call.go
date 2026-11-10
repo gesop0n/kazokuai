@@ -58,6 +58,13 @@ type Device struct {
 	speakGen int
 	// calling は、電話の処理に入っているあいだ真である。このあいだの同期の完了は流さない。
 	calling bool
+	// starBusy は、「＊」で電話を頼み始めてから、その電話に入るか、断られて文を流すまで真である。
+	starBusy bool
+	// readingCode は、認証コードを受話器で話しているあいだ真である。このあいだの「＊」は捨てる。
+	readingCode bool
+	codeGen     int
+	// voicing は、待機中に受話器へ文を流したあと、まだ止めていないとき真である。
+	voicing bool
 	// speeches は、認証コードを頼んだ結果である。Run が作る。
 	speeches chan speech
 }
@@ -65,10 +72,14 @@ type Device struct {
 // errNoAnswer は、呼び出しの上限を過ぎても受話器が上がらなかったときである。
 var errNoAnswer = errors.New("見守る方が出ませんでした")
 
+// errHandsetDown は、会話を始める直前に受話器が置かれていたときである。マイクは開けない。
+var errHandsetDown = errors.New("受話器が置かれています")
+
 // place は、callID の電話を 1 回する。受話器が置かれたときと、電話の長さの上限に達したときは nil を返す。
 // 見守る方が出なかったとき、接続が切れたとき、サーバーが GoAway を送ってきたときは、その理由をエラーで返す。
 // エラーで戻った電話は、受話器が上がっていても、つながらなかったである。
-func (d *Device) place(ctx context.Context, link callLink, callID string) (err error) {
+// fromHandset のときは、受話器がすでに上がっている。呼び出さず、出たときと同じように会話を始める。
+func (d *Device) place(ctx context.Context, link callLink, callID string, fromHandset bool) (err error) {
 	// 待っているあいだの Enter を、この電話の受話器上げにしない。
 	d.Phone.Hook.Prepare()
 	// Rest を最初に登録する。defer は逆順なので、状態と報告を送り終えてからフックを戻す。
@@ -118,12 +129,22 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 	d.Phone.Lamp.On()
 	// ランプを消すのは、下の後始末で 1 回だけである。ここに defer を足すと、報告の前と後で 2 回消える。
 	// 呼び出し音を出す前に測り始める。テストは音が鳴ったのを見てから時計を進める。
-	ringTimer := d.Clock.NewTimer(token.Times.RingTimeout)
-	defer ringTimer.Stop()
-	ringC := ringTimer.Chan()
-	d.sendState(link, callID, protocol.StateRinging)
-	d.Phone.Ringer.Ring()
-	ringing := true
+	// 見守る方からの電話は、受話器が上がっているので鳴らさない。
+	var ringTimer Timer
+	var ringC <-chan time.Time
+	ringing := false
+	if !fromHandset {
+		ringTimer = d.Clock.NewTimer(token.Times.RingTimeout)
+		ringC = ringTimer.Chan()
+		d.sendState(link, callID, protocol.StateRinging)
+		d.Phone.Ringer.Ring()
+		ringing = true
+	}
+	defer func() {
+		if ringTimer != nil {
+			ringTimer.Stop()
+		}
+	}()
 	defer func() {
 		if ringing {
 			d.Phone.Ringer.Stop()
@@ -162,6 +183,17 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 		d.Phone.Lamp.Off()
 	}()
 
+	if fromHandset {
+		mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns, true)
+		// トークンを待っているあいだに置かれていた。マイクは開けず、つながらなかったで終わる。
+		if errors.Is(err, errHandsetDown) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,25 +217,14 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 			switch {
 			case event == PickedUp && ringing:
 				ringing = false
-				lines.pickedUp = d.Clock.Now()
 				d.Phone.Ringer.Stop()
 				ringTimer.Stop()
 				ringC = nil
-				// 送れなくても、電話そのものは続ける。最後の状態は、終わるときに改めて送る。
-				d.sendState(link, callID, protocol.StateTalking)
-				untilCue := token.Times.MaxCall - token.Times.WrapUpBefore
-				if untilCue < 0 {
-					untilCue = 0
-				}
-				wrapUpTimer = d.Clock.NewTimer(untilCue)
-				limitTimer = d.Clock.NewTimer(token.Times.MaxCall)
-				wrapUpC = wrapUpTimer.Chan()
-				limitC = limitTimer.Chan()
-				if mic, err = d.Phone.Handset.Listen(micCtx); err != nil {
-					return fmt.Errorf("マイクを開けなかった: %w", err)
-				}
 				// 受話器が上がるまでは何も送らないので、turns は空で、ここで待つことはない
-				turns <- func(s Session) error { return s.SendClientContent(startCue) }
+				mic, wrapUpTimer, limitTimer, wrapUpC, limitC, err = d.beginTalk(link, callID, lines, token, micCtx, turns, false)
+				if err != nil {
+					return err
+				}
 			case event == PutDown && !ringing:
 				return nil
 			}
@@ -233,6 +254,32 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 			return fmt.Errorf("Live API との接続が切れた: %w", err)
 		}
 	}
+}
+
+// beginTalk は、受話器が上がったあとの会話を始める。呼び出し音は止めない。止めるのは呼び出し側である。
+func (d *Device) beginTalk(link callLink, callID string, lines *transcript, token *protocol.TokenResponse, micCtx context.Context, turns chan<- func(Session) error, requireUp bool) (mic <-chan []byte, wrapUp, limit Timer, wrapUpC, limitC <-chan time.Time, err error) {
+	// トークンを待っているあいだに置かれた受話器は、出来事より先に接点を見る。置かれていればマイクを開けない。
+	if requireUp && d.Phone.Hook != nil && !d.Phone.Hook.Lifted() {
+		return nil, nil, nil, nil, nil, errHandsetDown
+	}
+	lines.pickedUp = d.Clock.Now()
+	// 送れなくても、電話そのものは続ける。最後の状態は、終わるときに改めて送る。
+	d.sendState(link, callID, protocol.StateTalking)
+	untilCue := token.Times.MaxCall - token.Times.WrapUpBefore
+	if untilCue < 0 {
+		untilCue = 0
+	}
+	wrapUp = d.Clock.NewTimer(untilCue)
+	limit = d.Clock.NewTimer(token.Times.MaxCall)
+	wrapUpC = wrapUp.Chan()
+	limitC = limit.Chan()
+	mic, err = d.Phone.Handset.Listen(micCtx)
+	if err != nil {
+		err = fmt.Errorf("マイクを開けなかった: %w", err)
+		return
+	}
+	turns <- func(s Session) error { return s.SendClientContent(startCue) }
+	return
 }
 
 // hear は、AI の音声を受話器で流し、両方の文字起こしを出す。

@@ -41,6 +41,13 @@ const (
 	codeError   = "error"
 	codeClosed  = "closed"
 	codeBlock   = "block"
+	starOK      = "star"
+	starRefuse  = "star-refuse"
+	starOffline = "star-offline"
+	// starHang は、最初の「＊」の応答を、その要求が取り消されるまで返さない。次の「＊」は始める。
+	starHang = "star-hang"
+	// starTokenRefuse は、電話は始めるが、短命トークンは断る。
+	starTokenRefuse = "star-token-refuse"
 )
 
 func TestHashUpPlaysTheCodeAndPlaysItAgain(t *testing.T) {
@@ -143,7 +150,7 @@ func TestHashDuringFailedCallSetupIsDiscarded(t *testing.T) {
 		Keypad:  chanKeys(keys),
 		Ringer:  p,
 		Lamp:    p,
-	}, io.Discard, false)
+	}, io.Discard, false, clock.Real{})
 	send := func(key string) {
 		t.Helper()
 		select {
@@ -255,7 +262,7 @@ func TestMacHandsetLiftedBeforeACallDoesNotAnswer(t *testing.T) {
 		Keypad:  inner,
 		Ringer:  handset,
 		Lamp:    handset,
-	}, io.Discard, false)
+	}, io.Discard, false, clock.Real{})
 
 	select {
 	case <-hook.ready:
@@ -300,6 +307,7 @@ type codeRig struct {
 	phone   *fakePhone
 	keys    chan string
 	out     *lockedBuffer
+	gemini  *fakeGemini
 }
 
 func newCodeRig(t *testing.T, kind string) *codeRig {
@@ -310,26 +318,30 @@ func newCodeRig(t *testing.T, kind string) *codeRig {
 	backend := newCodeBackend(kind)
 	srv := httptest.NewServer(backend)
 	t.Cleanup(srv.Close)
-	runCodeDevice(t, srv, backend, phone.Phone{
+	gemini := runCodeDevice(t, srv, backend, phone.Phone{
 		Handset: p,
 		Hook:    p,
 		Keypad:  chanKeys(keys),
 		Ringer:  p,
 		Lamp:    p,
-	}, out, true)
-	return &codeRig{t: t, backend: backend, phone: p, keys: keys, out: out}
+	}, out, true, clock.Real{})
+	return &codeRig{t: t, backend: backend, phone: p, keys: keys, out: out, gemini: gemini}
 }
 
-func runCodeDevice(t *testing.T, srv *httptest.Server, backend *codeBackend, hw phone.Phone, out io.Writer, echo bool) {
+func runCodeDevice(t *testing.T, srv *httptest.Server, backend *codeBackend, hw phone.Phone, out io.Writer, echo bool, clk phone.Clock) *fakeGemini {
 	t.Helper()
+	if clk == nil {
+		clk = clock.Real{}
+	}
+	gemini := &fakeGemini{}
 	device := &phone.Device{
 		Backend:  srv.URL,
 		Secret:   "secret-test",
 		Identity: phone.Identity{ID: testPhoneID, Key: testPhoneKey},
-		Gemini:   &fakeGemini{},
+		Gemini:   gemini,
 		Phone:    hw,
 		Out:      out,
-		Clock:    clock.Real{},
+		Clock:    clk,
 		Echo:     echo,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -352,16 +364,19 @@ func runCodeDevice(t *testing.T, srv *httptest.Server, backend *codeBackend, hw 
 	case <-time.After(waitTimeout):
 		t.Fatal("電話機がつながらなかった")
 	}
+	return gemini
 }
 
 func (r *codeRig) lift() {
 	r.t.Helper()
+	r.phone.setUp(true)
 	r.sendHook(phone.PickedUp)
 	r.sendKey("1")
 }
 
 func (r *codeRig) down() {
 	r.t.Helper()
+	r.phone.setUp(false)
 	r.sendHook(phone.PutDown)
 	r.sendKey("1")
 }
@@ -470,6 +485,10 @@ type codeBackend struct {
 	kind        string
 	mu          sync.Mutex
 	n           int
+	starts      int
+	tokenN      int
+	stateN      int
+	tokenCall   string
 	conn        *websocket.Conn
 	accepted    chan struct{}
 	onceAccept  sync.Once
@@ -477,6 +496,10 @@ type codeBackend struct {
 	release     chan struct{}
 	onceRelease sync.Once
 	onceEntered sync.Once
+	// tokenHold が nil でなければ、短命トークンの応答を、そのチャネルが閉じるまで返さない。
+	tokenHold chan struct{}
+	tokenHeld chan struct{}
+	onceToken sync.Once
 }
 
 func newCodeBackend(kind string) *codeBackend {
@@ -496,8 +519,10 @@ func (s *codeBackend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.acceptPhone(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == protocol.PhoneCodePath:
 		s.issueCode(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == protocol.PhoneCallPath:
+		s.issueStar(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == protocol.TokenPath:
-		s.issueToken(w)
+		s.issueToken(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == protocol.CallReportPath:
 		w.WriteHeader(http.StatusAccepted)
 	default:
@@ -519,8 +544,15 @@ func (s *codeBackend) acceptPhone(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	s.onceAccept.Do(func() { close(s.accepted) })
 	for {
-		if _, _, err := conn.Read(r.Context()); err != nil {
+		_, data, err := conn.Read(r.Context())
+		if err != nil {
 			return
+		}
+		var msg protocol.PhoneMessage
+		if json.Unmarshal(data, &msg) == nil && msg.Type == protocol.PhoneTypeState {
+			s.mu.Lock()
+			s.stateN++
+			s.mu.Unlock()
 		}
 	}
 }
@@ -563,7 +595,72 @@ func writeCode(w http.ResponseWriter) {
 	w.Write([]byte(`{"code":"` + testCode + `"}`))
 }
 
-func (s *codeBackend) issueToken(w http.ResponseWriter) {
+func (s *codeBackend) issueStar(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	s.starts++
+	n := s.starts
+	s.mu.Unlock()
+	if !phoneHeaders(r) {
+		http.Error(w, "認証が違います", http.StatusUnauthorized)
+		return
+	}
+	switch s.kind {
+	case codeOffline, starOffline:
+		hj, ok := w.(http.Hijacker)
+		if !ok {
+			http.Error(w, "切れません", http.StatusBadGateway)
+			return
+		}
+		conn, _, err := hj.Hijack()
+		if err != nil {
+			return
+		}
+		conn.Close()
+	case codeError, starRefuse:
+		http.Error(w, protocol.CallInProgress, http.StatusConflict)
+	case starHang:
+		if n == 1 {
+			s.onceEntered.Do(func() { close(s.entered) })
+			<-r.Context().Done()
+			return
+		}
+		writeStar(w)
+	default:
+		writeStar(w)
+	}
+}
+
+func writeStar(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte(`{"id":"call-from-star"}`))
+}
+
+func (s *codeBackend) issueToken(w http.ResponseWriter, r *http.Request) {
+	var req protocol.TokenRequest
+	json.NewDecoder(io.LimitReader(r.Body, 4096)).Decode(&req)
+	s.mu.Lock()
+	s.tokenCall = req.CallID
+	s.tokenN++
+	hold := s.tokenHold
+	held := s.tokenHeld
+	s.mu.Unlock()
+	if s.kind == starTokenRefuse {
+		http.Error(w, "終わっている", http.StatusConflict)
+		return
+	}
+	if hold != nil {
+		s.onceToken.Do(func() {
+			if held != nil {
+				close(held)
+			}
+		})
+		select {
+		case <-hold:
+		case <-r.Context().Done():
+			return
+		}
+	}
 	body, err := json.Marshal(protocol.TokenResponse{
 		Token: "token-test",
 		Model: "model-test",
@@ -589,6 +686,30 @@ func (s *codeBackend) hits() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.n
+}
+
+func (s *codeBackend) startCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.starts
+}
+
+func (s *codeBackend) askedCall() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tokenCall
+}
+
+func (s *codeBackend) tokenCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tokenN
+}
+
+func (s *codeBackend) stateCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.stateN
 }
 
 func (s *codeBackend) waitEntered(t *testing.T) {

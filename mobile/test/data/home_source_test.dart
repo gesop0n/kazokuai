@@ -234,6 +234,31 @@ void main() {
     expect(meal.needsAttention, isFalse);
   });
 
+  test('見守る方からの電話は、今日の様子に入り、伝言の返答は出さない', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    await _call(firestore, 'from-parent', {
+      ..._made(
+        at: DateTime(2026, 11, 5, 9, 2),
+        durationMs: 180000,
+        headline: '庭の話をした',
+        quote: '',
+        offsetMs: 0,
+        meal: _talked('ご飯を食べた', 'ご飯は食べたよ'),
+        sleep: _silent(),
+        health: _silent(),
+      ),
+      'message': '',
+      'startedByWatchedPerson': true,
+    });
+
+    final home = await _home(firestore, _now);
+
+    expect(home.todayCall!.id, 'from-parent');
+    expect(home.todayCall!.summary.conditions.first.value, 'ご飯を食べた');
+    expect(home.reply, isNull);
+  });
+
   test('伝言への返答は、伝えたことと、返答を話した時刻になる', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);
