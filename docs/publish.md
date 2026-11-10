@@ -248,6 +248,22 @@ GitHub の Actions で、ワークフロー `deploy` を `main` から手で 1 �
 
 終わると `https://kazokuai.web.app` に、そのビルドが出る。
 
+## 13. 提出用のリポジトリへ写す
+
+ハッカソンの審査は、公開のリポジトリ `Devfest-Hackathon-2026/df-2026-t086` の中身で行う。そこでは GitHub Actions は動かない。このリポジトリのワークフロー `submit` が、`main` のスナップショットを提出先の `main` へ写す。履歴は写さない。動かすのは手だけである。
+
+きっかけは `workflow_dispatch` だけである。`main` 以外の ref では断る。先に `mise run check` が動き、通ったときだけ写す。写すのは、ワークフローを動かしたコミットで git が追跡しているファイルである。コマンドは `git archive HEAD` である。提出先の `.git` と `LICENSE` は残す。`github-actions[bot]` が、このリポジトリの名前と短い SHA をメッセージにしてコミットし、提出先の `main` に push する。変更がなければコミットしない。
+
+push の前に、スナップショットに秘密の形をした文字列（Google の API キー、秘密鍵の見出し、GitHub のトークン）がないかを調べる。見つかったら push せずに失敗する。出すのはファイルの名前だけで、値は出さない。
+
+書き込みには secret `SUBMISSION_TOKEN` を使う。これは gesop0n の fine-grained のトークンで、対象は提出先のリポジトリだけ、権限は Contents の読み書きである。人が作って登録する。値は表示しない。
+
+```bash
+gh secret set SUBMISSION_TOKEN --repo gesop0n/kazokuai
+```
+
+締切の前に、GitHub の Actions でワークフロー `submit` を `main` から手で動かす。締切のあと、提出先は読み取り専用になる。
+
 ## Cloud Run が tainted で残っているとき
 
 イメージが無い状態で Cloud Run を作ろうとして失敗すると、サービスが状態に tainted で残ることがある。そのままだと、次の apply はサービスを消して作り直そうとする。`deletion_protection` と、状態の `deletion_policy` が `PREVENT` のときは、その削除を拒む。
