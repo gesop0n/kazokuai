@@ -179,6 +179,7 @@ class InfraRunTest(unittest.TestCase):
             "google_project_service_identity.run",
             "google_artifact_registry_repository_iam_member.run_reader",
             "google_firestore_database.default",
+            "google_firestore_field.booking_task_pending",
             "google_firebaserules_ruleset.firestore",
             "google_firebaserules_release.firestore",
             "google_firebase_web_app.web",

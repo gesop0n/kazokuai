@@ -69,7 +69,7 @@ Firestore の `(default)` が既にあるときも、作る前に取り込む。
 
 ## 5. Cloud Run を作らずに apply する
 
-`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと、サイト ID `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM は作らない。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、登録待ちの予約を読むインデックス、Firebase の Web アプリ、Hosting（既定のサイトと、サイト ID `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM は作らない。
 
 `IMAGE` は Terraform の変数なので要る。この URI は push しなくてよい。Cloud Run はここから先の手順で作る。
 
