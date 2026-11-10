@@ -43,12 +43,16 @@ const (
 
 // Hook は、受話器を上げ下げしたことを知らせる。
 // Prepare から Rest までが 1 回の監視で、その切れ目に押した Enter は次の監視へ持ち越さない。
+// すでに上がっている受話器は、その監視の出来事にはしない。Lifted が今の状態である。
 type Hook interface {
 	// Prepare は、受話器を下ろした状態から、この電話の上げ下げを知らせ始める。
 	Prepare()
 	// Rest は、この電話の上げ下げを知らせるのをやめる。
 	Rest()
 	Events() <-chan HookEvent
+	// Lifted は、受話器が今上がっているかである。
+	// 監視を切り替えるときに、電話機がこれを読んで覚え直す。
+	Lifted() bool
 }
 
 // Ringer は呼び出し音である。

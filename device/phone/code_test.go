@@ -119,6 +119,69 @@ func TestCodeArrivingAfterPutDownPlaysNothing(t *testing.T) {
 	r.quiet()
 }
 
+func TestHashDuringFailedCallSetupIsDiscarded(t *testing.T) {
+	backend := newCodeBackend(codeOK)
+	tokenEntered := make(chan struct{})
+	releaseToken := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == protocol.TokenPath {
+			close(tokenEntered)
+			<-releaseToken
+			http.Error(w, "test token failure", http.StatusInternalServerError)
+			return
+		}
+		backend.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	p := &fakePhone{hook: make(chan phone.HookEvent)}
+	p.setUp(true)
+	keys := make(chan string, 1)
+	runCodeDevice(t, srv, backend, phone.Phone{
+		Handset: p,
+		Hook:    p,
+		Keypad:  chanKeys(keys),
+		Ringer:  p,
+		Lamp:    p,
+	}, io.Discard, false)
+	send := func(key string) {
+		t.Helper()
+		select {
+		case keys <- key:
+		case <-time.After(time.Second):
+			t.Fatalf("キー %s を受け取らなかった", key)
+		}
+	}
+
+	select {
+	case p.hook <- phone.PickedUp:
+	case <-time.After(time.Second):
+		t.Fatal("待機が始まらなかった")
+	}
+	send("#")
+	waitUntil(t, "最初の認証コードを頼まなかった", func() bool { return backend.hits() == 1 })
+
+	backend.send(t, protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: "call-1"})
+	select {
+	case <-tokenEntered:
+	case <-time.After(time.Second):
+		t.Fatal("短命トークンを頼まなかった")
+	}
+	send("#")
+	close(releaseToken)
+
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if backend.hits() > 1 {
+			t.Fatal("電話の準備中に押した「＃」が、失敗のあとに認証コードを頼んだ")
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	send("#")
+	waitUntil(t, "失敗のあとに上げたままの「＃」が認証コードを頼まなかった", func() bool { return backend.hits() == 2 })
+}
+
 func TestHashDuringACallDoesNothing(t *testing.T) {
 	r := newCodeRig(t, codeOK)
 	r.send(protocol.PhoneMessage{Type: protocol.PhoneTypeCall, CallID: "call-1"})

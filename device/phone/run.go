@@ -288,6 +288,8 @@ func (d *Device) handleCommands(ctx context.Context, link callLink, commands *ca
 		err := d.place(callCtx, link, callID)
 		d.disarmCall()
 		cancel()
+		// 電話の最中に置いた受話器は出来事にならない。同期の知らせを見る前に、今の状態を読む。
+		d.adoptHandset()
 		d.setCalling(false)
 		d.finish(err)
 		if ctx.Err() != nil {

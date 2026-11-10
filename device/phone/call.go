@@ -56,7 +56,7 @@ type Device struct {
 	// stopping は、StopCall から、その電話を止めるまで真である。
 	// 指示を読み取る直前に止めても、その電話を始めない。
 	stopping bool
-	// handsetUp は、最後に見た受話器が上がっているかである。
+	// handsetUp は、受話器が上がっているかである。上げ下げの出来事と、監視を切り替えるときに読んだ状態で更新する。
 	handsetUp bool
 	// speakGen は、今の読み上げの番号である。置く、次の「＃」、同期の完了、電話の開始で増え、前の読み上げを捨てる。
 	speakGen int
@@ -77,6 +77,8 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 	d.Phone.Hook.Prepare()
 	// Rest を最初に登録する。defer は逆順なので、状態と報告を送り終えてからフックを戻す。
 	defer d.Phone.Hook.Rest()
+	// 準備が終わるまでキーを捨てる。トークンや接続が失敗しても、その「＃」を待機へ持ち越さない。
+	defer d.discardKeys()()
 
 	// 報告の送信は、音声の後始末の defer より先に登録する。
 	// 送信はマイクを止め、まだ流していない音を捨て、接続を閉じ、ランプを消したあとに行われる。
@@ -146,8 +148,6 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 	defer closeMic()
 	// 受話器が上がるまでは nil なので、マイクの音を待たない
 	var mic <-chan []byte
-	// 電話の最中に押したキーは、ここで受け取って捨てる。終わってから認証コードを流さない。
-	keys := d.keys()
 	lines := &transcript{out: d.Out, clock: d.Clock}
 	defer func() {
 		lines.flush()
@@ -211,11 +211,6 @@ func (d *Device) place(ctx context.Context, link callLink, callID string) (err e
 				turns <- func(s Session) error { return s.SendClientContent(startCue) }
 			case event == PutDown && !ringing:
 				return nil
-			}
-
-		case _, ok := <-keys:
-			if !ok {
-				keys = nil
 			}
 
 		case pcm, ok := <-mic:

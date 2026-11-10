@@ -40,6 +40,7 @@ func (d *Device) idleUntilCall(ctx context.Context, commands *callQueue) (string
 		d.Phone.Hook.Prepare()
 		defer d.Phone.Hook.Rest()
 		events = d.Phone.Hook.Events()
+		d.adoptHandset()
 	}
 	keys := d.keys()
 	for {
@@ -80,6 +81,65 @@ func (d *Device) keys() <-chan string {
 		return nil
 	}
 	return d.Phone.Keypad.Keys()
+}
+
+// discardKeys は、電話の準備と通話のあいだに押したキーを捨てる。
+// 戻った関数は、その捨てるのをやめて、残ったキーも捨てる。
+func (d *Device) discardKeys() func() {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		keys := d.keys()
+		if keys == nil {
+			return
+		}
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case _, ok := <-keys:
+				if !ok {
+					return
+				}
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+		d.drainKeys()
+	}
+}
+
+// drainKeys は、捨てる側が止まった直後にチャネルへ残ったキーを捨てる。
+func (d *Device) drainKeys() {
+	keys := d.keys()
+	if keys == nil {
+		return
+	}
+	for {
+		select {
+		case _, ok := <-keys:
+			if !ok {
+				return
+			}
+		default:
+			return
+		}
+	}
+}
+
+// adoptHandset は、監視を切り替えるときに、受話器が今上がっているかを覚え直す。
+// すでに上がっている受話器を置いても、Pi の接点は置いた出来事を出さない。
+func (d *Device) adoptHandset() {
+	if d.Phone.Hook == nil {
+		return
+	}
+	up := d.Phone.Hook.Lifted()
+	d.mu.Lock()
+	d.handsetUp = up
+	d.mu.Unlock()
 }
 
 func (d *Device) onHook(ev HookEvent) {

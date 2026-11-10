@@ -110,6 +110,19 @@ func (h *Hook) Events() <-chan phone.HookEvent {
 	return h.events
 }
 
+// Lifted は、今の接点が受話器が上がっている状態かである。
+// 監視が止まっていても読める。すでに上がっている受話器は出来事にしないので、待機へ戻るときに使う。
+func (h *Hook) Lifted() bool {
+	if h.line == nil {
+		return false
+	}
+	raw, err := h.line.Value()
+	if err != nil {
+		return false
+	}
+	return contactLifted(raw, h.liftedWhenClosed)
+}
+
 // Close は、この電話の監視をやめ、接点を放す。
 func (h *Hook) Close() error {
 	h.Rest()

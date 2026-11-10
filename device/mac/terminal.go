@@ -128,6 +128,13 @@ func (h *Hook) watch(ctx context.Context) {
 
 func (h *Hook) Events() <-chan phone.HookEvent { return h.events }
 
+// Lifted は、受話器が上がっているかである。監視をまたいで残る。
+func (h *Hook) Lifted() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.up
+}
+
 // Keys は、空でない行を 1 つずつ返す。`#` だけの行が「＃」である。
 func (h *Hook) Keys() <-chan string { return h.keys }
 

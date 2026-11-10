@@ -517,6 +517,7 @@ type fakePhone struct {
 	mu      sync.Mutex
 	ringing bool
 	lit     bool
+	up      bool
 	mic     chan []byte // マイクが開いている間だけある
 	played  []byte
 	hushes  int
@@ -555,6 +556,19 @@ func (p *fakePhone) Events() <-chan phone.HookEvent { return p.hook }
 // Prepare と Rest は何もしない。テストは、上げ下げを直接送る。
 func (p *fakePhone) Prepare() {}
 func (p *fakePhone) Rest()    {}
+
+// Lifted は、setUp で置いた受話器の状態である。上げ下げのチャネルとは別である。
+func (p *fakePhone) Lifted() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.up
+}
+
+func (p *fakePhone) setUp(up bool) {
+	p.mu.Lock()
+	p.up = up
+	p.mu.Unlock()
+}
 
 func (p *fakePhone) Ring() { p.set(&p.ringing, true) }
 func (p *fakePhone) Stop() { p.set(&p.ringing, false) }
