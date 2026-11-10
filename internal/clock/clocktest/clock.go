@@ -56,6 +56,16 @@ func (c *Clock) WaitForTimers(n int) {
 	}
 }
 
+// WaitForDeadline は、deadline を期限にするタイマーができるまで待つ。
+// 個数で待つと、ほかのタイマーが先にできても戻ってしまう。
+func (c *Clock) WaitForDeadline(deadline time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for !c.hasDeadline(deadline) {
+		c.added.Wait()
+	}
+}
+
 func (c *Clock) pending() int {
 	n := 0
 	for _, t := range c.waiters {
@@ -64,6 +74,15 @@ func (c *Clock) pending() int {
 		}
 	}
 	return n
+}
+
+func (c *Clock) hasDeadline(deadline time.Time) bool {
+	for _, t := range c.waiters {
+		if !t.stopped && t.deadline.Equal(deadline) {
+			return true
+		}
+	}
+	return false
 }
 
 // Advance は、時計を d 進め、その時刻までに期限が来たタイマーへ知らせる。

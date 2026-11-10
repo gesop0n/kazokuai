@@ -37,6 +37,7 @@ type Result struct {
 	WatchedPersonID string
 	Calls           int
 	Missed          int
+	Bookings        int
 }
 
 func validateRequest(req Request) error {
@@ -65,9 +66,10 @@ func validateRequest(req Request) error {
 	return nil
 }
 
-// Seed は、渡した Firebase に審査員と見本の電話を作る。
+// Seed は、渡した Firebase に審査員と見本の電話と見本の予約を作る。
 // 見本の 1 週間は、渡した日の朝で終わる。日を渡さないときは、実行した日の朝で終わる。
-// もう一度実行すると、そのアカウントの電話をその日の見本に戻し、チュートリアルを見た記録を消す。
+// 見本の予約は、その日の翌日以降に 3 件ある。タスクは作らない。
+// もう一度実行すると、そのアカウントの電話と見本の予約をその日の見本に戻し、チュートリアルを見た記録を消す。
 func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, req Request) (Result, error) {
 	user, err := upsertJudge(ctx, accounts, req.Email, req.Password)
 	if err != nil {
@@ -93,10 +95,11 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 	if _, err := person.Set(ctx, fields); err != nil {
 		return Result{}, fmt.Errorf("見守る方を書けなかった: %w", err)
 	}
+	day := sampleDay(req)
 	if err := deleteCalls(ctx, store, person); err != nil {
 		return Result{}, err
 	}
-	calls := sampleCalls(sampleDay(req))
+	calls := sampleCalls(day)
 	missed := 0
 	for _, call := range calls {
 		if err := writeCall(ctx, store, person, call); err != nil {
@@ -104,6 +107,16 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 		}
 		if call.missed {
 			missed++
+		}
+	}
+	// 見本の予約はここで直接書く。保存の道を通すとタスクができ、審査のあいだに鳴る。
+	if err := deleteBookings(ctx, store, person); err != nil {
+		return Result{}, err
+	}
+	bookings := sampleBookings(day)
+	for _, booking := range bookings {
+		if err := writeBooking(ctx, store, person, booking); err != nil {
+			return Result{}, err
 		}
 	}
 	if err := resetTutorial(ctx, store, user.UID); err != nil {
@@ -115,6 +128,7 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 		WatchedPersonID: watchedPersonID,
 		Calls:           len(calls),
 		Missed:          missed,
+		Bookings:        len(bookings),
 	}, nil
 }
 
@@ -175,7 +189,7 @@ func keptPhoneLink(ctx context.Context, person *firestore.DocumentRef) (map[stri
 }
 
 // releaseOtherPersons は、この審査員が結び付いている、見本以外の見守る方から審査員を外す。
-// 審査員だけの文書は、電話ごと消す。ほかの家族がいる文書は残し、家族の一覧から審査員だけ外す。
+// 審査員だけの文書は、電話と予約ごと消す。ほかの家族がいる文書は残し、家族の一覧から審査員だけ外す。
 func releaseOtherPersons(ctx context.Context, store *firestore.Client, uid string) error {
 	docs, err := store.Collection("watchedPersons").Where("familyUids", "array-contains", uid).Documents(ctx).GetAll()
 	if err != nil {
@@ -203,6 +217,10 @@ func deletePerson(ctx context.Context, store *firestore.Client, person *firestor
 	if err := deleteCalls(ctx, store, person); err != nil {
 		return err
 	}
+	// 予約を残すと、文書を消したあとも起動時の読み直しがタスクにする。
+	if err := deleteBookings(ctx, store, person); err != nil {
+		return err
+	}
 	if _, err := person.Delete(ctx); err != nil {
 		return fmt.Errorf("見守る方 %s を消せなかった: %w", person.ID, err)
 	}
@@ -225,10 +243,38 @@ func deleteCalls(ctx context.Context, store *firestore.Client, person *firestore
 		}
 		refs = append(refs, call.Ref)
 	}
-	return deleteDocs(ctx, store, refs)
+	return deleteDocs(ctx, store, refs, "電話")
 }
 
-func deleteDocs(ctx context.Context, store *firestore.Client, refs []*firestore.DocumentRef) error {
+func deleteBookings(ctx context.Context, store *firestore.Client, person *firestore.DocumentRef) error {
+	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
+	if err != nil {
+		return fmt.Errorf("予約を読めなかった: %w", err)
+	}
+	refs := make([]*firestore.DocumentRef, 0, len(docs))
+	for _, doc := range docs {
+		refs = append(refs, doc.Ref)
+	}
+	return deleteDocs(ctx, store, refs, "予約")
+}
+
+func writeBooking(ctx context.Context, store *firestore.Client, person *firestore.DocumentRef, booking sampleBooking) error {
+	_, err := person.Collection("bookings").Doc(booking.id).Set(ctx, map[string]any{
+		"at":      booking.at,
+		"message": booking.message,
+		"script":  booking.script,
+		"number":  int64(1),
+		"called":  false,
+		// 見本はタスクを作らない。起動時の読み直しは、これを見てかけない。
+		"sample": true,
+	})
+	if err != nil {
+		return fmt.Errorf("予約 %s を書けなかった: %w", booking.id, err)
+	}
+	return nil
+}
+
+func deleteDocs(ctx context.Context, store *firestore.Client, refs []*firestore.DocumentRef, what string) error {
 	const limit = 400
 	for len(refs) > 0 {
 		n := min(len(refs), limit)
@@ -237,7 +283,7 @@ func deleteDocs(ctx context.Context, store *firestore.Client, refs []*firestore.
 			batch.Delete(ref)
 		}
 		if _, err := batch.Commit(ctx); err != nil {
-			return fmt.Errorf("電話を消せなかった: %w", err)
+			return fmt.Errorf("%sを消せなかった: %w", what, err)
 		}
 		refs = refs[n:]
 	}

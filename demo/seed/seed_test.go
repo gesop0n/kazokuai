@@ -280,6 +280,121 @@ func TestSeedMovesTheWeekWhenRunOnAnotherDay(t *testing.T) {
 	}
 }
 
+func TestSeedReplacesSampleBookingsAfterTheRunDay(t *testing.T) {
+	store, accounts := openEmulator(t)
+	ctx := t.Context()
+	const email = "judge-bookings@example.com"
+	// 朝より前でも、その日の翌日以降に入れる。
+	today := time.Date(2026, 11, 10, 7, 15, 0, 0, tokyo)
+	got := seedJudge(t, ctx, store, accounts, email, "judge-pass-1", today)
+	person := store.Collection("watchedPersons").Doc("tanaka-hana")
+	assertSampleBookings(t, ctx, person, today)
+
+	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := docs[0].Ref.Update(ctx, []firestore.Update{{Path: "message", Value: "書き換えた"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := person.Collection("bookings").Doc("extra").Set(ctx, map[string]any{
+		"at":      time.Date(2026, 11, 11, 15, 0, 0, 0, tokyo),
+		"message": "余分な予約",
+		"script":  "余分です。",
+		"number":  int64(1),
+		"called":  false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// 審査員だけの見守る方に予約が残ると、起動時にタスクになる。
+	extra := store.Collection("watchedPersons").Doc("judge-booking-extra")
+	if _, err := extra.Set(ctx, map[string]any{
+		"name": "別の人", "callName": "別", "familyUids": []string{got.UID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := extra.Collection("bookings").Doc("soon").Set(ctx, map[string]any{
+		"at":      time.Date(2026, 11, 11, 16, 0, 0, 0, tokyo),
+		"message": "別の見守る方",
+		"script":  "別の人への予約です。",
+		"number":  int64(1),
+		"called":  false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	later := time.Date(2026, 11, 12, 21, 0, 0, 0, tokyo)
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", later)
+	assertSampleBookings(t, ctx, person, later)
+	if _, err := extra.Collection("bookings").Doc("soon").Get(ctx); err == nil {
+		t.Fatal("消した見守る方の予約が残っている")
+	}
+}
+
+// assertSampleBookings は、見本の予約が day の翌日以降に 3 件あり、タスクが無いことを確かめる。
+// 中身はモックの予約である。モックの「今日」は実行した日には置かない。
+func assertSampleBookings(t *testing.T, ctx context.Context, person *firestore.DocumentRef, day time.Time) {
+	t.Helper()
+	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 3 {
+		t.Fatalf("予約 = %d 件, want 3", len(docs))
+	}
+	y, m, d := day.In(tokyo).Date()
+	want := []struct {
+		at      time.Time
+		message string
+		script  string
+	}{
+		{time.Date(y, m, d+1, 12, 0, 0, 0, tokyo), "話し相手", "「ハナさん、こんにちは。\n体調はいかがですか。」"},
+		{time.Date(y, m, d+1, 19, 0, 0, 0, tokyo), "薬と戸締まりの確認", "「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」"},
+		{time.Date(y, m, d+3, 10, 0, 0, 0, tokyo), "週末に帰ると伝える", "「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」"},
+	}
+	found := map[string]bool{}
+	runDay := time.Date(y, m, d, 0, 0, 0, 0, tokyo)
+	for _, doc := range docs {
+		fields := doc.Data()
+		message, _ := fields["message"].(string)
+		var match *struct {
+			at      time.Time
+			message string
+			script  string
+		}
+		for i := range want {
+			if want[i].message == message {
+				match = &want[i]
+				break
+			}
+		}
+		if match == nil {
+			t.Fatalf("見本にない予約がある: %s", message)
+		}
+		found[message] = true
+		at, _ := fields["at"].(time.Time)
+		if !at.Equal(match.at) || fields["script"] != match.script {
+			t.Fatalf("%s = %v / %v", message, at, fields["script"])
+		}
+		by, bm, bd := at.In(tokyo).Date()
+		if !time.Date(by, bm, bd, 0, 0, 0, 0, tokyo).After(runDay) {
+			t.Fatalf("%s の日 = %v, want %s の翌日以降", message, at, runDay.Format("2006-01-02"))
+		}
+		// 見本はタスクを作らない。かけた印も、かけた電話も無い。
+		if fields["sample"] != true || fields["called"] != false || asInt(fields["number"]) != 1 {
+			t.Fatalf("%s のタスク = sample %v called %v number %v", message, fields["sample"], fields["called"], fields["number"])
+		}
+		if id, _ := fields["callId"].(string); id != "" {
+			t.Fatalf("%s にかけた電話がある: %s", message, id)
+		}
+	}
+	for _, item := range want {
+		if !found[item.message] {
+			t.Errorf("予約がない: %s", item.message)
+		}
+	}
+}
+
 func assertWeekEndsOnMorning(t *testing.T, ctx context.Context, person *firestore.DocumentRef, morning, missedAt time.Time) {
 	t.Helper()
 	calls, err := person.Collection("calls").Documents(ctx).GetAll()
