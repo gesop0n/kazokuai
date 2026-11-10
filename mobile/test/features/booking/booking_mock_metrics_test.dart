@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:kazokuai/data/bookings_repository.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_chip.dart';
@@ -13,6 +14,7 @@ import 'package:kazokuai/features/home/home_status.dart';
 import 'package:kazokuai/features/home/missed_call_view.dart';
 import 'package:kazokuai/features/home/sample_home_data.dart';
 
+import '../../support/fake_bookings_repository.dart';
 import '../../support/layout_matrix.dart';
 
 // 高さと折り返しは文字の幅で変わるので、同梱のフォントを読み込んで測る。
@@ -34,7 +36,17 @@ const _mockLayout = LayoutCase(393, 1.0);
 const _narrowLargeLayout = LayoutCase(360, 1.3);
 
 Future<void> _pumpBooking(WidgetTester tester, LayoutCase layout) =>
-    pumpScreenInLayout(tester, layout, const Scaffold(body: BookingScreen()));
+    pumpScreenInLayout(
+      tester,
+      layout,
+      const Scaffold(body: BookingScreen()),
+      overrides: [
+        bookingsRepositoryProvider.overrideWithValue(
+          FakeBookingsRepository(bookings: sampleBookedCalls),
+        ),
+        mockBookingNow(),
+      ],
+    );
 
 Future<void> _pumpRule(
   WidgetTester tester,

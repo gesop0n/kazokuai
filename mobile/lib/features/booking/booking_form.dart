@@ -9,6 +9,9 @@ import 'package:kazokuai/design/widgets/app_card.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 
+// 入力が止まってから、通話内容の案を頼むまでの時間。01 と 06b で同じ。
+const bookingDraftPause = Duration(seconds: 1);
+
 // 01 と 06b が同じ部品を使う。通話内容をいつ出すかと、保存の中身は各画面が決める。
 
 class BookingMessageField extends StatelessWidget {

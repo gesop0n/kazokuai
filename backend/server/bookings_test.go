@@ -761,6 +761,78 @@ func TestBookingTimer(t *testing.T) {
 			t.Fatalf("通話内容 = %v", callData(t, person, callID)["script"])
 		}
 	})
+
+	t.Run("見本の予約は動き直してもかけない", func(t *testing.T) {
+		clk := clocktest.New(bookingNow)
+		srv, handler := newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+		person, _ := registerHanako(t, srv.URL)
+		forgetBookings(t, person)
+		at := bookingNow.Add(3 * time.Minute)
+		if _, err := emulators.Firestore.Collection("watchedPersons").Doc(person).Collection("bookings").Doc("sample").Set(t.Context(), map[string]any{
+			"at":      at,
+			"message": "話し相手",
+			"script":  "「ハナさん、こんにちは。\n体調はいかがですか。」",
+			"number":  int64(1),
+			"called":  false,
+			"sample":  true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		handler.Stop()
+
+		srv, handler = newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+		conn := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+		calls := readPhoneCalls(conn)
+		waitConnected(t, handler, person, true)
+		// ping のタイマーができてから進める。見本の予約が予定に入るなら、その前にタイマーもできる。
+		clk.WaitForTimers(1)
+		time.Sleep(200 * time.Millisecond)
+		clk.Advance(3 * time.Minute)
+		select {
+		case got := <-calls:
+			t.Fatalf("見本の予約で電話が来た: %s", got.CallID)
+		case <-time.After(500 * time.Millisecond):
+		}
+		if bookingData(t, person, "sample")["called"] == true || callCount(t, person) != 0 {
+			t.Fatal("見本の予約をかけた")
+		}
+	})
+
+	t.Run("見本の予約を直すと、動き直したあとにかける", func(t *testing.T) {
+		clk := clocktest.New(bookingNow)
+		srv, handler := newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+		person, token := registerHanako(t, srv.URL)
+		forgetBookings(t, person)
+		if _, err := emulators.Firestore.Collection("watchedPersons").Doc(person).Collection("bookings").Doc("sample").Set(t.Context(), map[string]any{
+			"at":      bookingNow.Add(3 * time.Minute),
+			"message": "話し相手",
+			"script":  "「ハナさん、こんにちは。\n体調はいかがですか。」",
+			"number":  int64(1),
+			"called":  false,
+			"sample":  true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		// 2 分より前なら、ほかのテストが残した予約のタイマーは、この時計を進めても鳴らない。
+		at := bookingNow.Add(time.Minute + 30*time.Second)
+		edited := postBooking(t, srv.URL, protocol.BookingPath+"/sample", token, at, "薬の確認", "ハナさん、お薬は飲みましたか。")
+		if edited.status != http.StatusOK {
+			t.Fatalf("直す = %d %s", edited.status, edited.body)
+		}
+		handler.Stop()
+
+		srv, handler = newDemoServerWith(t, "demo-kazokuai", protocol.DevPhoneSecret, clk)
+		conn := dialPhone(t, srv.URL, person, protocol.DevPhoneSecret)
+		calls := readPhoneCalls(conn)
+		waitConnected(t, handler, person, true)
+		// 個数で待つと、ほかの予約のタイマーで足りて、この予約の前に時刻を進めてしまう。
+		waitDeadline(t, clk, at)
+		clk.Advance(at.Sub(bookingNow))
+		callID, _ := receiveCall(t, calls, "")
+		if callData(t, person, callID)["script"] != "ハナさん、お薬は飲みましたか。" {
+			t.Fatalf("通話内容 = %v", callData(t, person, callID)["script"])
+		}
+	})
 }
 
 // 電話機に送ったあと、届けた印を書く前に止める。作り直したハンドラーへ同じタスクが届いても、予約にかけるのは 1 回である。
@@ -1087,5 +1159,19 @@ func waitTimers(t *testing.T, clk *clocktest.Clock, n int) {
 	case <-done:
 	case <-time.After(2 * time.Second):
 		t.Fatalf("タイマーが %d 個にならなかった", n)
+	}
+}
+
+func waitDeadline(t *testing.T, clk *clocktest.Clock, deadline time.Time) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		clk.WaitForDeadline(deadline)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("予約の時刻のタイマーができなかった")
 	}
 }

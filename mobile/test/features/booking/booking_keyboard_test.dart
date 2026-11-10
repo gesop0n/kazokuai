@@ -8,8 +8,10 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/design/widgets/app_nav_bar.dart';
 import 'package:kazokuai/design/widgets/app_text_field.dart';
 import 'package:kazokuai/features/ask/ask_screen.dart';
+import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/booking/booking_edit_screen.dart';
 
+import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/layout_matrix.dart';
@@ -37,6 +39,7 @@ void main() {
               FakeCallScriptRepository(),
             ),
             idleCallProgress(),
+            mockBookingNow(),
           ],
         );
 
@@ -49,7 +52,7 @@ void main() {
           tester,
           layout: layout,
           height: height,
-          screen: const BookingEditScreen(index: 0),
+          screen: BookingEditScreen(booking: sampleBookedCalls[0]),
         );
 
         await _expectFieldAboveKeyboard(tester, height);
@@ -71,6 +74,7 @@ void main() {
           FakeCallScriptRepository(),
         ),
         idleCallProgress(),
+        mockBookingNow(),
       ],
     );
     await tester.enterText(find.byType(TextField), message * 4);
@@ -232,7 +236,9 @@ Future<void> _pumpForm(
   required bool ask,
   bool ios = false,
 }) {
-  final screen = ask ? const AskScreen() : const BookingEditScreen(index: 0);
+  final screen = ask
+      ? const AskScreen()
+      : BookingEditScreen(booking: sampleBookedCalls[0]);
   // appTheme は読み込み時の OS を覚えている。iOS の跳ね返りを試すときは差し替える
   return pumpScreenInLayout(
     tester,
@@ -243,14 +249,15 @@ Future<void> _pumpForm(
             child: screen,
           )
         : screen,
-    overrides: ask
-        ? [
-            callScriptRepositoryProvider.overrideWithValue(
-              FakeCallScriptRepository(),
-            ),
-            idleCallProgress(),
-          ]
-        : const [],
+    overrides: [
+      if (ask) ...[
+        callScriptRepositoryProvider.overrideWithValue(
+          FakeCallScriptRepository(),
+        ),
+        idleCallProgress(),
+      ],
+      mockBookingNow(),
+    ],
   );
 }
 
