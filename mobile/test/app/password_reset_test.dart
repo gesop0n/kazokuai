@@ -12,6 +12,7 @@ import 'package:kazokuai/features/account/login_screen.dart';
 import 'package:kazokuai/features/account/password_reset_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_bookings_repository.dart';
 import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
@@ -24,6 +25,7 @@ Future<void> pumpApp(WidgetTester tester, FakeAuthRepository auth) async {
         registeredWatchedPerson(),
         sampleHome(),
         sampleCalls(),
+        emptyBookings(),
       ],
       child: const KazokuAiApp(),
     ),

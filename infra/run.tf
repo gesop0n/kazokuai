@@ -78,6 +78,22 @@ resource "google_cloud_run_v2_service" "backend" {
           }
         }
       }
+
+      # 予約のタスク。URL は local.backend_url で、このサービスの uri は参照しない。
+      env {
+        name  = "BOOKING_TASK_QUEUE"
+        value = google_cloud_tasks_queue.bookings.id
+      }
+
+      env {
+        name  = "BOOKING_TASK_ACCOUNT"
+        value = google_service_account.tasks.email
+      }
+
+      env {
+        name  = "BOOKING_TASK_AUDIENCE"
+        value = local.backend_url
+      }
     }
   }
 
@@ -87,6 +103,9 @@ resource "google_cloud_run_v2_service" "backend" {
     google_secret_manager_secret_iam_member.backend_gemini,
     google_secret_manager_secret_iam_member.backend_phone,
     google_artifact_registry_repository_iam_member.run_reader,
+    google_cloud_tasks_queue_iam_member.backend_enqueuer,
+    google_service_account_iam_member.backend_tasks,
+    google_service_account_iam_member.cloudtasks_token,
   ]
 }
 

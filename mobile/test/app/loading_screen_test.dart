@@ -13,6 +13,7 @@ import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
 import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
+import '../support/fake_bookings_repository.dart';
 import '../support/fake_calls_repository.dart';
 import '../support/fake_home_repository.dart';
 import '../support/fake_watched_person_repository.dart';
@@ -35,6 +36,7 @@ Future<void> pumpSignedInApp(
         watchedPersonRepositoryProvider.overrideWithValue(watchedPerson),
         sampleHome(),
         sampleCalls(),
+        emptyBookings(),
       ],
       child: const KazokuAiApp(),
     ),

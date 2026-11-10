@@ -293,3 +293,29 @@ mise run infra:apply -- --allow-replace \
 ```
 
 5. `--allow-replace` を付けずに、もう一度 apply する。`deletion_protection` が戻る。`deletion_policy` は `PREVENT` のままである。`deploy:backend` は Terraform を適用しないので、保護は戻さない。
+
+## すでに公開しているプロジェクトで予約の電話を有効にする
+
+Cloud Run が既にあるプロジェクトで、予約の時刻に電話をかける。Terraform が Cloud Tasks のキュー、タスクのサービスアカウント、バックエンドへの 3 つの設定を足す。資源の中身は [infra/README.md](../infra/README.md) の「予約の Cloud Tasks」にある。
+
+次の apply を 1 回実行する。`--bootstrap` は付けない。このフラグはキューを作らない。`--allow-replace` も付けない。plan が Cloud Run か、どちらかの Hosting のサイトを replace するときは、適用しない。
+
+```bash
+mise run infra:apply -- \
+  --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=IMAGE \
+  --state-bucket=BUCKET
+```
+
+`IMAGE` は、今動いているイメージの URI でよい。Terraform はイメージの変更を無視する。
+
+バックエンド自身の URL は `https://kazokuai-PROJECT_NUMBER.asia-northeast1.run.app` である。Terraform がプロジェクト番号から組む。Cloud Run のサービスから読まない。読むと、設定するサービスが自分に頼る。予約のタスクは、この URL の `/tasks/bookings` を、タスクのサービスアカウントの OIDC トークンで呼ぶ。audience も、この URL である。
+
+apply のあと、新しいバックエンドを載せる。環境変数は渡さない。apply が足したものを残す。
+
+```bash
+mise run deploy:backend -- --project=PROJECT_ID
+```
+
+人が確かめる。アプリで 3 分先に予約し、電話機が鳴るのを聞く。その予約をあとの時刻に直し、前の時刻には鳴らないことも確かめる。

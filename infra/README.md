@@ -27,7 +27,7 @@ mise run infra:apply -- --project=PROJECT_ID --billing-account=XXXXXX-XXXXXX-XXX
 
 `--project` が無いと、環境変数に別のプロジェクトがあっても、terraform は起動しない。apply は確認を求める。`-auto-approve` は付けない。
 
-`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM は作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
+`--bootstrap` は、API、Artifact Registry、秘密の入れ物、IAM、Firestore とルール、Firebase の Web アプリ、Hosting（既定のサイトと `kazokuai`）、予算を作る。Cloud Run と、その公開の IAM と、予約の Cloud Tasks のキューは作らない。`IMAGE` はこのときも変数として要る。まだ push していない URI でよい。
 
 `IMAGE` は、Artifact Registry に push したバックエンドのイメージの URI である。リポジトリは output の `artifact_registry` である。Cloud Run を作る apply は、push したあとに実行する。サービスができたあとのイメージは、`gcloud run deploy` が載せる。Terraform は `template[0].containers[0].image` と `client` と `client_version` の変更を無視する。あとの apply は、ワークフローが載せたイメージを戻さない。`--bootstrap` は、GitHub Actions の Workload Identity と、デプロイ用のサービスアカウントも作らない。それらは、`--bootstrap` を付けない apply が作る。
 
@@ -132,6 +132,46 @@ Cloud Run と、両方の Hosting サイトは、`deletion_policy` を `PREVENT`
 
 電話機は output の `cloud_run_uri` に直接つなぐ。Hosting を通さない。
 
+## 予約の Cloud Tasks
+
+予約を保存するか直すと、バックエンドが Cloud Tasks のキュー `bookings` にタスクを 1 つ作る。キューは Cloud Run と同じリージョンで、既定は `asia-northeast1` である。やり直しは 1 分おき、最初の試行から最大 10 分で、間隔は広げない。
+
+タスクのサービスアカウントは `kazokuai-tasks` である。バックエンドのサービスアカウントは、このキューにタスクを足せ、OIDC トークンの署名でタスクのアカウントとして動ける。タスクを配る Cloud Tasks のサービスエージェントは、そのアカウントでトークンへ署名できる。これがないと、トークンを付けてバックエンドを呼べない。
+
+バックエンドには、次の 3 つを環境変数で渡す。
+
+| 環境変数 | 中身 |
+| --- | --- |
+| `BOOKING_TASK_QUEUE` | キューの名前。`projects/PROJECT_ID/locations/asia-northeast1/queues/bookings` |
+| `BOOKING_TASK_ACCOUNT` | タスクのサービスアカウントのメールアドレス |
+| `BOOKING_TASK_AUDIENCE` | バックエンド自身の URL。OIDC の audience でもある |
+
+この URL は `https://kazokuai-PROJECT_NUMBER.asia-northeast1.run.app` である。Terraform は、プロジェクト番号とサービス名とリージョンから組む。`google_cloud_run_v2_service.backend.uri` は使わない。使うと、設定する Cloud Run が自分に頼る。Cloud Run は、この決定的な URL と、ハッシュを含む URL の両方を持つ。予約のタスクは決定的な URL を呼ぶ。電話機がつなぐ URL は、これまでどおり `cloud_run_uri` である。
+
+`--bootstrap` は、このキューとサービスアカウントを作らない。Cloud Run を作る apply が、一緒に作る。
+
+### すでに Cloud Run があるとき
+
+キュー、サービスアカウント、上の環境変数を足す。次の apply を 1 回実行する。`--bootstrap` も `--allow-replace` も付けない。plan が Cloud Run か、どちらかの Hosting のサイトを replace するときは、適用しない。環境変数の追加は、その場の変更である。
+
+`IMAGE` は、今動いているイメージの URI でよい。Terraform はイメージの変更を無視する。
+
+```bash
+mise run infra:apply -- \
+  --project=PROJECT_ID \
+  --billing-account=XXXXXX-XXXXXX-XXXXXX \
+  --image=IMAGE \
+  --state-bucket=BUCKET
+```
+
+apply のあと、バックエンドを載せ直す。`deploy:backend` は環境変数を渡さない。apply が足した 3 つは残る。
+
+```bash
+mise run deploy:backend -- --project=PROJECT_ID
+```
+
+人が確かめる。3 分先の予約で、電話機が鳴る。その予約をあとの時刻に直し、前の時刻には鳴らない。
+
 ## output
 
 | 名前 | 中身 |
@@ -149,5 +189,8 @@ Cloud Run と、両方の Hosting サイトは、`deletion_policy` を `PREVENT`
 | `artifact_registry` | イメージを push するリポジトリ |
 | `gemini_api_key_secret` | 秘密の名前 `gemini-api-key`。値は出ない |
 | `phone_shared_secret` | 秘密の名前 `phone-shared-secret`。値は出ない |
+| `booking_task_queue` | 予約の Cloud Tasks のキュー |
+| `booking_task_account` | 予約のタスクのサービスアカウント。鍵は出ない |
+| `booking_task_audience` | 予約のタスクが呼ぶ、バックエンド自身の URL |
 | `workload_identity_provider` | GitHub Actions が使うプロバイダーの名前。プロジェクト番号を含む |
 | `deploy_service_account` | デプロイ用のサービスアカウントのメールアドレス。鍵は出ない |

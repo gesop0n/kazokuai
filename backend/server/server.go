@@ -48,6 +48,12 @@ type Config struct {
 	TasksAudience string
 	// TasksAccount は、予約のタスクのサービスアカウントのメールである。トークンの email と一致させる。
 	TasksAccount string
+	// TasksQueue は、予約のタスクを入れる Cloud Tasks のキューである。
+	// projects/PROJECT/locations/REGION/queues/QUEUE。
+	TasksQueue string
+	// Tasks は、予約のタスクを Cloud Tasks に作る。nil なら、demo- 以外では予定へ入れない。
+	// テストが偽のクライアントを渡す。本物のプロジェクトでは main がクライアントを渡す。
+	Tasks CloudTasksClient
 	// CheckBookingOIDC は、予約のタスクの OIDC トークンを確かめ、そのメールアドレスを返す。
 	// nil なら Google の ID トークンを確かめる。テストが差し替える。
 	CheckBookingOIDC func(ctx context.Context, token, audience string) (email string, err error)
@@ -89,6 +95,8 @@ func (h *Handler) Connected(personID string) bool { return h.connected(personID)
 // アプリの道は /api の下にも付ける。Hosting は /api/** を、道をそのまま Cloud Run に回す。
 // 電話機の道（登録、認証コード、/token、/calls、WebSocket）と、予約のタスクの道は、/api の下には置かない。
 // demo- のプロジェクトでは、予約のタスクの道を閉じ、中のタイマーが同じ処理を呼ぶ。起動時に、まだかけていない予約を読み直す。
+// それ以外で Tasks があるときは、保存と直しのたびに Cloud Tasks のタスクを 1 つ作る。
+// タスクがまだ入っていない予約は、起動時に登録をやり直す。見本の予約は印が無いので入れない。
 // clk が nil のとき、タイマーは実時間で進む。
 func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer, clk clock.Clock) *Handler {
 	ctx, stop := context.WithCancel(context.Background())
@@ -104,11 +112,21 @@ func New(config Config, firebase Firebase, tokens Tokens, summarizer Summarizer,
 		base:       ctx,
 	}
 	var bookings *demoSchedule
-	if strings.HasPrefix(config.ProjectID, "demo-") {
+	switch {
+	case strings.HasPrefix(config.ProjectID, "demo-"):
 		bookings = newDemoSchedule(s)
 		s.schedule = bookings
 		s.loadUncalledBookings()
-	} else {
+	case config.Tasks != nil:
+		s.schedule = &cloudTasksSchedule{
+			s:        s,
+			client:   config.Tasks,
+			queue:    strings.TrimSpace(config.TasksQueue),
+			audience: strings.TrimSpace(config.TasksAudience),
+			account:  strings.TrimSpace(config.TasksAccount),
+		}
+		s.loadPendingBookingTasks()
+	default:
 		s.schedule = noopSchedule{}
 	}
 	router := chi.NewRouter()

@@ -2,18 +2,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:kazokuai/features/home/home_format.dart';
 
-// 予約の画面の基準日。端末の時計は使わない
-final bookingToday = DateTime(2026, 11, 5);
+// 予約の画面が「今」を読む時計。テストは決めた時刻に差し替える。
+final bookingNowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
-// 選べる期間の終わりはモックにないので、基準日の 1 年後にする
-final bookingLastDate = DateTime(2027, 11, 5);
+// その日の 0 時。カレンダーの今日。
+DateTime bookingDay(DateTime now) => DateTime(now.year, now.month, now.day);
+
+// 今から 30 日先の日付。その日のうち、今から 30 日を過ぎる時刻は選べない。
+DateTime bookingLastDay(DateTime now) {
+  final end = now.add(const Duration(days: 30));
+  return DateTime(end.year, end.month, end.day);
+}
+
+// バックエンドの時刻の決まりと同じ。今から 1 分よりあと、30 日先まで。
+// 1 分ちょうどと、30 日より先は選べない。
+bool canBookAt(DateTime at, DateTime now) =>
+    at.isAfter(now.add(const Duration(minutes: 1))) &&
+    !at.isAfter(now.add(const Duration(days: 30)));
 
 class BookedCall {
   const BookedCall({
+    required this.id,
     required this.at,
     required this.message,
     required this.script,
+    this.called = false,
   });
+
+  // Firestore のドキュメント ID
+  final String id;
 
   final DateTime at;
 
@@ -22,74 +39,48 @@ class BookedCall {
 
   // 通話内容
   final String script;
+
+  // かけたあとの予約は、これからの一覧に出さない
+  final bool called;
 }
 
-final bookedCallsProvider =
-    NotifierProvider<BookedCallsNotifier, List<BookedCall>>(
-      BookedCallsNotifier.new,
-    );
+// 使い方の案内で、これからの予約がまだないときに出す見本。モックの BOOKED。
+// 案内が終わると出さない。日付の「今日」は、この見本の日で書く。
+final sampleBookingDay = DateTime(2026, 11, 5);
 
-class BookedCallsNotifier extends Notifier<List<BookedCall>> {
-  // モックの BOOKED と同じ内容。日時の順
-  @override
-  List<BookedCall> build() => [
-    BookedCall(
-      at: DateTime(2026, 11, 5, 12, 0),
-      message: '話し相手',
-      script: '「ハナさん、こんにちは。\n体調はいかがですか。」',
-    ),
-    BookedCall(
-      at: DateTime(2026, 11, 5, 19, 0),
-      message: '薬と戸締まりの確認',
-      script: '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」',
-    ),
-    BookedCall(
-      at: DateTime(2026, 11, 7, 10, 0),
-      message: '週末に帰ると伝える',
-      script: '「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」',
-    ),
+final sampleBookedCalls = [
+  BookedCall(
+    id: 'noon',
+    at: DateTime(2026, 11, 5, 12),
+    message: '話し相手',
+    script: '「ハナさん、こんにちは。\n体調はいかがですか。」',
+  ),
+  BookedCall(
+    id: 'evening',
+    at: DateTime(2026, 11, 5, 19),
+    message: '薬と戸締まりの確認',
+    script: '「ハナさん、こんばんは。\n夜のお薬は飲みましたか。\n戸締まりもご確認ください。」',
+  ),
+  BookedCall(
+    id: 'weekend',
+    at: DateTime(2026, 11, 7, 10),
+    message: '週末に帰ると伝える',
+    script: '「ハナさん、ご家族からご伝言です。\n週末に帰るそうです。」',
+  ),
+];
+
+// まだかけていない、今よりあとの予約を時刻の順に並べる。
+List<BookedCall> upcomingBookings(List<BookedCall> bookings, DateTime now) {
+  final upcoming = [
+    for (final booking in bookings)
+      if (!booking.called && booking.at.isAfter(now)) booking,
   ];
-
-  // 日時の順の場所に足す
-  void add({
-    required DateTime at,
-    required String message,
-    required String script,
-  }) {
-    state = _insertByTime(
-      state,
-      BookedCall(at: at, message: message, script: script),
-    );
-  }
-
-  // 伝えたいことと日時を入れ替える。通話内容はそのまま。
-  // 日時が同じなら並びは動かさない。変わるときは日時の順の場所へ移す。
-  void update(int index, {required DateTime at, required String message}) {
-    final current = state[index];
-    final updated = BookedCall(
-      at: at,
-      message: message,
-      script: current.script,
-    );
-    if (current.at == at) {
-      state = [
-        for (var i = 0; i < state.length; i++) i == index ? updated : state[i],
-      ];
-      return;
-    }
-    final rest = [
-      for (var i = 0; i < state.length; i++)
-        if (i != index) state[i],
-    ];
-    state = _insertByTime(rest, updated);
-  }
-
-  // 同じ日時の予約がすでにあるときは、その後ろに入る
-  List<BookedCall> _insertByTime(List<BookedCall> calls, BookedCall booking) {
-    final index = calls.indexWhere((call) => call.at.isAfter(booking.at));
-    if (index < 0) return [...calls, booking];
-    return [...calls.sublist(0, index), booking, ...calls.sublist(index)];
-  }
+  upcoming.sort((a, b) {
+    final byTime = a.at.compareTo(b.at);
+    if (byTime != 0) return byTime;
+    return a.id.compareTo(b.id);
+  });
+  return upcoming;
 }
 
 class RetryRule {
@@ -187,12 +178,11 @@ String formatPickTime(int hour, int minute) =>
 String formatSheetTime(int hour, int minute) =>
     '$hour:${minute.toString().padLeft(2, '0')}';
 
-// 今日 12:00。基準日と別の日なら 11/7 10:00
-String formatBookedAt(DateTime at) {
+// 今日 12:00。今日と別の日なら 11/7 10:00
+String formatBookedAt(DateTime at, {required DateTime today}) {
+  final day = bookingDay(today);
   final isToday =
-      at.year == bookingToday.year &&
-      at.month == bookingToday.month &&
-      at.day == bookingToday.day;
-  final day = isToday ? '今日' : '${at.month}/${at.day}';
-  return '$day ${formatPickTime(at.hour, at.minute)}';
+      at.year == day.year && at.month == day.month && at.day == day.day;
+  final label = isToday ? '今日' : '${at.month}/${at.day}';
+  return '$label ${formatPickTime(at.hour, at.minute)}';
 }
