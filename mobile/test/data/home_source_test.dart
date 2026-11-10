@@ -372,6 +372,26 @@ void main() {
     expect(home.reply!.text, '新しい返答');
   });
 
+  test('電話機の ID がある見守る方は同期済みで、空ならまだ同期していない', () async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+
+    var home = await _home(firestore, _now);
+    expect(home.person.hasPhone, isFalse);
+
+    await firestore.collection('watchedPersons').doc('hanako').update({
+      'phoneId': '   ',
+    });
+    home = await _home(firestore, _now);
+    expect(home.person.hasPhone, isFalse);
+
+    await firestore.collection('watchedPersons').doc('hanako').update({
+      'phoneId': 'phone-1',
+    });
+    home = await _home(firestore, _now);
+    expect(home.person.hasPhone, isTrue);
+  });
+
   test('電話がまだなければ、直近の電話も今日の様子もない', () async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);

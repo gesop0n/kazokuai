@@ -216,6 +216,35 @@ describe('電話と会話', () => {
   });
 });
 
+describe('電話機', () => {
+  async function savedPhone() {
+    await env.withSecurityRulesDisabled((context) =>
+      setDoc(doc(context.firestore(), 'phones/phone-1'), {
+        keyHash: 'not-the-key',
+        watchedPersonId: 'hanako',
+        registeredAt: new Date('2026-11-10T00:00:00Z'),
+      }),
+    );
+  }
+
+  test('家族は、自分の見守る方に結び付いた電話機でも読めない', async () => {
+    await registered('hanako', hanako);
+    await savedPhone();
+    const db = firestoreOf(misaki);
+
+    await assertFails(getDoc(doc(db, 'phones/phone-1')));
+    await assertFails(getDocs(collection(db, 'phones')));
+  });
+
+  test('ログインしていなければ、電話機を読めない', async () => {
+    await savedPhone();
+    const db = env.unauthenticatedContext().firestore();
+
+    await assertFails(getDoc(doc(db, 'phones/phone-1')));
+    await assertFails(getDocs(collection(db, 'phones')));
+  });
+});
+
 describe('チュートリアルを見た記録', () => {
   test('家族は、自分の記録を読み書きできる', async () => {
     const db = firestoreOf(misaki);

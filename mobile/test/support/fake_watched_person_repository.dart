@@ -22,6 +22,12 @@ class FakeWatchedPersonRepository implements WatchedPersonRepository {
   int reloads = 0;
 
   @override
+  void noteLinkedWithoutName() {
+    if (status.value == WatchedPersonStatus.registered) return;
+    status.value = WatchedPersonStatus.unnamed;
+  }
+
+  @override
   void reload() {
     reloads++;
     status.value = WatchedPersonStatus.unknown;

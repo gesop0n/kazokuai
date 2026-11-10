@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/subtle"
 	"net/http"
 	"net/url"
@@ -9,14 +10,24 @@ import (
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
 
-// requirePhone は、電話機の合言葉が無い /token、/calls、WebSocket を断る。
+// requirePhone は、電話機を認証してから next に進む。
+// PhoneIDHeader があるときは、その ID と鍵で認証する。無いときは、合言葉の古い道である。
 func (s *server) requirePhone(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if !phoneSecretOK(r.Header.Get(protocol.PhoneSecretHeader), s.config.PhoneSecret) {
-			http.Error(w, "合言葉が違います", http.StatusUnauthorized)
+		if id := strings.TrimSpace(r.Header.Get(protocol.PhoneIDHeader)); id != "" {
+			identity, code, answer, err := s.phoneByKey(r.Context(), id, r.Header.Get(protocol.PhoneKeyHeader))
+			if err != nil {
+				http.Error(w, answer, code)
+				return
+			}
+			next(w, r.WithContext(context.WithValue(r.Context(), phoneIdentityKey, identity)))
 			return
 		}
-		next(w, r)
+		if !phoneSecretOK(r.Header.Get(protocol.PhoneSecretHeader), s.config.PhoneSecret) {
+			http.Error(w, protocol.PhoneAnswerBadSecret, http.StatusUnauthorized)
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), phoneIdentityKey, phoneIdentity{legacy: true})))
 	}
 }
 

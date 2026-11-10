@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 
 import 'package:kazokuai/data/call_script_repository.dart';
 import 'package:kazokuai/data/immediate_call_repository.dart';
+import 'package:kazokuai/data/sync_repository.dart';
 import 'package:kazokuai/data/watched_person_repository.dart';
 
 // アプリがバックエンドの API を呼ぶ。家族の Firebase の ID トークンを Authorization ヘッダーに入れる。
@@ -119,6 +120,62 @@ class Backend {
       throw const ImmediateCallException();
     }
   }
+
+  // 同期の準備を始める。すでに始まっていれば 200、新しく始めたときは 201。
+  // 始めすぎたときは SyncPrepLimitedException、それ以外は SyncFailedException。
+  Future<void> startSync({required String idToken}) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(_uri('/sync'), headers: {'Authorization': 'Bearer $idToken'})
+          .timeout(_timeout);
+    } on http.ClientException {
+      throw const SyncFailedException();
+    } on TimeoutException {
+      throw const SyncFailedException();
+    }
+    if (response.statusCode == 200 || response.statusCode == 201) return;
+    if (response.statusCode == 429 &&
+        _isAPIError(response.body, _syncPrepLimited)) {
+      throw const SyncPrepLimitedException();
+    }
+    throw const SyncFailedException();
+  }
+
+  // 6 桁の認証コードを送る。受け付けたときは 200。
+  // 違う、準備が終わっている、送れなかった、を分けて投げる。
+  Future<void> sendSyncCode({
+    required String idToken,
+    required String code,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _client
+          .post(
+            _uri('/sync/code'),
+            headers: {
+              'Authorization': 'Bearer $idToken',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({'code': code}),
+          )
+          .timeout(_timeout);
+    } on http.ClientException {
+      throw const SyncFailedException();
+    } on TimeoutException {
+      throw const SyncFailedException();
+    }
+    if (response.statusCode == 200 || response.statusCode == 201) return;
+    if (response.statusCode == 400 &&
+        _isAPIError(response.body, _syncCodeWrong)) {
+      throw const SyncCodeWrongException();
+    }
+    if (response.statusCode == 409 &&
+        _isAPIError(response.body, _syncPrepEnded)) {
+      throw const SyncPrepEndedException();
+    }
+    throw const SyncFailedException();
+  }
 }
 
 // protocol.PhoneNotConnected と合わせる
@@ -126,6 +183,11 @@ const _phoneNotConnected = 'phone_not_connected';
 
 // protocol.CallInProgress と合わせる
 const _callInProgress = 'call_in_progress';
+
+// protocol.SyncCodeWrong、SyncPrepEnded、SyncPrepLimited と合わせる
+const _syncCodeWrong = 'sync_code_wrong';
+const _syncPrepEnded = 'sync_prep_ended';
+const _syncPrepLimited = 'sync_prep_limited';
 
 bool _isAPIError(String body, String code) {
   try {

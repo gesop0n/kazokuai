@@ -12,12 +12,10 @@ import 'package:kazokuai/features/home/home_data.dart';
 import 'package:kazokuai/features/settings/settings_rows.dart';
 
 // モックの見本。好きな話題と AI の声は、まだ保存していない。
-// 電話機の番号は、#150 が同期の結果に差し替える。
 const _sampleTopics = '家族・孫、庭・花、料理';
 const _sampleVoice = 'やさしい女性の声';
-const _samplePhone = '03-0000-0000';
 
-enum _Action { comingSoon, account, phone }
+enum _Action { comingSoon, account, phone, retry }
 
 class _Entry {
   const _Entry({
@@ -36,7 +34,9 @@ class _Entry {
 }
 
 // 08。ホームの歯車から開く、見守る方の設定。
-// 動くのはアカウント情報だけ。ほかの項目は「準備中です」。
+// 名前と呼び方は出すが、まだ書き換えられない。
+// 同期している電話機は同期の画面を、かけなおしのルールは 07 を開く。
+// ほかの行は「準備中です」。アカウント情報は 08e を開く。
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -67,7 +67,10 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-// 項目の並び。同期(#150)は、電話機の行の行き先と番号を差し替える。
+// 電話機が結び付いていなければ、まだ同期していない
+String _phoneStatus(WatchedPerson? person) =>
+    person != null && person.hasPhone ? '同期済み' : 'まだ同期していません';
+
 List<List<_Entry>> _groups({
   required WatchedPerson? person,
   required String email,
@@ -98,12 +101,12 @@ List<List<_Entry>> _groups({
     ),
   ],
   [
-    const _Entry(
+    _Entry(
       label: '同期している電話機',
-      value: _samplePhone,
+      value: _phoneStatus(person),
       action: _Action.phone,
     ),
-    _Entry(label: 'かけなおしのルール', value: retrySummary, action: _Action.comingSoon),
+    _Entry(label: 'かけなおしのルール', value: retrySummary, action: _Action.retry),
   ],
   [_Entry(label: 'アカウント情報', value: email, action: _Action.account)],
 ];
@@ -113,8 +116,9 @@ void _open(BuildContext context, _Action action) {
     case _Action.account:
       context.pushNamed(AppRoutes.accountInfo);
     case _Action.phone:
-      // #150 は、ここを同期の画面を開く処理に差し替える。
-      showComingSoon(context);
+      context.pushNamed(AppRoutes.settingsSync);
+    case _Action.retry:
+      context.pushNamed(AppRoutes.retryRule);
     case _Action.comingSoon:
       showComingSoon(context);
   }

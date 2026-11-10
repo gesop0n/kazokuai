@@ -206,6 +206,41 @@ func TestSeedCreatesTheWeekAndResetsIt(t *testing.T) {
 	}
 }
 
+func TestSeedKeepsThePhoneLink(t *testing.T) {
+	store, accounts := openEmulator(t)
+	ctx := t.Context()
+	const email = "judge-link@example.com"
+	today := time.Date(2026, 11, 5, 8, 0, 0, 0, tokyo)
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", today)
+
+	person := store.Collection("watchedPersons").Doc("tanaka-hana")
+	syncedAt := time.Date(2026, 11, 4, 3, 0, 0, 0, time.UTC)
+	if _, err := person.Update(ctx, []firestore.Update{
+		{Path: "name", Value: "変わった名前"},
+		{Path: "phoneId", Value: "phone-judge"},
+		{Path: "syncedAt", Value: syncedAt},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", today)
+	doc, err := person.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := doc.Data()
+	if data["name"] != samplePersonName {
+		t.Fatalf("名前 = %v, want %s", data["name"], samplePersonName)
+	}
+	if data["phoneId"] != "phone-judge" {
+		t.Fatalf("電話機 = %v, want phone-judge", data["phoneId"])
+	}
+	at, ok := data["syncedAt"].(time.Time)
+	if !ok || !at.Equal(syncedAt) {
+		t.Fatalf("結び付けた時刻 = %v, want %v", data["syncedAt"], syncedAt)
+	}
+}
+
 func assertJudgeName(t *testing.T, ctx context.Context, accounts *auth.Client, uid string) {
 	t.Helper()
 	user, err := accounts.GetUser(ctx, uid)

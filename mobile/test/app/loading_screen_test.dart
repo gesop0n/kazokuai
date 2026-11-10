@@ -10,6 +10,7 @@ import 'package:kazokuai/design/app_text_styles.dart';
 import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
 import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
+import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_calls_repository.dart';
@@ -72,6 +73,7 @@ void main() {
     expect(find.bySemanticsLabel('読み込んでいます'), findsNothing);
     expect(find.byType(HomeScreen), findsNothing);
     expect(find.byType(WatchedPersonNameScreen), findsNothing);
+    expect(find.byType(SyncScreen), findsNothing);
   });
 
   testWidgets('答えが 10 秒来ないと、知らせと読み直しのボタンが出る', (tester) async {
@@ -120,7 +122,7 @@ void main() {
     expect(find.text(_notice), findsNothing);
   });
 
-  testWidgets('答えが来ないまま読み直して、見守る方がいなければ L6 が開く', (tester) async {
+  testWidgets('答えが来ないまま読み直して、見守る方がいなければ L3 が開く', (tester) async {
     final watchedPerson = FakeWatchedPersonRepository(
       status: WatchedPersonStatus.unknown,
     );
@@ -137,7 +139,8 @@ void main() {
     watchedPerson.status.value = WatchedPersonStatus.none;
     await tester.pumpAndSettle();
 
-    expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+    expect(find.byType(SyncScreen), findsOneWidget);
+    expect(find.byType(WatchedPersonNameScreen), findsNothing);
     expect(find.text(_notice), findsNothing);
   });
 

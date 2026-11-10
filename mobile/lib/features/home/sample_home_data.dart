@@ -7,7 +7,13 @@ HomeData sampleHomeDataFor(HomeStatus status) => HomeData(
     HomeStatus.normal => DateTime(2026, 11, 5, 10, 24),
     HomeStatus.missedCall => DateTime(2026, 11, 5, 9, 31),
   },
-  person: const WatchedPerson(name: '田中ハナ', callName: 'ハナさん', initial: 'ハ'),
+  // モックの 08 は、この見守る方に電話機が結び付いている
+  person: const WatchedPerson(
+    name: '田中ハナ',
+    callName: 'ハナさん',
+    initial: 'ハ',
+    hasPhone: true,
+  ),
   latestCall: _latestCall,
   missedCall: _missedCall,
 );

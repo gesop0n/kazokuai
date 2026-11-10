@@ -20,6 +20,7 @@ enum AppIcons {
   play('play'),
   plus('plus'),
   x('x'),
+  delete('delete'),
   chevronLeft('chevron-left'),
   chevronRight('chevron-right'),
   sparkles('sparkles'),

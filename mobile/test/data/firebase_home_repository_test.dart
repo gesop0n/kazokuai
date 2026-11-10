@@ -93,6 +93,35 @@ void main() {
     }
   });
 
+  testWidgets('同期が終わると、Firestore の知らせより先に電話機がある', (tester) async {
+    final firestore = FakeFirebaseFirestore();
+    await _person(firestore);
+    final repository = _open(tester, firestore);
+    try {
+      await tester.pump();
+      expect(repository.view.value!.person.hasPhone, isFalse);
+
+      repository.notePhoneLinked();
+      expect(repository.view.value!.person.hasPhone, isTrue);
+
+      await firestore.collection('watchedPersons').doc('hanako').update({
+        'callName': 'ハナちゃん',
+      });
+      await tester.pump();
+
+      expect(repository.view.value!.person.callName, 'ハナちゃん');
+      expect(repository.view.value!.person.hasPhone, isTrue);
+
+      await firestore.collection('watchedPersons').doc('hanako').update({
+        'phoneId': 'phone-1',
+      });
+      await tester.pump();
+      expect(repository.view.value!.person.hasPhone, isTrue);
+    } finally {
+      repository.dispose();
+    }
+  });
+
   testWidgets('アプリに戻ると、その時刻で今日の様子を計算し直す', (tester) async {
     final firestore = FakeFirebaseFirestore();
     await _person(firestore);

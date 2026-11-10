@@ -12,7 +12,7 @@ import 'package:kazokuai/design/widgets/app_button.dart';
 import 'package:kazokuai/features/account/login_screen.dart';
 import 'package:kazokuai/features/account/welcome_screen.dart';
 import 'package:kazokuai/features/home/home_screen.dart';
-import 'package:kazokuai/features/setup/watched_person_name_screen.dart';
+import 'package:kazokuai/features/sync/sync_screen.dart';
 
 import '../support/fake_auth_repository.dart';
 import '../support/fake_watched_person_repository.dart';
@@ -347,7 +347,7 @@ void main() {
     expect(button(tester, 'Googleで登録').onTap, isNotNull);
   });
 
-  testWidgets('両方に同意すると登録でき、メールアドレスとパスワードがデータ層に届き、L6 が開く', (tester) async {
+  testWidgets('両方に同意すると登録でき、メールアドレスとパスワードがデータ層に届き、L3 が開く', (tester) async {
     final auth = FakeAuthRepository();
     await pumpApp(tester, auth);
     await openRegister(tester);
@@ -368,7 +368,8 @@ void main() {
 
     expect(auth.submittedEmail, 'misaki@example.com');
     expect(auth.submittedPassword, 'hanasan1234');
-    expect(find.byType(WatchedPersonNameScreen), findsOneWidget);
+    expect(find.byType(SyncScreen), findsOneWidget);
+    expect(find.text('電話機との同期を始めます。'), findsOneWidget);
     expect(find.byType(WelcomeScreen), findsNothing);
   });
 

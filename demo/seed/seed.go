@@ -9,6 +9,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"firebase.google.com/go/v4/auth"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // watchedPersonID は、見本の見守る方のドキュメント ID である。作り直しても変わらない。
@@ -75,11 +77,20 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 		return Result{}, err
 	}
 	person := store.Collection("watchedPersons").Doc(watchedPersonID)
-	if _, err := person.Set(ctx, map[string]any{
+	fields := map[string]any{
 		"name":       samplePersonName,
 		"callName":   sampleCallName,
 		"familyUids": []string{user.UID},
-	}); err != nil {
+	}
+	// 見本を書き直しても、電話機との結び付きは残す。審査の前にもう一度実行しても、同期は取り消さない。
+	kept, err := keptPhoneLink(ctx, person)
+	if err != nil {
+		return Result{}, err
+	}
+	for key, value := range kept {
+		fields[key] = value
+	}
+	if _, err := person.Set(ctx, fields); err != nil {
 		return Result{}, fmt.Errorf("見守る方を書けなかった: %w", err)
 	}
 	if err := deleteCalls(ctx, store, person); err != nil {
@@ -140,6 +151,27 @@ func upsertJudge(ctx context.Context, accounts *auth.Client, email, password str
 		return nil, fmt.Errorf("審査員のアカウントを戻せなかった: %w", err)
 	}
 	return updated, nil
+}
+
+// keptPhoneLink は、見本を書き直しても残す、電話機との結び付きである。
+// 結び付きが無いときと、文書がまだ無いときは nil を返す。
+func keptPhoneLink(ctx context.Context, person *firestore.DocumentRef) (map[string]any, error) {
+	snap, err := person.Get(ctx)
+	if status.Code(err) == codes.NotFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("見守る方を読めなかった: %w", err)
+	}
+	id, _ := snap.Data()["phoneId"].(string)
+	if id == "" {
+		return nil, nil
+	}
+	kept := map[string]any{"phoneId": id}
+	if at, ok := snap.Data()["syncedAt"].(time.Time); ok && !at.IsZero() {
+		kept["syncedAt"] = at
+	}
+	return kept, nil
 }
 
 // releaseOtherPersons は、この審査員が結び付いている、見本以外の見守る方から審査員を外す。

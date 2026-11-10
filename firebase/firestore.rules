@@ -18,6 +18,12 @@ service cloud.firestore {
       }
     }
 
+    // 電話機。鍵のハッシュと、見守る方との結び付きを置く。アプリは読めない。
+    // 書き込みはバックエンドのサーバーの SDK だけで、このルールに縛られない。
+    match /phones/{phone} {
+      allow read, write: if false;
+    }
+
     // 家族かどうかは、見守る方のドキュメントにある familyUids で決める
     function isFamily(watchedPerson) {
       return request.auth != null

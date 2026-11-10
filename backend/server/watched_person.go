@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/firestore"
 )
@@ -27,6 +28,10 @@ type watchedPerson struct {
 	// FamilyUIDs は、この見守る方に結び付いた家族の uid である。
 	// セキュリティルールは、ここに uid がある家族にだけ、この見守る方を読ませる。
 	FamilyUIDs []string `firestore:"familyUids"`
+	// PhoneID は、結び付いている電話機の ID である。同期していないときは空である。
+	PhoneID string `firestore:"phoneId,omitempty"`
+	// SyncedAt は、電話機を結び付けた時刻である。
+	SyncedAt time.Time `firestore:"syncedAt,omitempty"`
 }
 
 // registration は、見守る方を登録する頼みの本文である。
@@ -48,15 +53,8 @@ var errAlreadyRegistered = errors.New("この家族には、すでに見守る�
 
 // registerWatchedPerson は、ID トークンを確かめた家族を家族の一覧に入れて、見守る方を作る。
 func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
-	idToken, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	uid, ok := s.familyUID(w, r)
 	if !ok {
-		http.Error(w, "Authorization ヘッダーに、家族の ID トークンを Bearer で入れてください", http.StatusUnauthorized)
-		return
-	}
-	token, err := s.firebase.Auth.VerifyIDToken(r.Context(), idToken)
-	if err != nil {
-		log.Printf("家族の ID トークンを確かめられなかった: %v", err)
-		http.Error(w, "家族の ID トークンを確かめられなかった", http.StatusUnauthorized)
 		return
 	}
 	var req registration
@@ -67,7 +65,7 @@ func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
 	person := watchedPerson{
 		Name:       strings.TrimSpace(req.Name),
 		CallName:   strings.TrimSpace(req.CallName),
-		FamilyUIDs: []string{token.UID},
+		FamilyUIDs: []string{uid},
 	}
 	if person.Name == "" || person.CallName == "" {
 		http.Error(w, "見守る方の名前と呼び方を入れてください", http.StatusBadRequest)
@@ -90,10 +88,13 @@ func (s *server) registerWatchedPerson(w http.ResponseWriter, r *http.Request) {
 }
 
 // createWatchedPerson は、家族にまだ見守る方がいなければ、見守る方のドキュメントを作ってその ID を返す。
-// 確かめることと作ることを 1 つのトランザクションにするので、同時に 2 回頼まれても 1 人しか作らない。
+// 名前が空の見守る方がいれば、そこに名前と呼び方を入れ、もう 1 人は作らない。
+// 確かめることと書くことを 1 つのトランザクションにするので、同時に 2 回頼まれても 1 人しか作らない。
+// 名前を入れたときも 201 になる。アプリは 201 を、登録できた印にしている。
 func createWatchedPerson(ctx context.Context, store *firestore.Client, person watchedPerson) (string, error) {
 	collection := store.Collection(watchedPersons)
-	ref := collection.NewDoc()
+	newRef := collection.NewDoc()
+	var id string
 	err := store.RunTransaction(ctx, func(ctx context.Context, tx *firestore.Transaction) error {
 		existing, err := tx.Documents(
 			collection.Where("familyUids", "array-contains", person.FamilyUIDs[0]).Limit(1),
@@ -102,14 +103,26 @@ func createWatchedPerson(ctx context.Context, store *firestore.Client, person wa
 			return err
 		}
 		if len(existing) > 0 {
-			return errAlreadyRegistered
+			var current watchedPerson
+			if err := existing[0].DataTo(&current); err != nil {
+				return err
+			}
+			if strings.TrimSpace(current.Name) != "" {
+				return errAlreadyRegistered
+			}
+			id = existing[0].Ref.ID
+			return tx.Update(existing[0].Ref, []firestore.Update{
+				{Path: "name", Value: person.Name},
+				{Path: "callName", Value: person.CallName},
+			})
 		}
-		return tx.Create(ref, person)
+		id = newRef.ID
+		return tx.Create(newRef, person)
 	})
 	if err != nil {
 		return "", err
 	}
-	return ref.ID, nil
+	return id, nil
 }
 
 // readWatchedPerson は、id の見守る方を Firestore から読む。
