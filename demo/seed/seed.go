@@ -110,12 +110,18 @@ func Seed(ctx context.Context, store *firestore.Client, accounts *auth.Client, r
 		}
 	}
 	// 見本の予約はここで直接書く。保存の道を通すとタスクができ、審査のあいだに鳴る。
+	// 番号は、同じ ID の今の番号より 1 つ進める。1 に戻すと、直したあとの番号が
+	// 動き続けている予定と重なり、もう一度直しても新しい時刻にかからない。
+	bookings := sampleBookings(day)
+	numbers, err := nextBookingNumbers(ctx, person, bookings)
+	if err != nil {
+		return Result{}, err
+	}
 	if err := deleteBookings(ctx, store, person); err != nil {
 		return Result{}, err
 	}
-	bookings := sampleBookings(day)
 	for _, booking := range bookings {
-		if err := writeBooking(ctx, store, person, booking); err != nil {
+		if err := writeBooking(ctx, store, person, booking, numbers[booking.id]); err != nil {
 			return Result{}, err
 		}
 	}
@@ -258,12 +264,49 @@ func deleteBookings(ctx context.Context, store *firestore.Client, person *firest
 	return deleteDocs(ctx, store, refs, "予約")
 }
 
-func writeBooking(ctx context.Context, store *firestore.Client, person *firestore.DocumentRef, booking sampleBooking) error {
+// nextBookingNumbers は、見本の予約ごとに、次に書く番号を返す。
+// 文書が無いときは 1、あるときは今の番号に 1 を足す。消す前に読む。
+func nextBookingNumbers(ctx context.Context, person *firestore.DocumentRef, bookings []sampleBooking) (map[string]int64, error) {
+	numbers := make(map[string]int64, len(bookings))
+	for _, booking := range bookings {
+		doc, err := person.Collection("bookings").Doc(booking.id).Get(ctx)
+		if status.Code(err) == codes.NotFound {
+			numbers[booking.id] = 1
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("予約 %s の番号を読めなかった: %w", booking.id, err)
+		}
+		number, ok := storedBookingNumber(doc.Data()["number"])
+		if !ok {
+			return nil, fmt.Errorf("予約 %s の番号を読めなかった", booking.id)
+		}
+		numbers[booking.id] = number + 1
+	}
+	return numbers, nil
+}
+
+func storedBookingNumber(value any) (int64, bool) {
+	switch n := value.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case float64:
+		return int64(n), true
+	default:
+		return 0, false
+	}
+}
+
+func writeBooking(ctx context.Context, store *firestore.Client, person *firestore.DocumentRef, booking sampleBooking, number int64) error {
+	// Set は文書を置き換える。taskPending は書かない。
+	// 見本にタスクは無く、印があると起動し直しがタスクを作ってしまう。
 	_, err := person.Collection("bookings").Doc(booking.id).Set(ctx, map[string]any{
 		"at":      booking.at,
 		"message": booking.message,
 		"script":  booking.script,
-		"number":  int64(1),
+		"number":  number,
 		"called":  false,
 		// 見本はタスクを作らない。起動時の読み直しは、これを見てかけない。
 		"sample": true,

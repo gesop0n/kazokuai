@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -15,7 +17,10 @@ import (
 	"cloud.google.com/go/firestore"
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"github.com/coder/websocket"
 
+	"github.com/gesop0n/kazokuai/backend/server"
+	"github.com/gesop0n/kazokuai/internal/clock/clocktest"
 	"github.com/gesop0n/kazokuai/internal/firebasetest"
 	"github.com/gesop0n/kazokuai/internal/protocol"
 )
@@ -288,7 +293,14 @@ func TestSeedReplacesSampleBookingsAfterTheRunDay(t *testing.T) {
 	today := time.Date(2026, 11, 10, 7, 15, 0, 0, tokyo)
 	got := seedJudge(t, ctx, store, accounts, email, "judge-pass-1", today)
 	person := store.Collection("watchedPersons").Doc("tanaka-hana")
-	assertSampleBookings(t, ctx, person, today)
+	// 前のテストが残した番号に依存しない。文書が無いときは 1 から始まる。
+	if err := deletePersonBookings(t, ctx, person); err != nil {
+		t.Fatal(err)
+	}
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", today)
+	assertSampleBookings(t, ctx, person, today, map[string]int64{
+		"話し相手": 1, "薬と戸締まりの確認": 1, "週末に帰ると伝える": 1,
+	})
 
 	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
 	if err != nil {
@@ -303,6 +315,12 @@ func TestSeedReplacesSampleBookingsAfterTheRunDay(t *testing.T) {
 		"script":  "余分です。",
 		"number":  int64(1),
 		"called":  false,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// 直したあとの番号を 1 に戻すと、次の編集が前の予定と重なる。
+	if _, err := person.Collection("bookings").Doc("sample-talk").Update(ctx, []firestore.Update{
+		{Path: "number", Value: int64(7)},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -325,15 +343,70 @@ func TestSeedReplacesSampleBookingsAfterTheRunDay(t *testing.T) {
 
 	later := time.Date(2026, 11, 12, 21, 0, 0, 0, tokyo)
 	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", later)
-	assertSampleBookings(t, ctx, person, later)
+	assertSampleBookings(t, ctx, person, later, map[string]int64{
+		"話し相手": 8, "薬と戸締まりの確認": 2, "週末に帰ると伝える": 2,
+	})
 	if _, err := extra.Collection("bookings").Doc("soon").Get(ctx); err == nil {
 		t.Fatal("消した見守る方の予約が残っている")
 	}
 }
 
+func TestReseededSampleRingsAtTheEditedTime(t *testing.T) {
+	store, accounts := openEmulator(t)
+	ctx := t.Context()
+	const email = "judge-reseed-ring@example.com"
+	now := time.Date(2026, 11, 10, 7, 15, 0, 0, tokyo)
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", now)
+	person := store.Collection("watchedPersons").Doc(watchedPersonID)
+	before, err := person.Collection("bookings").Doc("sample-talk").Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	number := asInt(before.Data()["number"])
+	clk := clocktest.New(now)
+	handler := server.New(server.Config{
+		ProjectID:   seedProject,
+		PhoneSecret: protocol.DevPhoneSecret,
+	}, server.Firebase{Firestore: store, Auth: accounts}, nil, nil, clk)
+	srv := httptest.NewServer(handler)
+	t.Cleanup(func() {
+		handler.Stop()
+		srv.Close()
+	})
+	conn := dialSeedPhone(t, srv.URL, watchedPersonID)
+	calls := readSeedPhoneCalls(conn)
+	waitSeedConnected(t, handler, watchedPersonID)
+	token := signInToken(t, email, "judge-pass-1")
+
+	later := now.Add(time.Hour)
+	editSeedBooking(t, srv.URL, token, "sample-talk", later, "一時間後", "ハナさん、一時間後です。")
+	waitSeedDeadline(t, clk, later)
+
+	seedJudge(t, ctx, store, accounts, email, "judge-pass-1", now)
+	doc, err := person.Collection("bookings").Doc("sample-talk").Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 編集で 1 つ進み、入れ直しでさらにもう 1 つ進む。前の番号には戻さない。
+	if _, ok := doc.Data()["taskPending"]; ok || doc.Data()["sample"] != true || asInt(doc.Data()["number"]) != number+2 {
+		t.Fatalf("入れ直し = sample %v number %v taskPending %v, want number %d", doc.Data()["sample"], doc.Data()["number"], doc.Data()["taskPending"], number+2)
+	}
+
+	near := now.Add(3 * time.Minute)
+	const script = "ハナさん、お薬は飲みましたか。"
+	editSeedBooking(t, srv.URL, token, "sample-talk", near, "薬の確認", script)
+	waitSeedDeadline(t, clk, near)
+	clk.Advance(3 * time.Minute)
+	got := receiveSeedCall(t, calls)
+	if callScript(t, ctx, person, got.CallID) != script {
+		t.Fatalf("通話内容 = %v", callScript(t, ctx, person, got.CallID))
+	}
+}
+
 // assertSampleBookings は、見本の予約が day の翌日以降に 3 件あり、タスクが無いことを確かめる。
-// 中身はモックの予約である。モックの「今日」は実行した日には置かない。
-func assertSampleBookings(t *testing.T, ctx context.Context, person *firestore.DocumentRef, day time.Time) {
+// numbers は、伝えたいことごとの予約番号である。中身はモックの予約である。
+// モックの「今日」は実行した日には置かない。taskPending は付けない。
+func assertSampleBookings(t *testing.T, ctx context.Context, person *firestore.DocumentRef, day time.Time, numbers map[string]int64) {
 	t.Helper()
 	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
 	if err != nil {
@@ -380,9 +453,9 @@ func assertSampleBookings(t *testing.T, ctx context.Context, person *firestore.D
 		if !time.Date(by, bm, bd, 0, 0, 0, 0, tokyo).After(runDay) {
 			t.Fatalf("%s の日 = %v, want %s の翌日以降", message, at, runDay.Format("2006-01-02"))
 		}
-		// 見本はタスクを作らない。かけた印も、かけた電話も無い。
-		if fields["sample"] != true || fields["called"] != false || asInt(fields["number"]) != 1 {
-			t.Fatalf("%s のタスク = sample %v called %v number %v", message, fields["sample"], fields["called"], fields["number"])
+		// 見本はタスクを作らない。かけた印も、かけた電話も、登録待ちの印も無い。
+		if _, ok := fields["taskPending"]; ok || fields["sample"] != true || fields["called"] != false || asInt(fields["number"]) != numbers[message] {
+			t.Fatalf("%s のタスク = sample %v called %v number %v taskPending %v", message, fields["sample"], fields["called"], fields["number"], fields["taskPending"])
 		}
 		if id, _ := fields["callId"].(string); id != "" {
 			t.Fatalf("%s にかけた電話がある: %s", message, id)
@@ -735,6 +808,166 @@ func openEmulator(t *testing.T) (*firestore.Client, *auth.Client) {
 		t.Fatal(err)
 	}
 	return store, accounts
+}
+
+func deletePersonBookings(t *testing.T, ctx context.Context, person *firestore.DocumentRef) error {
+	t.Helper()
+	docs, err := person.Collection("bookings").Documents(ctx).GetAll()
+	if err != nil {
+		return err
+	}
+	for _, doc := range docs {
+		if _, err := doc.Ref.Delete(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func signInToken(t *testing.T, email, password string) string {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"email": email, "password": password, "returnSecureToken": true,
+		"targetProjectId": seedProject,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	url := "http://" + os.Getenv("FIREBASE_AUTH_EMULATOR_HOST") + "/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=emulator"
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer owner")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("ログイン = %d", resp.StatusCode)
+	}
+	var parsed struct {
+		IDToken string `json:"idToken"`
+	}
+	if json.Unmarshal(data, &parsed) != nil || parsed.IDToken == "" {
+		t.Fatal("ログインのトークンが無かった")
+	}
+	return parsed.IDToken
+}
+
+func editSeedBooking(t *testing.T, backend, token, id string, at time.Time, message, script string) {
+	t.Helper()
+	body, err := json.Marshal(protocol.BookingBody{At: at, Message: message, Script: script})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, backend+protocol.BookingPath+"/"+id, bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("直す = %d %s", resp.StatusCode, data)
+	}
+}
+
+func dialSeedPhone(t *testing.T, backend, person string) *websocket.Conn {
+	t.Helper()
+	u, err := url.Parse(backend)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Scheme = "ws"
+	u.Path = protocol.PhonePath
+	u.RawQuery = url.Values{"watchedPerson": {person}}.Encode()
+	header := http.Header{}
+	header.Set(protocol.PhoneSecretHeader, protocol.DevPhoneSecret)
+	conn, _, err := websocket.Dial(t.Context(), u.String(), &websocket.DialOptions{HTTPHeader: header})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { conn.CloseNow() })
+	return conn
+}
+
+func readSeedPhoneCalls(conn *websocket.Conn) <-chan protocol.PhoneMessage {
+	calls := make(chan protocol.PhoneMessage, 1)
+	go func() {
+		for {
+			_, data, err := conn.Read(context.Background())
+			if err != nil {
+				return
+			}
+			var msg protocol.PhoneMessage
+			if json.Unmarshal(data, &msg) != nil || msg.Type != protocol.PhoneTypeCall {
+				continue
+			}
+			calls <- msg
+		}
+	}()
+	return calls
+}
+
+func waitSeedConnected(t *testing.T, handler *server.Handler, personID string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !handler.Connected(personID) {
+		if time.Now().After(deadline) {
+			t.Fatal("電話機がつながらなかった")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
+func waitSeedDeadline(t *testing.T, clk *clocktest.Clock, deadline time.Time) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		clk.WaitForDeadline(deadline)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("予約の時刻のタイマーができなかった")
+	}
+}
+
+func receiveSeedCall(t *testing.T, calls <-chan protocol.PhoneMessage) protocol.PhoneMessage {
+	t.Helper()
+	select {
+	case got := <-calls:
+		return got
+	case <-time.After(2 * time.Second):
+		t.Fatal("電話機に電話が来なかった")
+	}
+	return protocol.PhoneMessage{}
+}
+
+func callScript(t *testing.T, ctx context.Context, person *firestore.DocumentRef, callID string) string {
+	t.Helper()
+	doc, err := person.Collection("calls").Doc(callID).Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	script, _ := doc.Data()["script"].(string)
+	return script
 }
 
 func signInStatus(t *testing.T, email, password string) int {
