@@ -8,7 +8,6 @@ import 'package:kazokuai/features/ask/ask_screen.dart';
 import 'package:kazokuai/features/booking/booking_data.dart';
 import 'package:kazokuai/features/calls/calls_data.dart';
 
-import '../../support/fake_bookings_repository.dart';
 import '../../support/fake_call_progress_repository.dart';
 import '../../support/fake_call_script_repository.dart';
 import '../../support/fake_calls_repository.dart';
@@ -60,6 +59,22 @@ Future<void> _pump(
   FakeCallsRepository? calls,
   DateTime? now,
 }) {
+  return _pumpClock(
+    tester,
+    () => now ?? sampleBookingDay,
+    layout: layout,
+    log: log,
+    calls: calls,
+  );
+}
+
+Future<void> _pumpClock(
+  WidgetTester tester,
+  DateTime Function() now, {
+  LayoutCase layout = _layout,
+  CallLog? log,
+  FakeCallsRepository? calls,
+}) {
   return pumpScreenInLayout(
     tester,
     layout,
@@ -72,7 +87,7 @@ Future<void> _pump(
       callsRepositoryProvider.overrideWithValue(
         calls ?? FakeCallsRepository(log: log),
       ),
-      mockBookingNow(now),
+      bookingNowProvider.overrideWithValue(now),
     ],
   );
 }
@@ -385,6 +400,52 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('7:30'), findsOneWidget);
       expect(find.text('8:30'), findsNothing);
+    });
+
+    testWidgets('選んでいるあいだに1分以内になった時刻は、決定できない', (tester) async {
+      var now = DateTime(2026, 11, 10, 15, 2);
+      await _pumpClock(tester, () => now);
+      await _open(tester);
+
+      await tester.tap(find.bySemanticsLabel('11月10日、今日'));
+      await tester.pumpAndSettle();
+      await _spin(tester, _hourWheel(), 15);
+      await _spin(tester, _minuteWheel(), 1);
+      final confirm = find.widgetWithText(AppButton, '11/10(火) 15:05にする');
+      expect(tester.widget<AppButton>(confirm).onTap, isNotNull);
+
+      now = DateTime(2026, 11, 10, 15, 4, 30);
+      await tester.tap(find.bySemanticsLabel('11月10日、今日'));
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<AppButton>(confirm).onTap, isNull);
+      await tester.tap(confirm, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('2026年11月'), findsOneWidget);
+      expect(find.text('8:30'), findsOneWidget);
+      expect(find.text('15:05'), findsNothing);
+    });
+
+    testWidgets('1分以内になるまで待つと、決定できなくなる', (tester) async {
+      var now = DateTime(2026, 11, 10, 15, 2);
+      await _pumpClock(tester, () => now);
+      await _open(tester);
+
+      await tester.tap(find.bySemanticsLabel('11月10日、今日'));
+      await tester.pumpAndSettle();
+      await _spin(tester, _hourWheel(), 15);
+      await _spin(tester, _minuteWheel(), 1);
+      final confirm = find.widgetWithText(AppButton, '11/10(火) 15:05にする');
+      expect(tester.widget<AppButton>(confirm).onTap, isNotNull);
+
+      now = DateTime(2026, 11, 10, 15, 4, 30);
+      await tester.pump(const Duration(minutes: 2));
+
+      expect(tester.widget<AppButton>(confirm).onTap, isNull);
+      await tester.tap(confirm, warnIfMissed: false);
+      await tester.pumpAndSettle();
+      expect(find.text('2026年11月'), findsOneWidget);
+      expect(find.text('15:05'), findsNothing);
     });
 
     testWidgets('今日から 30 日先までで、1 分以内は決められない', (tester) async {

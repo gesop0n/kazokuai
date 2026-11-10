@@ -25,10 +25,12 @@ class BookingEditRoute extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(bookingsRepositoryProvider);
-    final now = ref.watch(bookingNowProvider)();
+    final clock = ref.watch(bookingNowProvider);
     return ValueListenableBuilder(
       valueListenable: repository.bookings,
       builder: (context, bookings, _) {
+        // 出し直しの通知では、この build は走らない。ここで読まないと過ぎた予約を直せる。
+        final now = clock();
         if (bookings == null) return const SizedBox.expand();
         for (final booking in upcomingBookings(bookings, now)) {
           if (booking.id == id) return BookingEditScreen(booking: booking);
@@ -177,7 +179,8 @@ class _BookingEditScreenState extends ConsumerState<BookingEditScreen> {
   @override
   Widget build(BuildContext context) {
     final message = _messageController.text.trim();
-    final now = ref.watch(bookingNowProvider)();
+    final clock = ref.watch(bookingNowProvider);
+    final now = clock();
     final at = DateTime(
       _date.year,
       _date.month,
@@ -200,7 +203,7 @@ class _BookingEditScreenState extends ConsumerState<BookingEditScreen> {
         ),
         CallScriptCard(script: _cardText),
         DateTimeFields(
-          now: now,
+          now: clock,
           date: _date,
           time: _time,
           onDateChanged: (date) => setState(() => _date = date),

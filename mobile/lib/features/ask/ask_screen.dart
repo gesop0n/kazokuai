@@ -152,7 +152,7 @@ class _AskScreenState extends ConsumerState<AskScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
     final picked = await showDateTimeSheet(
       context,
-      now: ref.read(bookingNowProvider)(),
+      now: ref.read(bookingNowProvider),
       initial: DateTime(
         _date.year,
         _date.month,

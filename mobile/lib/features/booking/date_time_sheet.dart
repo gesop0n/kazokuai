@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 
@@ -60,10 +62,10 @@ const _fade = LinearGradient(
 );
 
 // 決定した日時を返す。閉じただけなら null で、01 の日時は変えない。
-// now は端末の今。今日から 30 日先まで、今から 1 分よりあとだけ決められる。
+// now はその場の今。今日から 30 日先まで、今から 1 分よりあとだけ決められる。
 Future<DateTime?> showDateTimeSheet(
   BuildContext context, {
-  required DateTime now,
+  required DateTime Function() now,
   required DateTime initial,
 }) {
   return showModalBottomSheet<DateTime>(
@@ -83,7 +85,8 @@ Future<DateTime?> showDateTimeSheet(
 class DateTimeSheet extends StatefulWidget {
   const DateTimeSheet({super.key, required this.now, required this.initial});
 
-  final DateTime now;
+  // 開いたときの時刻で固定しない。選んでいるあいだに、1 分以内へ入ることがある。
+  final DateTime Function() now;
   final DateTime initial;
 
   @override
@@ -107,6 +110,10 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
   int _minuteSpin = 0;
   int? _heldMinute;
 
+  // 選んだ時刻が今から 1 分ちょうどになるときに、決定できるかを描き直す。
+  Timer? _clockTimer;
+  DateTime? _armedFor;
+
   @override
   void initState() {
     super.initState();
@@ -123,14 +130,15 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
 
   @override
   void dispose() {
+    _clockTimer?.cancel();
     _hourController.dispose();
     _minuteController.dispose();
     super.dispose();
   }
 
-  DateTime get _today => bookingDay(widget.now);
+  DateTime get _today => bookingDay(widget.now());
 
-  DateTime get _lastDay => bookingLastDay(widget.now);
+  DateTime get _lastDay => bookingLastDay(widget.now());
 
   DateTime _clampDay(DateTime day) {
     if (day.isBefore(_today)) return _today;
@@ -253,16 +261,45 @@ class _DateTimeSheetState extends State<DateTimeSheet> {
     _minute,
   );
 
-  // 今から 1 分ちょうどと、30 日より先は決められない。
-  bool get _canConfirm => canBookAt(_selectedAt, widget.now);
+  // 今から 1 分ちょうどと、30 日より先は決められない。描くときと、決定のときに読む。
+  bool get _canConfirm => canBookAt(_selectedAt, widget.now());
+
+  // 選んだ時刻が 1 分以内に入る瞬間だけ描き直す。毎フレームは回さない。
+  void _armClock() {
+    final now = widget.now();
+    final at = _selectedAt;
+    if (!canBookAt(at, now)) {
+      _clockTimer?.cancel();
+      _clockTimer = null;
+      _armedFor = null;
+      return;
+    }
+    final invalidAt = at.subtract(const Duration(minutes: 1));
+    if (_armedFor == invalidAt && _clockTimer != null) return;
+    _clockTimer?.cancel();
+    _armedFor = invalidAt;
+    final delay = invalidAt.difference(now);
+    if (delay <= Duration.zero) {
+      _clockTimer = null;
+      return;
+    }
+    _clockTimer = Timer(delay, () {
+      if (!mounted) return;
+      setState(() {});
+    });
+  }
 
   void _confirm() {
-    if (!_canConfirm) return;
+    if (!_canConfirm) {
+      setState(() {});
+      return;
+    }
     Navigator.pop(context, _selectedAt);
   }
 
   @override
   Widget build(BuildContext context) {
+    _armClock();
     final label =
         '${formatPickDate(_selectedDay)} ${formatSheetTime(_hour, _minute)}にする';
     return Container(

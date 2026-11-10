@@ -206,6 +206,42 @@ void main() {
       );
     });
 
+    testWidgets('時刻を過ぎて一覧を出し直すと、その予約は残らない', (tester) async {
+      var now = DateTime(2026, 11, 10, 15);
+      final repository = FakeBookingsRepository(
+        bookings: [
+          BookedCall(
+            id: 'soon',
+            at: DateTime(2026, 11, 10, 15, 2),
+            message: 'すぐの電話',
+            script: '「すぐ」',
+          ),
+        ],
+      );
+      await pumpScreenInLayout(
+        tester,
+        _standardLayout,
+        const BookingScreen(),
+        overrides: [
+          bookingsRepositoryProvider.overrideWithValue(repository),
+          bookingNowProvider.overrideWithValue(() => now),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('すぐの電話'), findsOneWidget);
+      expect(find.text('今日 15:02'), findsOneWidget);
+
+      now = DateTime(2026, 11, 10, 15, 3);
+      repository.bookings.value = List<BookedCall>.of(
+        repository.bookings.value!,
+      );
+      await tester.pump();
+
+      expect(find.text('すぐの電話'), findsNothing);
+      expect(find.text('今日 15:02'), findsNothing);
+    });
+
     testWidgets('これからの予約がなければ、見本は出さない', (tester) async {
       await _pumpBooking(tester, bookings: const []);
 

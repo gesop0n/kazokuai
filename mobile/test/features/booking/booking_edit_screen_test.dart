@@ -299,6 +299,75 @@ void main() {
     });
   }
 
+  testWidgets('時刻を過ぎて一覧を出し直すと、その予約は直せない', (tester) async {
+    var now = DateTime(2026, 11, 10, 15);
+    final repository = FakeBookingsRepository(
+      bookings: [
+        BookedCall(
+          id: 'soon',
+          at: DateTime(2026, 11, 10, 15, 2),
+          message: 'すぐの電話',
+          script: '「すぐ」',
+        ),
+      ],
+    );
+    await pumpScreenInLayout(
+      tester,
+      const LayoutCase(393, 1.0),
+      const BookingEditRoute(id: 'soon'),
+      overrides: [
+        bookingsRepositoryProvider.overrideWithValue(repository),
+        bookingNowProvider.overrideWithValue(() => now),
+      ],
+    );
+    await tester.pump();
+
+    expect(find.text('予約の編集'), findsOneWidget);
+    expect(find.text('すぐの電話'), findsOneWidget);
+
+    now = DateTime(2026, 11, 10, 15, 3);
+    repository.bookings.value = List<BookedCall>.of(repository.bookings.value!);
+    await tester.pump();
+
+    expect(find.text('このページは開けません'), findsOneWidget);
+    expect(find.text('予約の編集'), findsNothing);
+  });
+
+  testWidgets('時刻を選んでいるあいだに1分以内になったら、欄は変わらない', (tester) async {
+    var now = DateTime(2026, 11, 10, 15, 2);
+    tester.platformDispatcher.alwaysUse24HourFormatTestValue = true;
+    addTearDown(tester.platformDispatcher.clearAlwaysUse24HourTestValue);
+    await pumpScreenInLayout(
+      tester,
+      const LayoutCase(393, 1.0),
+      BookingEditScreen(
+        booking: BookedCall(
+          id: 'later',
+          at: DateTime(2026, 11, 10, 16),
+          message: '夕方の伝言',
+          script: '「夕方」',
+        ),
+      ),
+      overrides: [
+        bookingNowProvider.overrideWithValue(() => now),
+        callScriptRepositoryProvider.overrideWithValue(
+          FakeCallScriptRepository(),
+        ),
+      ],
+    );
+    await tester.pump();
+
+    await tester.tap(find.bySemanticsLabel('時刻'));
+    await tester.pumpAndSettle();
+    await _enterTime(tester, '15', '05');
+    now = DateTime(2026, 11, 10, 15, 4, 30);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('16:00'), findsOneWidget);
+    expect(find.text('15:05'), findsNothing);
+  });
+
   testWidgets('日付は今日から 30 日先までで、近すぎる時刻は入らない', (tester) async {
     final now = DateTime(2026, 11, 10, 15, 9);
     // 入力した 15 時を、12 時間表記の検査で落さない。

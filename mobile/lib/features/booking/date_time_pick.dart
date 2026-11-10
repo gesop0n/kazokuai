@@ -18,16 +18,18 @@ class DateTimeFields extends StatelessWidget {
     required this.onTimeChanged,
   });
 
-  // 端末の今。今日から 30 日先まで選べる。
-  final DateTime now;
+  // 端末の今を、選んだ瞬間に読む。開いたときの時刻のままだと、
+  // ピッカーを出しているあいだに 1 分以内になっても入ってしまう。
+  final DateTime Function() now;
   final DateTime date;
   final TimeOfDay time;
   final ValueChanged<DateTime> onDateChanged;
   final ValueChanged<TimeOfDay> onTimeChanged;
 
   Future<void> _pickDate(BuildContext context) async {
-    final today = bookingDay(now);
-    final last = bookingLastDay(now);
+    final current = now();
+    final today = bookingDay(current);
+    final last = bookingLastDay(current);
     // 開いている予約の日が範囲の外でも、ピッカーが落ちないように収める。
     var initial = date;
     if (initial.isBefore(today)) initial = today;
@@ -52,8 +54,8 @@ class DateTimeFields extends StatelessWidget {
       picked.hour,
       picked.minute,
     );
-    // 今から 1 分以内と、30 日より先は時刻にしない。
-    if (!canBookAt(at, now)) return;
+    // 閉じたときの今で見る。開いたときに 1 分よりあとでも、閉じるまでに入ることがある。
+    if (!canBookAt(at, now())) return;
     onTimeChanged(picked);
   }
 

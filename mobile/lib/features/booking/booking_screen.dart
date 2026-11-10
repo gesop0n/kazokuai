@@ -67,10 +67,12 @@ class _BookedCallsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final repository = ref.watch(bookingsRepositoryProvider);
-    final now = ref.watch(bookingNowProvider)();
+    final clock = ref.watch(bookingNowProvider);
     return ValueListenableBuilder(
       valueListenable: repository.bookings,
       builder: (context, bookings, _) {
+        // 出し直しの通知では、この build は走らない。ここで読まないと過ぎた予約が残る。
+        final now = clock();
         // 読み終えるまでは行を出さない。案内の見本も、空だと決まるまで出さない。
         final upcoming = bookings == null
             ? const <BookedCall>[]
